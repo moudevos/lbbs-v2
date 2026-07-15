@@ -1,0 +1,24 @@
+
+> lbbs-v2@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.18.19:3000
+- Environments: .env.local
+✓ Ready in 1532ms
+Creating turbopack project {
+  dir: 'D:\\proyectos_programacion\\proyectos_varios\\lbbs_Dash_v2\\lbbs-v2',
+  testMode: true
+}
+
+○ Compiling /control/pos ...
+ GET /api/admin/pos/bootstrap 500 in 5.9s (next.js: 3.7s, application-code: 2.1s)
+ GET /pos?session_id=438d9524-4675-4f9e-a8bc-c3750e204c84 200 in 11.4s (next.js: 9.4s, application-code: 2.1s)
+ GET /control/pos 200 in 11.5s (next.js: 10.0s, application-code: 1477ms)
+ GET /api/admin/pos/bootstrap?sessionId=438d9524-4675-4f9e-a8bc-c3750e204c84 200 in 3.2s (next.js: 22ms, application-code: 3.2s)
+ GET /api/admin/pos/bootstrap 200 in 1455ms (next.js: 9ms, application-code: 1446ms)
+ GET /api/auth/me 200 in 2.1s (next.js: 1288ms, application-code: 831ms)
+ GET /api/admin/products?branchId=c129ed18-f027-4b19-9fb5-bef43e5f410f 200 in 1237ms (next.js: 724ms, application-code: 513ms)
+ GET /api/admin/employees 200 in 1242ms (next.js: 1026ms, application-code: 216ms)
+ GET /api/admin/services?branchId=c129ed18-f027-4b19-9fb5-bef43e5f410f 200 in 1476ms (next.js: 918ms, application-code: 558ms)

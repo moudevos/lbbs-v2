@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { requireAdminSession } from "@/lib/supabase/route-auth";
+function available(error: { code?: string } | null) { return !error || error.code !== "PGRST205"; }
+export async function GET() { const auth = await requireAdminSession(); if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status }); const supabase = await createClient(); const [sales, snapshots, role] = await Promise.all([supabase.from("sales").select("id").limit(1), supabase.from("sale_document_snapshots").select("id").limit(1), supabase.rpc("current_user_role")]); const projectHost = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host : null; return NextResponse.json({ connectionAvailable: !sales.error, salesTableAvailable: available(sales.error), snapshotTableAvailable: available(snapshots.error), currentRoleRpcAvailable: !role.error, projectHost, timestamp: new Date().toISOString() }); }

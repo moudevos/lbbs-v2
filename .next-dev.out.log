@@ -1,0 +1,46 @@
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+- Environments: .env.local
+✓ Ready in 1676ms
+Creating turbopack project {
+  dir: 'D:\\proyectos_programacion\\proyectos_varios\\lbbs_Dash_v2\\lbbs-v2',
+  testMode: true
+}
+
+○ Compiling /login ...
+ GET /login 200 in 5.2s (next.js: 4.6s, application-code: 657ms)
+ GET /login 200 in 109ms (next.js: 23ms, application-code: 85ms)
+ GET /control 200 in 1345ms (next.js: 1150ms, application-code: 195ms)
+ GET /login 200 in 177ms (next.js: 16ms, application-code: 161ms)
+ GET /control 200 in 369ms (next.js: 12ms, application-code: 357ms)
+ GET /control 200 in 436ms (next.js: 159ms, application-code: 277ms)
+○ Compiling / ...
+ GET / 307 in 8.8s (next.js: 7.6s, application-code: 1206ms)
+ GET /login 200 in 342ms (next.js: 50ms, application-code: 291ms)
+✓ Compiled in 4.3s
+ GET /login 200 in 1108ms (next.js: 638ms, application-code: 470ms)
+ GET /login 200 in 245ms (next.js: 28ms, application-code: 217ms)
+ GET /login 200 in 116ms (next.js: 10ms, application-code: 106ms)
+ GET /login 200 in 116ms (next.js: 54ms, application-code: 62ms)
+✓ Compiled in 303ms
+ GET /login 200 in 352ms (next.js: 243ms, application-code: 109ms)
+✓ Compiled in 355ms
+ GET /login 200 in 380ms (next.js: 216ms, application-code: 165ms)
+ GET /login 200 in 93ms (next.js: 7ms, application-code: 86ms)
+ GET /login 200 in 54ms (next.js: 8ms, application-code: 46ms)
+✓ Compiled in 188ms
+ GET /login 200 in 351ms (next.js: 283ms, application-code: 68ms)
+✓ Compiled in 996ms
+ GET /login 200 in 1373ms (next.js: 651ms, application-code: 722ms)
+ GET /login 200 in 499ms (next.js: 25ms, application-code: 474ms)
+ GET /login 200 in 326ms (next.js: 35ms, application-code: 291ms)
+ GET /login 200 in 327ms (next.js: 185ms, application-code: 142ms)
+✓ Compiled in 290ms
+✓ Compiled in 399ms
+ GET /login 200 in 657ms (next.js: 338ms, application-code: 319ms)
+ GET /login 200 in 147ms (next.js: 21ms, application-code: 125ms)
+ GET /login 200 in 72ms (next.js: 9ms, application-code: 63ms)
+ GET /login 200 in 368ms (next.js: 7ms, application-code: 360ms)
+ GET /login 200 in 122ms (next.js: 9ms, application-code: 113ms)
+ GET /control 200 in 597ms (next.js: 215ms, application-code: 382ms)

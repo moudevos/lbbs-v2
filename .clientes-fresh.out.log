@@ -1,0 +1,17 @@
+
+> lbbs-v2@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.18.86:3000
+- Environments: .env.local
+✓ Ready in 2.0s
+Creating turbopack project {
+  dir: 'D:\\proyectos_programacion\\proyectos_varios\\lbbs_Dash_v2\\lbbs-v2',
+  testMode: true
+}
+
+ GET /control/customer 404 in 2.7s (next.js: 1610ms, application-code: 1120ms)
+ GET /sw.js 404 in 205ms (next.js: 31ms, application-code: 175ms)
+ GET /control/clientes 200 in 735ms (next.js: 131ms, application-code: 604ms)

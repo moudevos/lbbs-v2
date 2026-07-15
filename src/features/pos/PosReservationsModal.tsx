@@ -1,0 +1,18 @@
+"use client";
+
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import type { PosCustomerRecord } from "@/features/pos/pos-types";
+
+type Row = { id:string; status:"confirmed"|"checked_in"; time:string; customer:PosCustomerRecord|null; branchId:string; barberId:string|null; barberName:string|null; serviceId:string|null; serviceName:string|null; linkedSale:{id:string;status:string}|null };
+function todayLima(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Lima",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
+
+export function PosReservationsModal({ open, sessionId, onClose, onUse }:{open:boolean;sessionId:string;onClose:()=>void;onUse:(row:Row)=>void}) {
+  const [search,setSearch]=useState(""); const [date,setDate]=useState(todayLima()); const client=useQueryClient();
+  const query=useQuery({queryKey:["pos","eligible-reservations",sessionId,date,search],enabled:open&&Boolean(sessionId),queryFn:async()=>{const params=new URLSearchParams({sessionId,date,search});const response=await fetch(`/api/admin/pos/reservations?${params}`);const payload=await response.json();if(!response.ok)throw new Error(payload.error);return payload.data as Row[];}});
+  const checkIn=useMutation({mutationFn:async(id:string)=>{const response=await fetch(`/api/admin/pos/reservations/${id}/check-in`,{method:"POST"});const payload=await response.json();if(!response.ok)throw new Error(payload.error);return id;},onSuccess:async(id)=>{await client.invalidateQueries({queryKey:["pos","eligible-reservations",sessionId]});const row=query.data?.find((item)=>item.id===id);if(row)onUse({...row,status:"checked_in"});}});
+  return <Modal open={open} title="Reservas" onClose={onClose} confirmBeforeClose={false} size="lg" footer={<Button type="button" className="bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={onClose}>Cerrar</Button>}><div className="space-y-3"><div className="grid gap-2 sm:grid-cols-2"><Input type="date" value={date} onChange={(event)=>setDate(event.target.value)} /><Input value={search} onChange={(event)=>setSearch(event.target.value)} placeholder="Buscar cliente, celular o documento" /></div>{query.isLoading?<p className="text-sm text-slate-500">Cargando reservas...</p>:query.isError?<p className="text-sm text-rose-700">No se pudieron cargar las reservas. Intenta nuevamente.</p>:<div className="divide-y divide-slate-100">{(query.data??[]).map((row)=><div key={row.id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-sm font-semibold text-slate-900">{row.time} - {row.customer?.full_name??"Cliente"}</p><p className="text-xs text-slate-600">{row.customer?.phone??"Sin celular"} - {row.serviceName??"Servicio no especificado"}</p><p className="text-xs text-slate-500">{row.barberName??"Sin barbero sugerido"} - {row.status==="confirmed"?"Confirmada":"En tienda"}</p>{row.linkedSale?<p className="text-xs font-medium text-amber-700">{row.linkedSale.status==="draft"?"Venta en proceso":"Venta completada"}</p>:null}</div><Button type="button" disabled={Boolean(row.linkedSale)||checkIn.isPending} onClick={()=>row.status==="confirmed"?checkIn.mutate(row.id):onUse(row)}>{row.status==="confirmed"?(checkIn.isPending?"Marcando...":"Marcar en tienda y usar"):"Usar en venta"}</Button></div>)}{!query.data?.length?<p className="py-8 text-center text-sm text-slate-500">No hay reservas confirmadas o en tienda para esta sede y fecha.</p>:null}</div>}</div></Modal>;
+}

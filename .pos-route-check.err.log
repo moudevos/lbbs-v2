@@ -1,0 +1,17 @@
+[browser] [pos/ui] Error al cargar bootstrap {
+  message: [32m'La ruta de carga del POS no esta disponible. Reinicia el servidor de desarrollo.'[39m
+} 
+    at usePosWorkspace.useCallback[loadBootstrap] (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0d9ijc0._.js:2176:25) (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0d9ijc0._.js:2176:25)
+[browser] [pos/ui] Error al cargar bootstrap {
+  message: [32m'La ruta de carga del POS no esta disponible. Reinicia el servidor de desarrollo.'[39m
+} 
+    at usePosWorkspace.useCallback[loadBootstrap] (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0d9ijc0._.js:2176:25) (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0d9ijc0._.js:2176:25)
+[browser] [pos/ui] Error al cargar bootstrap {
+  message: [32m'La ruta de carga del POS no esta disponible. Reinicia el servidor de desarrollo.'[39m
+} 
+    at usePosWorkspace.useCallback[loadBootstrap] (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0u8kkq4._.js:2234:25) (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0u8kkq4._.js:2234:25)
+[browser] [pos/ui] Error al cargar bootstrap {
+  message: [32m'La ruta de carga del POS no esta disponible. Reinicia el servidor de desarrollo.'[39m
+} 
+    at usePosWorkspace.useCallback[loadBootstrap] (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0u8kkq4._.js:2234:25) (file://D:/proyectos_programacion/proyectos_varios/lbbs_Dash_v2/lbbs-v2/.next/dev/static/chunks/src_0u8kkq4._.js:2234:25)
+[pos/bootstrap] No se pudo leer el rol actual { message: undefined, code: undefined }
