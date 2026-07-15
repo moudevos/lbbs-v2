@@ -9,6 +9,7 @@ La aplicación está construida para ejecutarse en Vercel y utiliza Supabase com
 ### Operación
 
 - Inicio de sesión con Supabase Auth.
+- Recuperación, restablecimiento, cambio obligatorio y cambio autenticado de contraseña.
 - Panel de control protegido por rol.
 - Gestión de sedes, empleados, clientes y contactos.
 - Catálogo global de servicios, con precios especiales por sede.
@@ -164,8 +165,9 @@ Ejecuta los scripts en este orden, respetando las dependencias:
 41. `104_finance_manual_entries.sql`
 42. `105_payment_method_cash_semantics.sql`
 43. `106_settlement_review_adjustments.sql`
+44. `107_auth_password_security.sql`
 
-Los scripts posteriores a `085` corresponden a producción, compensaciones, documentos, cortesías, pagos, búsqueda, finanzas y revisión de liquidaciones. `src/sql/dev/098_reset_employee_compensation_test_data.sql` es únicamente para datos de prueba y no debe ejecutarse en producción.
+Los scripts posteriores a `085` corresponden a producción, compensaciones, documentos, cortesías, pagos, búsqueda, finanzas, revisión de liquidaciones y seguridad de contraseñas. `src/sql/dev/098_reset_employee_compensation_test_data.sql` es únicamente para datos de prueba y no debe ejecutarse en producción.
 
 El archivo [EMPLOYEE_COMPENSATION_ORDER.md](src/sql/EMPLOYEE_COMPENSATION_ORDER.md) resume las dependencias específicas del bloque de producción y liquidaciones.
 
@@ -221,6 +223,11 @@ src/
 ### Autenticación
 
 - `/login`: acceso con email y contraseña.
+- `/recuperar-contrasena`: solicitud de enlace con respuesta genérica.
+- `/auth/confirm`: callback PKCE o Token Hash de Supabase.
+- `/restablecer-contrasena`: creación de nueva contraseña desde un enlace válido.
+- `/cambiar-contrasena-obligatoria`: cambio requerido para accesos temporales.
+- `/control/mi-cuenta`: datos de cuenta, cambio autenticado y cierre de otras sesiones.
 
 ### Dashboard
 
@@ -325,6 +332,18 @@ Los mensajes de API deben ser entendibles para el usuario. Los detalles técnico
 - `src/lib/supabase/admin.ts`: cliente con service role, sólo servidor/admin.
 
 No importes `admin.ts` en un archivo con `"use client"`. No envíes la service role key al navegador.
+
+## Seguridad de contraseñas
+
+- La política exige 8 caracteres, mayúscula, minúscula, número y símbolo.
+- La recuperación devuelve siempre el mismo mensaje, exista o no el correo.
+- La ruta de confirmación acepta PKCE (`code`) y Token Hash (`token_hash`) sin registrar secretos.
+- Los cambios autenticados y obligatorios verifican la contraseña actual en servidor antes de actualizarla.
+- Al recuperar o cambiar una contraseña se solicita el cierre global de sesiones; desde `Mi cuenta` se pueden cerrar solamente las otras sesiones.
+- `must_change_password` bloquea el panel y las rutas de escritura hasta completar el cambio.
+- Los eventos se guardan en `audit_logs` sin contraseñas, tokens ni enlaces.
+
+Antes de habilitar recuperación en producción, ejecuta `107_auth_password_security.sql` y sigue [AUTH_PASSWORD_CONFIGURATION.md](docs/AUTH_PASSWORD_CONFIGURATION.md).
 
 ## Comandos
 

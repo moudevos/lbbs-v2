@@ -8,6 +8,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 
@@ -27,7 +28,7 @@ export function LoginForm() {
     event.preventDefault();
     setIsLoading(true);
 
-    let errorMessage = "";
+    let hasAuthenticationError = false;
 
     try {
       const supabase = createClient();
@@ -37,7 +38,7 @@ export function LoginForm() {
       });
 
       if (error) {
-        errorMessage = error.message;
+        hasAuthenticationError = true;
         console.error("[auth/login] Error de autenticacion", {
           message: error.message,
           status: error.status,
@@ -45,18 +46,15 @@ export function LoginForm() {
       }
 
       if (!error) {
-        const { data: userData } = await supabase.auth.getUser();
-        console.info("[auth/login] Inicio de sesion correcto", {
-          userId: userData.user?.id ?? null,
-          redirectTarget: "/control",
-        });
-        router.replace("/control");
+        const profileResponse = await fetch("/api/auth/me", { cache: "no-store" });
+        const profilePayload = await profileResponse.json().catch(() => null);
+        router.replace(profilePayload?.data?.mustChangePassword ? "/cambiar-contrasena-obligatoria" : "/control");
         router.refresh();
         return;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error inesperado";
-      errorMessage = message;
+      hasAuthenticationError = true;
       console.error("[auth/login] Error inesperado al iniciar sesion", {
         message,
       });
@@ -64,11 +62,11 @@ export function LoginForm() {
       setIsLoading(false);
     }
 
-    if (errorMessage) {
+    if (hasAuthenticationError) {
       await Swal.fire({
         icon: "error",
         title: "No se pudo iniciar sesion",
-        text: errorMessage,
+        text: "Revisa tus datos e inténtalo nuevamente.",
         confirmButtonColor: "#0f766e",
         background: "#ffffff",
         color: "#0f172a",
@@ -172,20 +170,9 @@ export function LoginForm() {
           </label>
 
 
-          <button
-            type="button"
-            onClick={() => {
-              void Swal.fire({
-                icon: "info",
-                title: "Recuperacion de contrasena",
-                text: "Solicita el restablecimiento de tu acceso al administrador.",
-                confirmButtonColor: "#0f766e",
-              });
-            }}
-            className="text-sm font-medium text-sky-700 transition hover:text-sky-800 hover:underline"
-          >
+          <Link href="/recuperar-contrasena" className="text-sm font-medium text-sky-700 transition hover:text-sky-800 hover:underline">
             ¿Olvidaste tu contraseña?
-          </button>
+          </Link>
         </div>
 
         <AsyncButton

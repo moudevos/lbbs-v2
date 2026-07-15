@@ -1,9 +1,17 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/features/auth/login-form";
 import { getDailyVerse } from "@/lib/bible/get-daily-verse";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function LoginPage() {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (userData.user) {
+    const { data: employee } = await supabase.from("employees").select("must_change_password").eq("user_id", userData.user.id).maybeSingle();
+    redirect(employee?.must_change_password ? "/cambiar-contrasena-obligatoria" : "/control");
+  }
   const verse = await getDailyVerse();
 
   return (

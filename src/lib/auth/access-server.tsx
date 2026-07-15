@@ -11,6 +11,7 @@ export type AccessContext = {
   role: AppRole;
   employeeId: string | null;
   branchId: string | null;
+  mustChangePassword: boolean;
 };
 
 export async function getAccessContext(): Promise<AccessContext | null> {
@@ -32,11 +33,18 @@ export async function getAccessContext(): Promise<AccessContext | null> {
   if (employeeId) {
     const { data: employee } = await supabase
       .from("employees")
-      .select("branch_id")
+      .select("branch_id, must_change_password")
       .eq("id", employeeId)
       .maybeSingle();
 
     branchId = employee?.branch_id ?? null;
+    return {
+      userId: userData.user.id,
+      role: role as AppRole,
+      employeeId,
+      branchId,
+      mustChangePassword: employee?.must_change_password ?? false,
+    };
   }
 
   return {
@@ -44,6 +52,7 @@ export async function getAccessContext(): Promise<AccessContext | null> {
     role: role as AppRole,
     employeeId: employeeId ?? null,
     branchId,
+    mustChangePassword: false,
   };
 }
 

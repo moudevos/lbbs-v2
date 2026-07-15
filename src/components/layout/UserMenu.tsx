@@ -4,12 +4,15 @@ import {
   faBuilding,
   faChevronDown,
   faIdBadge,
+  faKey,
+  faUser,
   faRightFromBracket,
   faTriangleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Swal from "sweetalert2";
 
 import { AsyncButton } from "@/components/ui/AsyncButton";
@@ -194,6 +197,13 @@ export function UserMenu() {
               <p className="truncate text-sm font-semibold text-stone-900">{displayName}</p>
               <p className="truncate text-xs text-stone-500">{user.email ?? "Sin correo"}</p>
             </div>
+          </div>
+
+          <div className="my-1 border-t border-stone-100" />
+
+          <div className="space-y-1 px-1 py-1">
+            <Link href="/control/mi-cuenta" onClick={() => setIsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-slate-50"><FontAwesomeIcon icon={faUser} className="h-3.5 w-3.5 text-stone-400" />Mi cuenta</Link>
+            <Link href="/control/mi-cuenta" onClick={() => setIsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-slate-50"><FontAwesomeIcon icon={faKey} className="h-3.5 w-3.5 text-stone-400" />Cambiar contraseña</Link>
           </div>
 
           <div className="my-1 border-t border-stone-100" />

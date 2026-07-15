@@ -25,6 +25,7 @@ const moduleTitles: Record<string, string> = {
   "/control/productos": "Productos",
   "/control/clientes": "Clientes",
   "/control/reservas": "Reservas",
+  "/control/mi-cuenta": "Mi cuenta",
 };
 
 export function Header({ onOpenMobileSidebar }: HeaderProps) {

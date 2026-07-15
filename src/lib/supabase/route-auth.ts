@@ -2,6 +2,23 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 
+async function hasPendingPasswordChange(userId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("employees").select("must_change_password").eq("user_id", userId).maybeSingle();
+  if (error) {
+    console.error("[auth/permisos] No se pudo validar el cambio obligatorio", { message: error.message, code: error.code });
+    return null;
+  }
+  return data?.must_change_password === true;
+}
+
+async function getPasswordChangeBlock(userId: string) {
+  const pending = await hasPendingPasswordChange(userId);
+  if (pending === null) return { ok: false as const, status: 500, message: "No se pudo validar el estado de seguridad." };
+  if (pending) return { ok: false as const, status: 403, message: "Debes actualizar tu contraseña antes de continuar." };
+  return null;
+}
+
 type AdminCheckResult =
   | {
       ok: true;
@@ -37,6 +54,8 @@ export async function requireAdminSession(): Promise<AdminCheckResult> {
       message: "Sesion no iniciada.",
     };
   }
+  const passwordBlock = await getPasswordChangeBlock(userData.user.id);
+  if (passwordBlock) return passwordBlock;
 
   const { data: role, error: roleError } = await supabase.rpc("current_user_role");
 
@@ -102,6 +121,8 @@ export async function requireCustomerWriteSession(): Promise<CustomerWriteCheckR
       message: "Sesion no iniciada.",
     };
   }
+  const passwordBlock = await getPasswordChangeBlock(userData.user.id);
+  if (passwordBlock) return passwordBlock;
 
   const { data: role, error: roleError } = await supabase.rpc("current_user_role");
 
@@ -167,6 +188,8 @@ export async function requireReservationWriteSession(): Promise<ReservationWrite
       message: "Sesion no iniciada.",
     };
   }
+  const passwordBlock = await getPasswordChangeBlock(userData.user.id);
+  if (passwordBlock) return passwordBlock;
 
   const { data: role, error: roleError } = await supabase.rpc("current_user_role");
 
@@ -245,6 +268,8 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
       message: "Sesion no iniciada.",
     };
   }
+  const passwordBlock = await getPasswordChangeBlock(userData.user.id);
+  if (passwordBlock) return passwordBlock;
 
   const { data: role, error: roleError } = await supabase.rpc("current_user_role");
 

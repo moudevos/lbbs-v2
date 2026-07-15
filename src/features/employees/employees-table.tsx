@@ -1,6 +1,6 @@
 "use client";
 
-import { faEye, faPenToSquare, faToggleOff, faToggleOn } from "@fortawesome/free-solid-svg-icons";
+import { faEye, faKey, faPenToSquare, faToggleOff, faToggleOn } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { StatusBadge } from "@/components/feedback/status-badge";
@@ -14,9 +14,10 @@ type EmployeesTableProps = {
   onEdit: (employee: EmployeeRecord) => void;
   onStatusChange: (employee: EmployeeRecord, status: EmployeeRecord["status"]) => void;
   onView: (employee: EmployeeRecord) => void;
+  onSendPasswordRecovery: (employee: EmployeeRecord) => void;
 };
 
-export function EmployeesTable({ employees, onEdit, onStatusChange, onView }: EmployeesTableProps) {
+export function EmployeesTable({ employees, onEdit, onStatusChange, onView, onSendPasswordRecovery }: EmployeesTableProps) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -97,6 +98,7 @@ export function EmployeesTable({ employees, onEdit, onStatusChange, onView }: Em
                         icon={employee.status === "active" ? faToggleOff : faToggleOn}
                       />
                     </Button>
+                    {employee.can_login && employee.user_id && employee.status === "active" ? <Button type="button" className="h-9 bg-emerald-100 px-3 text-emerald-700 hover:bg-emerald-200" onClick={() => onSendPasswordRecovery(employee)} title="Enviar recuperación de contraseña"><FontAwesomeIcon icon={faKey} /></Button> : null}
                   </div>
                 </td>
               </tr>

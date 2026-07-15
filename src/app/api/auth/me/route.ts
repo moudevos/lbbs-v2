@@ -63,6 +63,8 @@ export async function GET() {
         role: string | null;
         avatar_url: string | null;
         branch_id: string | null;
+        must_change_password: boolean;
+        password_changed_at: string | null;
         branch?: { name: string | null }[] | { name: string | null } | null;
       }
     | null = null;
@@ -70,7 +72,7 @@ export async function GET() {
   if (employeeId) {
     const { data, error } = await supabase
       .from("employees")
-      .select("full_name, email, role, avatar_url, branch_id, branch:branches(name)")
+      .select("full_name, email, role, avatar_url, branch_id, must_change_password, password_changed_at, branch:branches(name)")
       .eq("id", employeeId)
       .maybeSingle();
 
@@ -108,6 +110,8 @@ export async function GET() {
       branchId: employee?.branch_id ?? null,
       avatarUrl: employee?.avatar_url ?? null,
       sessionStatusLabel: "Sesion activa",
+      mustChangePassword: employee?.must_change_password ?? false,
+      passwordChangedAt: employee?.password_changed_at ?? null,
     },
   });
 }

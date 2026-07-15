@@ -172,6 +172,29 @@ export function EmployeesPanel() {
     setIsFormOpen(false);
   }
 
+  async function sendPasswordRecovery(employee: EmployeeRecord) {
+    const confirmation = await Swal.fire({
+      icon: "question",
+      title: "Solicitar recuperación",
+      text: `Se solicitará el envío de un enlace de recuperación para ${employee.full_name}.`,
+      showCancelButton: true,
+      confirmButtonText: "Solicitar envío",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#0f766e",
+    });
+    if (!confirmation.isConfirmed) return;
+    try {
+      const response = await fetch(`/api/admin/employees/${employee.id}/send-password-recovery`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "No se pudo solicitar el envío.");
+      await Swal.fire({ icon: "success", title: "Solicitud registrada", text: "Se solicitó el envío del enlace de recuperación.", confirmButtonColor: "#0f766e" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo solicitar el envío.";
+      console.error("[employees/ui] Error al solicitar recuperación", { message, employeeId: employee.id });
+      await Swal.fire({ icon: "error", title: "No se pudo solicitar la recuperación", text: message, confirmButtonColor: "#0f766e" });
+    }
+  }
+
   async function handleSave() {
     if (!form.full_name.trim() || !form.email.trim()) {
       await Swal.fire({
@@ -372,6 +395,7 @@ export function EmployeesPanel() {
             onEdit={startEdit}
             onStatusChange={changeStatus}
             onView={setViewingEmployee}
+            onSendPasswordRecovery={(employee) => void sendPasswordRecovery(employee)}
           />
         )}
       </div>
