@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,7 @@ export function PosSessionWorkspace() {
   const [isCancellingSale, setIsCancellingSale] = useState(false);
   const [isReservationsOpen, setIsReservationsOpen] = useState(false);
   const [reservationSuggestion, setReservationSuggestion] = useState<string | null>(null);
+  const checkoutIdempotencyKeyRef = useRef<string | null>(null);
 
   const rewardDiscount = useMemo(
     () => getRewardDiscountPreview(cartItems, selectedReward),
@@ -464,7 +465,10 @@ export function PosSessionWorkspace() {
     setIsClosingSale(true);
 
     try {
+      const idempotencyKey = checkoutIdempotencyKeyRef.current ?? crypto.randomUUID();
+      checkoutIdempotencyKeyRef.current = idempotencyKey;
       const result = await checkoutPosSale({
+        idempotency_key: idempotencyKey,
         pos_session_id: currentSession.id,
         branch_id: selectedBranchId,
         customer_id: selectedCustomer.id,
@@ -489,6 +493,7 @@ export function PosSessionWorkspace() {
       });
 
       setClosedSale(result);
+      checkoutIdempotencyKeyRef.current = null;
       clearCurrentDraft();
       await loadCatalog(selectedBranchId);
     } catch (error) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { findCustomerDuplicate, getCustomerDuplicateMessage } from "@/features/customers/customer-duplicates";
 import { requireCustomerWriteSession } from "@/lib/supabase/route-auth";
 import { normalizeLookupDocument } from "@/lib/utils/document";
 import { normalizePhone } from "@/lib/utils/phone";
@@ -136,6 +137,27 @@ export async function POST(request: Request) {
     );
   }
 
+  const documentNumber = normalizeLookupDocument(
+    documentType,
+    trimOrNull(payload?.document_number),
+  ) || null;
+
+  try {
+    const duplicate = await findCustomerDuplicate(supabase, {
+      phoneNormalized,
+      documentType,
+      documentNumber,
+    });
+    if (duplicate) {
+      return NextResponse.json({ error: getCustomerDuplicateMessage(duplicate) }, { status: 400 });
+    }
+  } catch (error) {
+    console.error("[customers/post] No se pudo validar duplicados", {
+      message: error instanceof Error ? error.message : "Error inesperado",
+    });
+    return NextResponse.json({ error: "No se pudo validar el cliente." }, { status: 500 });
+  }
+
   const { data: employeeId } = await supabase.rpc("current_employee_id");
 
   const { data, error } = await supabase
@@ -149,10 +171,7 @@ export async function POST(request: Request) {
       phone_normalized: phoneNormalized,
       email: trimOrNull(payload?.email),
       document_type: documentType,
-      document_number: normalizeLookupDocument(
-        documentType,
-        trimOrNull(payload?.document_number),
-      ) || null,
+      document_number: documentNumber,
       birthdate: trimOrNull(payload?.birthdate),
       source: "manual",
       preferred_branch_id: null,

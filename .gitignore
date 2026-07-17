@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/test-results
+/.qa
+/.auth
+**/storage-state*.json
+**/storageState*.json
 
 # next.js
 /.next/
@@ -32,6 +37,18 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env.*.local
+
+.next/
+node_modules/
+
+.qa/
+test-results/
+playwright-report/
+blob-report/
+
+*.log
 
 # vercel
 .vercel

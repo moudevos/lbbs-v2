@@ -7,6 +7,7 @@ import {
   toMoneyNumber,
   trimOrNull,
 } from "@/app/api/admin/cash/route-helpers";
+import { ensureDefaultCashCategories } from "@/lib/operational/ensure-default-categories";
 import { createClient } from "@/lib/supabase/server";
 import { resolveOperationalBranchScope } from "@/lib/operational/branch-scope";
 
@@ -223,19 +224,19 @@ export async function GET(request: Request) {
 
   const activeSession = openSessions.find((session) => session.branch_id === selectedBranchId) ?? null;
 
-  const { data: categories, error: categoriesError } = await supabase
+  let categoriesResult = await supabase
     .from("cash_movement_categories")
     .select("id, code, name, description, movement_direction, sort_order, is_active")
     .eq("is_active", true)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
 
-  if (categoriesError) {
+  if (categoriesResult.error) {
     console.error("[cash-categories/get] Error", {
-      message: categoriesError.message,
-      code: categoriesError.code,
-      details: categoriesError.details,
-      hint: categoriesError.hint,
+      message: categoriesResult.error.message,
+      code: categoriesResult.error.code,
+      details: categoriesResult.error.details,
+      hint: categoriesResult.error.hint,
       movementType,
     });
     return NextResponse.json(
@@ -243,6 +244,26 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+
+  const requiredCategoryCodes = ["operational_income", "operational_expense", "cash_withdrawal", "cash_adjustment", "petty_purchase"];
+  const availableCategoryCodes = new Set((categoriesResult.data ?? []).map((category) => category.code));
+  if (requiredCategoryCodes.some((code) => !availableCategoryCodes.has(code))) {
+    try {
+      await ensureDefaultCashCategories();
+      categoriesResult = await supabase
+        .from("cash_movement_categories")
+        .select("id, code, name, description, movement_direction, sort_order, is_active")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (categoriesResult.error) throw categoriesResult.error;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado";
+      console.error("[cash-categories/get] No se pudieron restaurar las categorias base", { message });
+      return NextResponse.json({ error: "No se pudieron preparar las categorias de caja." }, { status: 500 });
+    }
+  }
+  const categories = categoriesResult.data;
 
   if (activeSession) {
     const { error: syncError } = await supabase.rpc("sync_pos_session_totals", {
@@ -258,6 +279,36 @@ export async function GET(request: Request) {
         sessionId: activeSession.id,
       });
     }
+  }
+
+  if (!selectedBranchId) {
+    return NextResponse.json({
+      role,
+      employee: (employee as EmployeeRow | null) ?? null,
+      branches: availableBranches,
+      selectedBranchId: "",
+      openSessions,
+      activeSession: null,
+      categories: (categories ?? []) as CategoryRow[],
+      summary: {
+        branchId: "",
+        branchName: null,
+        sessionId: null,
+        status: null,
+        openingCashAmount: 0,
+        cashSalesAmount: 0,
+        operationalIncome: 0,
+        operationalExpense: 0,
+        withdrawals: 0,
+        adjustments: 0,
+        netOperationalAmount: 0,
+        expectedCashAmount: 0,
+        totalSalesAmount: 0,
+        openedAt: null,
+        openedByName: null,
+      },
+      movements: [],
+    });
   }
 
   const range = buildDayRange(date);

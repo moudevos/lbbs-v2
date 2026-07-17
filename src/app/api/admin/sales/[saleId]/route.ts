@@ -56,6 +56,12 @@ function unwrapRelation<T>(value: T[] | T | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ saleId: string }> },
@@ -67,6 +73,14 @@ export async function GET(
   }
 
   const { saleId } = await context.params;
+
+  if (!isUuid(saleId)) {
+    return NextResponse.json(
+      { error: "El identificador de la venta no es válido." },
+      { status: 400 },
+    );
+  }
+
   const supabase = await createClient();
 
   try {

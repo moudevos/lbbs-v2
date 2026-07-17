@@ -12,15 +12,6 @@ export async function GET(_request: Request, context: { params: Promise<{ saleId
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
   const { saleId } = await context.params;
   const supabase = await createClient();
-  const projectHost = process.env.NEXT_PUBLIC_SUPABASE_URL
-    ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
-    : null;
-
-  console.info("[sales/ticket] Entorno Supabase", {
-    projectHost,
-    hasServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-  });
-
   const { data: currentState, error: stateError } = await supabase.from("sales").select("status,cancelled_at,cancelled_reason,cancellation_notes,cancelled_by_employee:employees!sales_cancelled_by_fkey(full_name)").eq("id", saleId).maybeSingle();
   if (stateError) {
     console.error("[sales/ticket] Error al leer estado actual", { saleId, message: stateError?.message, code: stateError?.code, details: stateError?.details, hint: stateError?.hint });

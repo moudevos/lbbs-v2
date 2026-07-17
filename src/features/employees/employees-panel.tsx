@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { EmployeeFormModal } from "@/features/employees/employee-form-modal";
 import { EmployeeFinanceModal } from "@/features/employees/EmployeeFinanceModal";
 import { EmployeesTable } from "@/features/employees/employees-table";
+import { canHavePanelAccess } from "@/lib/auth/panel-access";
 import type { BranchRecord } from "@/features/branches/types";
 import type { EmployeeFormValue, EmployeeRecord } from "@/features/employees/types";
 
@@ -213,6 +214,18 @@ export function EmployeesPanel() {
         icon: "warning",
         title: "Falta la contraseña temporal",
         text: "La contraseña temporal es obligatoria al crear un empleado con acceso.",
+        confirmButtonColor: "#0f766e",
+        background: "#ffffff",
+        color: "#0f172a",
+      });
+      return;
+    }
+
+    if (form.can_login && !canHavePanelAccess(form.role)) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Rol sin acceso",
+        text: "Solo owner, administrador y recepcion pueden iniciar sesion.",
         confirmButtonColor: "#0f766e",
         background: "#ffffff",
         color: "#0f172a",

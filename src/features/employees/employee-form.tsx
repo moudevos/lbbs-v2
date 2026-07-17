@@ -9,6 +9,7 @@ import { TextField } from "@/components/ui/TextField";
 import { Textarea } from "@/components/ui/textarea";
 import type { BranchRecord } from "@/features/branches/types";
 import type { EmployeeFormValue } from "@/features/employees/types";
+import { canHavePanelAccess } from "@/lib/auth/panel-access";
 import {
   documentTypeOptions,
   employeeStatusOptions,
@@ -39,6 +40,18 @@ export function EmployeeForm({
   }
 
   const accessLocked = isEditing;
+  const canConfigureAccess = canHavePanelAccess(value.role);
+
+  function updateRole(nextRole: EmployeeFormValue["role"]) {
+    const canKeepAccess = canHavePanelAccess(nextRole);
+
+    onChange({
+      ...value,
+      role: nextRole,
+      can_login: canKeepAccess ? value.can_login : false,
+      temporary_password: canKeepAccess ? value.temporary_password : "",
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -109,7 +122,7 @@ export function EmployeeForm({
         <SelectField
           label="Rol"
           value={value.role}
-          onChange={(event) => updateField("role", event.target.value as EmployeeFormValue["role"])}
+          onChange={(event) => updateRole(event.target.value as EmployeeFormValue["role"])}
         >
           {roleOptions.map((option) => (
             <option key={option.value} value={option.value}>
@@ -144,7 +157,7 @@ export function EmployeeForm({
         <input
           type="checkbox"
           checked={value.can_login}
-          disabled={accessLocked}
+          disabled={accessLocked || !canConfigureAccess}
           onChange={(event) => updateField("can_login", event.target.checked)}
           className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500/20 disabled:opacity-60"
         />

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
+import { canHavePanelAccess } from "@/lib/auth/panel-access";
 
 function trimOrNull(value: unknown) {
   if (typeof value !== "string") {
@@ -95,7 +96,7 @@ export async function PUT(
   const admin = getSupabaseAdmin();
   const { data: existing, error: readError } = await admin
     .from("employees")
-    .select("id, user_id, email")
+    .select("id, user_id, email, can_login")
     .eq("id", id)
     .maybeSingle();
 
@@ -117,6 +118,23 @@ export async function PUT(
 
   const nextStatus = payload?.status ?? "active";
   const nextRole = payload?.role ?? "viewer";
+
+  if ((existing.user_id || existing.can_login) && !canHavePanelAccess(nextRole)) {
+    return NextResponse.json(
+      {
+        error:
+          "No se puede asignar un rol operativo a un empleado con acceso al sistema. Retira primero el acceso de forma segura.",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (payload?.can_login === true && !canHavePanelAccess(nextRole)) {
+    return NextResponse.json(
+      { error: "Solo owner, administrador y recepcion pueden tener acceso al sistema." },
+      { status: 400 },
+    );
+  }
   const previousEmail = existing.email;
   const authEmailChanged = existing.user_id && email !== existing.email;
 

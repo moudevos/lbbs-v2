@@ -1,0 +1,103 @@
+export type CourtesyValidationItem = {
+  catalogId: string;
+  itemType: "service" | "product";
+  quantity: number;
+  unitPrice: number;
+  isCourtesy: boolean;
+  courtesyReason: string | null;
+  categoryId: string | null;
+  isCourtesyAllowed: boolean;
+};
+
+export type CourtesyRuleBenefit = {
+  id: string;
+  benefit_item_type: "service" | "product";
+  service_id: string | null;
+  product_id: string | null;
+  service_category_id: string | null;
+  product_category_id: string | null;
+  max_quantity: number;
+  max_unit_amount: number | null;
+  is_active: boolean;
+};
+
+export type CourtesyRule = {
+  id: string;
+  name: string;
+  branch_id: string | null;
+  priority: number;
+  qualifying_service_id: string | null;
+  qualifying_service_category_id: string | null;
+  minimum_unit_amount: number;
+  maximum_courtesy_items: number;
+  maximum_courtesy_amount: number | null;
+  allow_with_reward: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean;
+  benefits: CourtesyRuleBenefit[];
+};
+
+export type CourtesyValidationResult =
+  | { ok: true; rule: CourtesyRule; benefitByCatalogId: Map<string, CourtesyRuleBenefit>; qualifyingCatalogId: string }
+  | { ok: false; message: string };
+
+function benefitMatches(item: CourtesyValidationItem, benefit: CourtesyRuleBenefit) {
+  if (!benefit.is_active || benefit.benefit_item_type !== item.itemType) return false;
+  if (item.itemType === "service") {
+    return benefit.service_id === item.catalogId || (benefit.service_category_id !== null && benefit.service_category_id === item.categoryId);
+  }
+  return benefit.product_id === item.catalogId || (benefit.product_category_id !== null && benefit.product_category_id === item.categoryId);
+}
+
+export function validateCourtesySelection(input: {
+  branchId: string;
+  hasReward: boolean;
+  items: CourtesyValidationItem[];
+  rules: CourtesyRule[];
+  now?: Date;
+}): CourtesyValidationResult {
+  const courtesyItems = input.items.filter((item) => item.isCourtesy);
+  if (courtesyItems.length === 0) return { ok: false, message: "No hay cortesias para validar." };
+  if (courtesyItems.some((item) => !item.courtesyReason)) return { ok: false, message: "Indica el motivo de cada cortesia." };
+  if (courtesyItems.some((item) => item.itemType === "product" && !item.isCourtesyAllowed)) {
+    return { ok: false, message: "Uno de los productos no admite cortesia." };
+  }
+
+  const now = (input.now ?? new Date()).getTime();
+  const activeRules = input.rules
+    .filter((rule) => rule.is_active && (!rule.branch_id || rule.branch_id === input.branchId))
+    .filter((rule) => !rule.starts_at || new Date(rule.starts_at).getTime() <= now)
+    .filter((rule) => !rule.ends_at || new Date(rule.ends_at).getTime() >= now)
+    .sort((left, right) => right.priority - left.priority);
+
+  for (const rule of activeRules) {
+    if (input.hasReward && !rule.allow_with_reward) continue;
+    const qualifyingItem = input.items.find((item) =>
+      !item.isCourtesy &&
+      item.itemType === "service" &&
+      item.unitPrice >= rule.minimum_unit_amount &&
+      (!rule.qualifying_service_id || rule.qualifying_service_id === item.catalogId) &&
+      (!rule.qualifying_service_category_id || rule.qualifying_service_category_id === item.categoryId));
+    if (!qualifyingItem) continue;
+
+    const totalQuantity = courtesyItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalAmount = courtesyItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    if (totalQuantity > rule.maximum_courtesy_items) continue;
+    if (rule.maximum_courtesy_amount !== null && totalAmount > rule.maximum_courtesy_amount) continue;
+
+    const benefitByCatalogId = new Map<string, CourtesyRuleBenefit>();
+    let allBenefitsValid = true;
+    for (const item of courtesyItems) {
+      const benefit = rule.benefits.find((candidate) => benefitMatches(item, candidate));
+      if (!benefit || item.quantity > benefit.max_quantity || (benefit.max_unit_amount !== null && item.unitPrice > benefit.max_unit_amount)) {
+        allBenefitsValid = false;
+        break;
+      }
+      benefitByCatalogId.set(item.catalogId, benefit);
+    }
+    if (allBenefitsValid) return { ok: true, rule, benefitByCatalogId, qualifyingCatalogId: qualifyingItem.catalogId };
+  }
+
+  return { ok: false, message: "La cortesia no cumple una regla activa para esta sede." };
+}

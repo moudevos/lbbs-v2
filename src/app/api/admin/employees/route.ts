@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
+import { canHavePanelAccess } from "@/lib/auth/panel-access";
 
 function trimOrNull(value: unknown) {
   if (typeof value !== "string") {
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   const fullName = trimOrNull(payload?.full_name);
   const email = trimOrNull(payload?.email);
+  const role = typeof payload?.role === "string" ? payload.role : "viewer";
   const canLogin = Boolean(payload?.can_login);
   const temporaryPassword = trimOrNull(payload?.temporary_password);
 
@@ -117,6 +119,13 @@ export async function POST(request: Request) {
   if (canLogin && !temporaryPassword) {
     return NextResponse.json(
       { error: "La contrasena temporal es obligatoria cuando el empleado tendra acceso." },
+      { status: 400 },
+    );
+  }
+
+  if (canLogin && !canHavePanelAccess(role)) {
+    return NextResponse.json(
+      { error: "Solo owner, administrador y recepcion pueden tener acceso al sistema." },
       { status: 400 },
     );
   }
@@ -161,13 +170,13 @@ export async function POST(request: Request) {
       document_number: trimOrNull(payload?.document_number),
       email,
       phone: trimOrNull(payload?.phone),
-      role: payload?.role ?? "viewer",
+      role,
       status: payload?.status ?? "active",
       position: trimOrNull(payload?.position),
       avatar_url: trimOrNull(payload?.avatar_url),
       can_login: canLogin,
       login_created_at: loginCreatedAt,
-      must_change_password: true,
+      must_change_password: canLogin,
       notes: trimOrNull(payload?.notes),
     })
     .select(

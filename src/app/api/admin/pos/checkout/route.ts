@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   appendReservationNote,
@@ -8,6 +9,11 @@ import {
   toMoneyNumber,
   trimOrNull,
 } from "@/app/api/admin/pos/route-helpers";
+import {
+  validateCourtesySelection,
+  type CourtesyRule,
+  type CourtesyValidationResult,
+} from "@/features/pos/courtesy-validation";
 import { createClient } from "@/lib/supabase/server";
 import { requirePosWriteSession } from "@/lib/supabase/route-auth";
 
@@ -28,6 +34,7 @@ type ReservationRow = {
 
 type ServiceRow = {
   id: string;
+  category_id: string | null;
   name: string;
   base_price?: number | string;
   allow_custom_price?: boolean;
@@ -50,11 +57,13 @@ function isMissingServiceCustomPriceColumn(error: { code?: string; message?: str
 
 type ProductRow = {
   id: string;
+  category_id: string | null;
   name: string;
   cost_price: number | string;
   base_sale_price: number | string;
   allow_custom_price: boolean;
   is_stockable: boolean;
+  is_courtesy_allowed: boolean;
   is_active: boolean;
 };
 
@@ -69,6 +78,7 @@ type PaymentMethodRow = {
   code: string;
   name: string;
   is_active: boolean;
+  payment_kind: "cash" | "wallet_qr" | "card" | "bank_transfer" | "other_digital";
   allows_change: boolean;
   counts_as_cash: boolean;
 };
@@ -106,8 +116,264 @@ type SalePaymentSummaryRow = {
   payment_method?: { code: string | null; name: string | null }[] | { code: string | null; name: string | null } | null;
 };
 
+type IdempotencySaleRow = {
+  id: string;
+  status: string;
+  branch_id: string;
+  customer_id: string;
+  barber_id: string | null;
+  reservation_id: string | null;
+  notes: string | null;
+};
+
+type IdempotencySaleItemRow = {
+  item_type: "service" | "product";
+  service_id: string | null;
+  product_id: string | null;
+  quantity: number | string;
+  unit_price: number | string;
+  discount_amount: number | string;
+  is_courtesy: boolean;
+  courtesy_reason: string | null;
+};
+
+type IdempotencySalePaymentRow = {
+  payment_method_id: string;
+  amount: number | string;
+  tendered_amount: number | string | null;
+  change_amount: number | string;
+};
+
+type IdempotencyRewardRedemptionRow = {
+  entitlement_id: string;
+  status: string;
+};
+
+type CheckoutSignatureInput = {
+  branchId: string;
+  customerId: string;
+  barberId: string | null;
+  reservationId: string | null;
+  rewardEntitlementId: string | null;
+  notes: string | null;
+  items: Array<{
+    catalogId: string;
+    itemType: "service" | "product";
+    quantity: number;
+    unitPrice: number;
+    discountAmount: number;
+    isCourtesy: boolean;
+    courtesyReason: string | null;
+  }>;
+  payments: Array<{
+    paymentMethodId: string;
+    amount: number;
+    tenderedAmount: number;
+    changeAmount: number;
+  }>;
+};
+
 function unwrapRelation<T>(value: T[] | T | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
+function normalizeIdempotencyKey(value: unknown) {
+  const key = trimOrNull(value);
+  return key && /^[a-zA-Z0-9_-]{12,128}$/.test(key) ? key : null;
+}
+
+function buildCheckoutSignature(input: CheckoutSignatureInput) {
+  const items = input.items
+    .map((item) => ({
+      catalogId: item.catalogId,
+      itemType: item.itemType,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountAmount: item.discountAmount,
+      isCourtesy: item.isCourtesy,
+      courtesyReason: item.isCourtesy ? item.courtesyReason : null,
+    }))
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+  const payments = input.payments
+    .map((payment) => ({
+      paymentMethodId: payment.paymentMethodId,
+      amount: payment.amount,
+      tenderedAmount: payment.tenderedAmount,
+      changeAmount: payment.changeAmount,
+    }))
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+
+  return JSON.stringify({
+    branchId: input.branchId,
+    customerId: input.customerId,
+    barberId: input.barberId,
+    reservationId: input.reservationId,
+    rewardEntitlementId: input.rewardEntitlementId,
+    notes: input.notes,
+    items,
+    payments,
+  });
+}
+
+async function loadCompletedSaleResult(
+  supabase: SupabaseClient,
+  saleId: string,
+  fallback: { branchName: string; customerName: string; barberName: string | null; reservationId: string | null },
+) {
+  const [saleSummaryResult, saleItemsResult, salePaymentsResult] = await Promise.all([
+    supabase
+      .from("sales")
+      .select(
+        "id, subtotal, discount_total, courtesy_total, total, paid_total, change_amount, closed_at, branch:branches(name), customer:customers(full_name), barber:employees!sales_barber_id_fkey(full_name)",
+      )
+      .eq("id", saleId)
+      .eq("status", "completed")
+      .single(),
+    supabase
+      .from("sale_items")
+      .select("id, item_type, description_snapshot, quantity, unit_price, total, is_courtesy")
+      .eq("sale_id", saleId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("sale_payments")
+      .select("id, amount, tendered_amount, change_amount, payment_method_id, payment_method:payment_methods(code, name)")
+      .eq("sale_id", saleId)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (saleSummaryResult.error || saleItemsResult.error || salePaymentsResult.error) {
+    return { error: "La venta se cerro, pero no se pudo cargar su resumen." as const };
+  }
+
+  const saleSummary = saleSummaryResult.data as SaleSummaryRow;
+  const branch = unwrapRelation(saleSummary.branch);
+  const customer = unwrapRelation(saleSummary.customer);
+  const barber = unwrapRelation(saleSummary.barber);
+
+  return {
+    data: {
+      saleId,
+      saleReference: formatSaleReference(saleId),
+      occurredAt: saleSummary.closed_at ?? new Date().toISOString(),
+      branchName: branch?.name ?? fallback.branchName,
+      customerName: customer?.full_name ?? fallback.customerName,
+      barberName: barber?.full_name ?? fallback.barberName,
+      reservationCompleted: Boolean(fallback.reservationId),
+      items: ((saleItemsResult.data ?? []) as SaleItemSummaryRow[]).map((item) => ({
+        id: item.id,
+        name: item.description_snapshot,
+        itemType: item.item_type,
+        quantity: toMoneyNumber(item.quantity),
+        unitPrice: toMoneyNumber(item.unit_price),
+        total: toMoneyNumber(item.total),
+        isCourtesy: item.is_courtesy,
+      })),
+      subtotal: toMoneyNumber(saleSummary.subtotal),
+      discountTotal: toMoneyNumber(saleSummary.discount_total),
+      courtesyTotal: toMoneyNumber(saleSummary.courtesy_total),
+      total: toMoneyNumber(saleSummary.total),
+      payments: ((salePaymentsResult.data ?? []) as SalePaymentSummaryRow[]).map((payment) => {
+        const method = unwrapRelation(payment.payment_method);
+
+        return {
+          id: payment.id,
+          payment_method_id: payment.payment_method_id,
+          payment_method_code: method?.code ?? "cash",
+          payment_method_name: method?.name ?? "Metodo",
+          amount: toMoneyNumber(payment.amount),
+          tendered_amount:
+            payment.tendered_amount === null
+              ? toMoneyNumber(payment.amount)
+              : toMoneyNumber(payment.tendered_amount),
+          change_amount: toMoneyNumber(payment.change_amount),
+        };
+      }),
+      paidTotal: toMoneyNumber(saleSummary.paid_total),
+      changeAmount: toMoneyNumber(saleSummary.change_amount),
+    },
+  };
+}
+
+async function findCompletedIdempotentSale(
+  supabase: SupabaseClient,
+  posSessionId: string,
+  idempotencyKey: string,
+  expectedSignature: string,
+) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select("id, status, branch_id, customer_id, barber_id, reservation_id, notes")
+      .eq("pos_session_id", posSessionId)
+      .eq("checkout_idempotency_key", idempotencyKey)
+      .maybeSingle();
+
+    if (error) {
+      return { error: "No se pudo verificar el intento de venta." as const };
+    }
+
+    const sale = data as IdempotencySaleRow | null;
+
+    if (sale?.status === "completed") {
+      const [itemsResult, paymentsResult, rewardsResult] = await Promise.all([
+        supabase
+          .from("sale_items")
+          .select("item_type, service_id, product_id, quantity, unit_price, discount_amount, is_courtesy, courtesy_reason")
+          .eq("sale_id", sale.id),
+        supabase
+          .from("sale_payments")
+          .select("payment_method_id, amount, tendered_amount, change_amount")
+          .eq("sale_id", sale.id),
+        supabase
+          .from("reward_redemptions")
+          .select("entitlement_id, status")
+          .eq("sale_id", sale.id)
+          .eq("status", "applied"),
+      ]);
+
+      if (itemsResult.error || paymentsResult.error || rewardsResult.error) {
+        return { error: "No se pudo verificar el intento de venta." as const };
+      }
+
+      const rewardRows = (rewardsResult.data ?? []) as IdempotencyRewardRedemptionRow[];
+      const persistedSignature = buildCheckoutSignature({
+        branchId: sale.branch_id,
+        customerId: sale.customer_id,
+        barberId: sale.barber_id,
+        reservationId: sale.reservation_id,
+        rewardEntitlementId: rewardRows[0]?.entitlement_id ?? null,
+        notes: sale.notes,
+        items: ((itemsResult.data ?? []) as IdempotencySaleItemRow[]).map((item) => ({
+          catalogId: item.item_type === "service" ? item.service_id ?? "" : item.product_id ?? "",
+          itemType: item.item_type,
+          quantity: toMoneyNumber(item.quantity),
+          unitPrice: toMoneyNumber(item.unit_price),
+          discountAmount: toMoneyNumber(item.discount_amount),
+          isCourtesy: item.is_courtesy,
+          courtesyReason: item.is_courtesy ? trimOrNull(item.courtesy_reason) : null,
+        })),
+        payments: ((paymentsResult.data ?? []) as IdempotencySalePaymentRow[]).map((payment) => ({
+          paymentMethodId: payment.payment_method_id,
+          amount: toMoneyNumber(payment.amount),
+          tenderedAmount:
+            payment.tendered_amount === null
+              ? toMoneyNumber(payment.amount)
+              : toMoneyNumber(payment.tendered_amount),
+          changeAmount: toMoneyNumber(payment.change_amount),
+        })),
+      });
+
+      if (persistedSignature !== expectedSignature) {
+        return { saleId: null, payloadMismatch: true };
+      }
+
+      return { saleId: sale.id, payloadMismatch: false };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  return { saleId: null, payloadMismatch: false };
 }
 
 function normalizeCheckoutItems(rawItems: unknown) {
@@ -117,7 +383,7 @@ function normalizeCheckoutItems(rawItems: unknown) {
 
   const items = rawItems.map((rawItem) => {
     const item = rawItem as Record<string, unknown>;
-    const itemType = item.item_type === "service" || item.item_type === "product"
+    const itemType: "service" | "product" | null = item.item_type === "service" || item.item_type === "product"
       ? item.item_type
       : null;
     const quantity = parseMoney(item.quantity);
@@ -218,6 +484,7 @@ export async function POST(request: Request) {
   const barberId = trimOrNull(payload?.barber_id);
   const reservationId = trimOrNull(payload?.reservation_id);
   const rewardEntitlementId = trimOrNull(payload?.reward_entitlement_id);
+  const idempotencyKey = normalizeIdempotencyKey(payload?.idempotency_key);
   const notes = trimOrNull(payload?.notes);
   const normalizedItems = normalizeCheckoutItems(payload?.items);
   const normalizedPayments = normalizeCheckoutPayments(payload?.payments);
@@ -225,6 +492,13 @@ export async function POST(request: Request) {
   if (!posSessionId || !branchId || !customerId) {
     return NextResponse.json(
       { error: "Faltan datos obligatorios para cerrar la venta." },
+      { status: 400 },
+    );
+  }
+
+  if (!idempotencyKey) {
+    return NextResponse.json(
+      { error: "No se pudo validar el intento de cierre de venta." },
       { status: 400 },
     );
   }
@@ -239,6 +513,16 @@ export async function POST(request: Request) {
 
   const items = normalizedItems.items;
   const payments = normalizedPayments.payments;
+  const checkoutSignature = buildCheckoutSignature({
+    branchId,
+    customerId,
+    barberId,
+    reservationId,
+    rewardEntitlementId,
+    notes,
+    items,
+    payments,
+  });
   const requiresBarber = items.some((item) => item.itemType === "service");
 
   const hasChargeableItem = items.some(
@@ -435,7 +719,7 @@ export async function POST(request: Request) {
     serviceIds.length
       ? supabase
           .from("services")
-          .select("id, name, base_price, allow_custom_price, is_active")
+          .select("id, category_id, name, base_price, allow_custom_price, is_active")
           .in("id", serviceIds)
       : Promise.resolve({ data: [], error: null }),
     serviceIds.length
@@ -448,7 +732,7 @@ export async function POST(request: Request) {
     productIds.length
       ? supabase
           .from("products")
-          .select("id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_active")
+          .select("id, category_id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active")
           .in("id", productIds)
       : Promise.resolve({ data: [], error: null }),
     payments.length
@@ -476,7 +760,7 @@ export async function POST(request: Request) {
     const fallbackServicesResult = serviceIds.length
       ? await supabase
           .from("services")
-          .select("id, name, base_price, is_active")
+          .select("id, category_id, name, base_price, is_active")
           .in("id", serviceIds)
       : { data: [], error: null };
 
@@ -527,6 +811,63 @@ export async function POST(request: Request) {
   const stockMap = new Map(
     ((stockResult.data ?? []) as ProductStockRow[]).map((row) => [row.product_id, row]),
   );
+
+  let courtesyValidation: CourtesyValidationResult | null = null;
+  if (items.some((item) => item.isCourtesy)) {
+    const { data: rawRules, error: courtesyRulesError } = await supabase
+      .from("courtesy_rules")
+      .select("id,name,branch_id,priority,qualifying_service_id,qualifying_service_category_id,minimum_unit_amount,maximum_courtesy_items,maximum_courtesy_amount,allow_with_reward,starts_at,ends_at,is_active,benefits:courtesy_rule_benefits(id,benefit_item_type,service_id,product_id,service_category_id,product_category_id,max_quantity,max_unit_amount,is_active)")
+      .eq("is_active", true)
+      .or(`branch_id.is.null,branch_id.eq.${branchId}`)
+      .order("priority", { ascending: false });
+
+    if (courtesyRulesError) {
+      console.error("[pos/checkout] No se pudieron cargar las reglas de cortesia", {
+        message: courtesyRulesError.message,
+        code: courtesyRulesError.code,
+      });
+      return NextResponse.json({ error: "No se pudieron validar las reglas de cortesia." }, { status: 500 });
+    }
+
+    const rules = ((rawRules ?? []) as unknown as Array<Record<string, unknown>>).map((rawRule) => ({
+      ...rawRule,
+      priority: Number(rawRule.priority ?? 0),
+      minimum_unit_amount: toMoneyNumber(rawRule.minimum_unit_amount),
+      maximum_courtesy_items: Number(rawRule.maximum_courtesy_items ?? 0),
+      maximum_courtesy_amount: rawRule.maximum_courtesy_amount === null ? null : toMoneyNumber(rawRule.maximum_courtesy_amount),
+      benefits: (Array.isArray(rawRule.benefits) ? rawRule.benefits : []).map((rawBenefit) => {
+        const benefit = rawBenefit as Record<string, unknown>;
+        return {
+          ...benefit,
+          max_quantity: Number(benefit.max_quantity ?? 0),
+          max_unit_amount: benefit.max_unit_amount === null ? null : toMoneyNumber(benefit.max_unit_amount),
+        };
+      }),
+    })) as CourtesyRule[];
+
+    courtesyValidation = validateCourtesySelection({
+      branchId,
+      hasReward: Boolean(rewardEntitlementId),
+      rules,
+      items: items.map((item) => {
+        const service = item.itemType === "service" ? servicesMap.get(item.catalogId) : null;
+        const product = item.itemType === "product" ? productsMap.get(item.catalogId) : null;
+        return {
+          catalogId: item.catalogId,
+          itemType: item.itemType,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          isCourtesy: item.isCourtesy,
+          courtesyReason: item.courtesyReason,
+          categoryId: service?.category_id ?? product?.category_id ?? null,
+          isCourtesyAllowed: item.itemType === "service" || product?.is_courtesy_allowed === true,
+        };
+      }),
+    });
+    if (!courtesyValidation.ok) {
+      return NextResponse.json({ error: courtesyValidation.message }, { status: 400 });
+    }
+  }
 
   for (const item of items) {
     if (item.itemType === "service") {
@@ -712,11 +1053,50 @@ export async function POST(request: Request) {
         total,
         paid_total: paidTotal,
         change_amount: saleChangeAmount,
+        checkout_idempotency_key: idempotencyKey,
         notes,
         created_by: employeeId ?? null,
       })
       .select("id")
       .single();
+
+    if (saleInsertError?.code === "23505") {
+      const existingSale = await findCompletedIdempotentSale(
+        supabase,
+        posSessionId,
+        idempotencyKey,
+        checkoutSignature,
+      );
+
+      if ("error" in existingSale) {
+        return NextResponse.json({ error: existingSale.error }, { status: 500 });
+      }
+
+      if (existingSale.saleId) {
+        const result = await loadCompletedSaleResult(supabase, existingSale.saleId, {
+          branchName: unwrapRelation(sessionRow.branch)?.name ?? "Sin sede",
+          customerName: customerRow.full_name,
+          barberName: barberRow?.full_name ?? null,
+          reservationId,
+        });
+        if ("error" in result) {
+          return NextResponse.json({ error: result.error }, { status: 500 });
+        }
+        return NextResponse.json({ data: result.data });
+      }
+
+      if (existingSale.payloadMismatch) {
+        return NextResponse.json(
+          { error: "La clave de cierre ya fue usada con datos diferentes." },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json(
+        { error: "Este cierre de venta sigue en proceso. Intenta nuevamente." },
+        { status: 409 },
+      );
+    }
 
     if (saleInsertError || !insertedSale) {
       console.error("[pos/checkout] No se pudo crear la venta borrador", {
@@ -749,13 +1129,33 @@ export async function POST(request: Request) {
         barber_id: item.itemType === "service" ? barberId : null,
         is_courtesy: item.isCourtesy,
         courtesy_reason: item.isCourtesy ? item.courtesyReason : null,
+        courtesy_rule_id: item.isCourtesy && courtesyValidation?.ok ? courtesyValidation.rule.id : null,
+        courtesy_rule_name_snapshot: item.isCourtesy && courtesyValidation?.ok ? courtesyValidation.rule.name : null,
+        original_unit_price: item.isCourtesy ? item.unitPrice : null,
+        original_total: item.isCourtesy ? Number((item.quantity * item.unitPrice).toFixed(2)) : null,
+        courtesy_amount: item.isCourtesy ? Number((item.quantity * item.unitPrice).toFixed(2)) : null,
+        courtesy_authorized_by: item.isCourtesy ? employeeId ?? null : null,
       };
     });
 
-    const { error: itemsInsertError } = await supabase.from("sale_items").insert(saleItemsPayload);
+    const { data: insertedItems, error: itemsInsertError } = await supabase
+      .from("sale_items")
+      .insert(saleItemsPayload)
+      .select("id,service_id,is_courtesy");
 
     if (itemsInsertError) {
       throw new Error(itemsInsertError.message);
+    }
+
+    if (courtesyValidation?.ok) {
+      const qualifyingItemId = (insertedItems ?? []).find((item) => item.service_id === courtesyValidation.qualifyingCatalogId && item.is_courtesy === false)?.id ?? null;
+      const courtesyItemIds = (insertedItems ?? []).filter((item) => item.is_courtesy === true).map((item) => item.id);
+      if (!qualifyingItemId || courtesyItemIds.length === 0) throw new Error("No se pudo auditar la cortesia seleccionada.");
+      const { error: courtesyAuditError } = await supabase
+        .from("sale_items")
+        .update({ qualifying_sale_item_id: qualifyingItemId })
+        .in("id", courtesyItemIds);
+      if (courtesyAuditError) throw new Error(courtesyAuditError.message);
     }
 
     if (rewardEntitlementId) {
@@ -792,17 +1192,13 @@ export async function POST(request: Request) {
 
     for (const payment of paymentsForValidation) {
       const method = paymentMethodsMap.get(payment.paymentMethodId);
-      const methodCode = method?.code ?? "";
+      const paymentKind = method?.payment_kind ?? "other_digital";
 
-      if (methodCode !== "efectivo" && payment.amount > remainingBalance) {
-        return NextResponse.json(
-          {
-            error:
-              methodCode === "card_pos"
-                ? "El pago con POS tarjeta no puede exceder el saldo pendiente."
-                : "El pago QR no puede exceder el saldo pendiente.",
-          },
-          { status: 400 },
+      if (!method?.allows_change && payment.amount > remainingBalance) {
+        throw new Error(
+          paymentKind === "card"
+            ? "El pago con POS tarjeta no puede exceder el saldo pendiente."
+            : "El pago QR no puede exceder el saldo pendiente.",
         );
       }
 
@@ -854,39 +1250,6 @@ export async function POST(request: Request) {
 
     const completedSaleId = createdSaleId;
 
-    const [saleSummaryResult, saleItemsResult, salePaymentsResult] = await Promise.all([
-      supabase
-        .from("sales")
-        .select(
-          "id, subtotal, discount_total, courtesy_total, total, paid_total, change_amount, closed_at, branch:branches(name), customer:customers(full_name), barber:employees!sales_barber_id_fkey(full_name)",
-        )
-        .eq("id", completedSaleId)
-        .single(),
-      supabase
-        .from("sale_items")
-        .select("id, item_type, description_snapshot, quantity, unit_price, total, is_courtesy")
-        .eq("sale_id", completedSaleId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("sale_payments")
-        .select("id, amount, tendered_amount, change_amount, payment_method_id, payment_method:payment_methods(code, name)")
-        .eq("sale_id", completedSaleId)
-        .order("created_at", { ascending: true }),
-    ]);
-
-    if (saleSummaryResult.error || saleItemsResult.error || salePaymentsResult.error) {
-      console.error("[pos/checkout] No se pudo leer el resumen final de la venta", {
-        saleError: saleSummaryResult.error?.message,
-        itemsError: saleItemsResult.error?.message,
-        paymentsError: salePaymentsResult.error?.message,
-        saleId: completedSaleId,
-      });
-      return NextResponse.json(
-        { error: "La venta se cerro, pero no se pudo cargar su resumen." },
-        { status: 500 },
-      );
-    }
-
     await appendReservationNote(
       supabase,
       reservationId,
@@ -894,58 +1257,31 @@ export async function POST(request: Request) {
       `Venta ${formatSaleReference(completedSaleId)} completada desde POS.`,
     );
 
-    const saleSummary = saleSummaryResult.data as SaleSummaryRow;
-    const branch = unwrapRelation(saleSummary.branch);
-    const customer = unwrapRelation(saleSummary.customer);
-    const barber = unwrapRelation(saleSummary.barber);
-
-    return NextResponse.json({
-      data: {
-        saleId: completedSaleId,
-        saleReference: formatSaleReference(completedSaleId),
-        occurredAt: saleSummary.closed_at ?? new Date().toISOString(),
-        branchName: branch?.name ?? unwrapRelation(sessionRow.branch)?.name ?? "Sin sede",
-        customerName: customer?.full_name ?? customerRow.full_name,
-        barberName: barber?.full_name ?? barberRow?.full_name ?? null,
-        reservationCompleted: Boolean(reservationId),
-        items: ((saleItemsResult.data ?? []) as SaleItemSummaryRow[]).map((item) => ({
-          id: item.id,
-          name: item.description_snapshot,
-          itemType: item.item_type,
-          quantity: toMoneyNumber(item.quantity),
-          unitPrice: toMoneyNumber(item.unit_price),
-          total: toMoneyNumber(item.total),
-          isCourtesy: item.is_courtesy,
-        })),
-        subtotal: toMoneyNumber(saleSummary.subtotal),
-        discountTotal: toMoneyNumber(saleSummary.discount_total),
-        courtesyTotal: toMoneyNumber(saleSummary.courtesy_total),
-        total: toMoneyNumber(saleSummary.total),
-        payments: ((salePaymentsResult.data ?? []) as SalePaymentSummaryRow[]).map((payment) => {
-          const method = unwrapRelation(payment.payment_method);
-
-          return {
-            id: payment.id,
-            payment_method_id: payment.payment_method_id,
-            payment_method_code: method?.code ?? "cash",
-            payment_method_name: method?.name ?? "Metodo",
-            amount: toMoneyNumber(payment.amount),
-            tendered_amount:
-              payment.tendered_amount === null
-                ? toMoneyNumber(payment.amount)
-                : toMoneyNumber(payment.tendered_amount),
-            change_amount: toMoneyNumber(payment.change_amount),
-          };
-        }),
-        paidTotal: toMoneyNumber(saleSummary.paid_total),
-        changeAmount: saleChangeAmount,
-      },
+    const result = await loadCompletedSaleResult(supabase, completedSaleId, {
+      branchName: unwrapRelation(sessionRow.branch)?.name ?? "Sin sede",
+      customerName: customerRow.full_name,
+      barberName: barberRow?.full_name ?? null,
+      reservationId,
     });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json({ data: result.data });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error inesperado";
 
     if (createdSaleId && !saleCompleted) {
-      const { error: cleanupError } = await supabase.from("sales").delete().eq("id", createdSaleId);
+      const { error: itemsCleanupError } = await supabase
+        .from("sale_items")
+        .delete()
+        .eq("sale_id", createdSaleId);
+      const { error: paymentsCleanupError } = await supabase
+        .from("sale_payments")
+        .delete()
+        .eq("sale_id", createdSaleId);
+      const { error: saleCleanupError } = await supabase.from("sales").delete().eq("id", createdSaleId);
+      const cleanupError = itemsCleanupError ?? paymentsCleanupError ?? saleCleanupError;
 
       if (cleanupError) {
         console.error("[pos/checkout] No se pudo limpiar la venta fallida", {

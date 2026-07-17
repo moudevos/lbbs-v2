@@ -45,6 +45,24 @@ export async function POST(request: Request, context: { params: Promise<{ settle
   const { data, error } = await rpc;
   if (error) {
     console.error("[settlements/action] Error en liquidacion", { settlementId, action: payload?.action, message: error.message, code: error.code });
+    if (payload?.action === "review" && error.code === "PGRST202") {
+      return NextResponse.json(
+        {
+          error: "La revision de liquidaciones no esta disponible en este entorno.",
+          code: "SETTLEMENT_REVIEW_SQL_REQUIRED",
+        },
+        { status: 503 },
+      );
+    }
+    if (payload?.action === "pay" && error.message.includes("efectivo disponible")) {
+      return NextResponse.json(
+        {
+          error: "El efectivo disponible de la sesion no cubre esta liquidacion.",
+          code: "SETTLEMENT_CASH_INSUFFICIENT",
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: error.message.includes("sesion POS") ? "No existe una sesion POS activa para registrar el pago en efectivo." : "No se pudo actualizar la liquidacion." }, { status: 400 });
   }
   return NextResponse.json({ data });

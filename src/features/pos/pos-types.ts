@@ -153,6 +153,7 @@ export type PosRewardEntitlement = {
 };
 
 export type PosCheckoutPayload = {
+  idempotency_key: string;
   pos_session_id: string;
   branch_id: string;
   customer_id: string;

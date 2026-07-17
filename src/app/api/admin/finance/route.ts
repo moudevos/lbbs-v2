@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ensureDefaultFinanceCategories } from "@/lib/operational/ensure-default-categories";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 
@@ -8,16 +9,30 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   const supabase = await createClient();
-  const [entries, categories, branches, methods] = await Promise.all([
+  const [entries, initialCategories, branches, methods] = await Promise.all([
     supabase.from("finance_manual_entries").select("*, category:finance_categories(name), branch:branches(name), payment_method:payment_methods(name)").order("entry_date", { ascending: false }).limit(200),
     supabase.from("finance_categories").select("id,name,code,direction").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("branches").select("id,name").eq("is_active", true).order("name"),
     supabase.from("payment_methods").select("id,name").eq("is_active", true).order("sort_order"),
   ]);
+  let categories = initialCategories;
   const error = entries.error ?? categories.error ?? branches.error ?? methods.error;
   if (error) {
     console.error("[finance/get] Error al cargar finanzas", { message: error.message, code: error.code });
     return NextResponse.json({ error: "No se pudo cargar el libro financiero." }, { status: 500 });
+  }
+  const requiredCategoryCodes = new Set(["other_income", "operating_expense"]);
+  for (const category of categories.data ?? []) requiredCategoryCodes.delete(category.code);
+  if (requiredCategoryCodes.size > 0) {
+    try {
+      await ensureDefaultFinanceCategories();
+      categories = await supabase.from("finance_categories").select("id,name,code,direction").eq("is_active", true).order("sort_order").order("name");
+      if (categories.error) throw categories.error;
+    } catch (categoryError) {
+      const message = categoryError instanceof Error ? categoryError.message : "Error inesperado";
+      console.error("[finance/get] No se pudieron restaurar las categorias base", { message });
+      return NextResponse.json({ error: "No se pudieron preparar las categorias financieras." }, { status: 500 });
+    }
   }
   return NextResponse.json({ data: entries.data ?? [], categories: categories.data ?? [], branches: branches.data ?? [], paymentMethods: methods.data ?? [] });
 }
