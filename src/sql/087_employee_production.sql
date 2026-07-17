@@ -35,8 +35,10 @@ create table if not exists public.employee_product_bonus_entries (
   branch_id uuid not null references public.branches(id) on delete restrict,
   sale_id uuid not null references public.sales(id) on delete restrict,
   sale_item_id uuid not null references public.sale_items(id) on delete restrict,
-  product_id uuid not null references public.products(id) on delete restrict,
+  product_id uuid references public.products(id) on delete restrict,
   product_category_id uuid references public.product_categories(id) on delete set null,
+  service_id uuid references public.services(id) on delete restrict,
+  service_category_id uuid references public.service_categories(id) on delete set null,
   quantity numeric(12,2) not null check (quantity > 0),
   unit_bonus_amount numeric(12,2) not null default 0 check (unit_bonus_amount >= 0),
   total_bonus_amount numeric(12,2) not null default 0 check (total_bonus_amount >= 0),
@@ -45,11 +47,11 @@ create table if not exists public.employee_product_bonus_entries (
   reversed_at timestamptz,
   reversed_reason text,
   created_at timestamptz not null default now(),
-  unique (sale_item_id)
+  unique (sale_item_id),
+  check (num_nonnulls(product_id, service_id) = 1)
 );
 
 create index if not exists employee_service_production_period_employee_idx
   on public.employee_service_production (payroll_period_id, employee_id, status);
 create index if not exists employee_product_bonus_period_employee_idx
   on public.employee_product_bonus_entries (payroll_period_id, employee_id, status);
-

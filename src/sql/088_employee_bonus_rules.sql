@@ -30,14 +30,15 @@ create table if not exists public.product_bonus_rules (
   id uuid primary key default gen_random_uuid(), name text not null,
   product_id uuid references public.products(id) on delete cascade,
   product_category_id uuid references public.product_categories(id) on delete cascade,
+  service_id uuid references public.services(id) on delete cascade,
+  service_category_id uuid references public.service_categories(id) on delete cascade,
   bonus_type text not null default 'fixed_per_unit' check (bonus_type = 'fixed_per_unit'),
   bonus_value numeric(12,2) not null check (bonus_value >= 0),
   priority integer not null default 0, is_active boolean not null default true,
   effective_from date not null default current_date, effective_to date,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   created_by uuid references public.employees(id) on delete set null,
-  check (product_id is not null or product_category_id is not null),
-  check (not (product_id is not null and product_category_id is not null)),
+  check (num_nonnulls(product_id, product_category_id, service_id, service_category_id) = 1),
   check (effective_to is null or effective_to >= effective_from)
 );
 
@@ -56,6 +57,7 @@ create table if not exists public.employee_supply_markup_rules (
 create index if not exists reward_service_commission_rules_lookup_idx on public.reward_service_commission_rules (is_active, service_id, service_category_id, priority desc);
 create index if not exists courtesy_service_commission_rules_lookup_idx on public.courtesy_service_commission_rules (is_active, service_id, service_category_id, priority desc);
 create index if not exists product_bonus_rules_lookup_idx on public.product_bonus_rules (is_active, product_id, product_category_id, priority desc);
+create index if not exists product_bonus_rules_service_lookup_idx on public.product_bonus_rules (is_active, service_id, service_category_id, priority desc);
 create index if not exists employee_supply_markup_rules_lookup_idx on public.employee_supply_markup_rules (is_active, product_id, priority desc);
 
 alter table public.employee_product_bonus_entries

@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
   let bonusesQuery = supabase
     .from("employee_product_bonus_entries")
-    .select("id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), sale_item:sale_items(description_snapshot, total)")
+    .select("id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total)")
     .eq("payroll_period_id", periodId);
   if (branchId) bonusesQuery = bonusesQuery.eq("branch_id", branchId);
   if (employeeId) bonusesQuery = bonusesQuery.eq("employee_id", employeeId);

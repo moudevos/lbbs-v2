@@ -49,7 +49,7 @@ export const settingsTabs: SettingsNavTab[] = [
   { id: "comp:operational", label: "Aportes", description: "Configura el aporte operativo descontado de la produccion antes de calcular una liquidacion.", icon: faSackDollar },
   { id: "comp:reward", label: "Rewards", description: "Configura la comision fija del barbero por servicios cobrados con un reward. No crea rewards para clientes.", icon: faGift },
   { id: "comp:courtesy", label: "Com. cortesias", description: "Configura la comision fija del barbero por servicios otorgados como cortesia aprobada.", icon: faHeart },
-  { id: "comp:product_bonus", label: "Bonos", description: "Configura bonos por cada producto vendido, por producto o categoria.", icon: faStar },
+  { id: "comp:product_bonus", label: "Bonos", description: "Configura bonos por productos y servicios, de forma individual o por categoria.", icon: faStar },
   { id: "comp:supply_markup", label: "Recargos", description: "Configura el recargo al entregar insumos del inventario a un empleado. No cambia precios de venta al cliente.", icon: faPercent },
   { id: "rewards", label: "Fidelizacion", description: "Consulta reglas y premios de clientes. La gestion completa se realiza en el modulo Rewards.", icon: faGift },
   { id: "whatsapp", label: "Plantillas", description: "Edita los mensajes base usados para recordar reservas y agradecer atenciones.", icon: faCommentDots },

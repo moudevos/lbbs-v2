@@ -1580,7 +1580,7 @@ revoke all on public.reward_redemptions from public;
 
 revoke all on function public.mark_expired_reward_entitlements(uuid) from public;
 revoke all on function public.is_rewards_customer_eligible(uuid) from public;
-revoke all on function public.get_reward_metric_total(uuid, text) from public;
+revoke all on function public.get_reward_metric_total(uuid, text, uuid) from public;
 revoke all on function public.issue_reward_entitlements_for_metric(uuid, text, numeric, uuid) from public;
 revoke all on function public.process_rewards_for_completed_sale(uuid) from public;
 revoke all on function public.reverse_rewards_for_cancelled_sale(uuid) from public;
@@ -1590,7 +1590,7 @@ revoke all on function public.register_reward_card_migration(uuid, numeric, text
 
 grant execute on function public.mark_expired_reward_entitlements(uuid) to authenticated, service_role;
 grant execute on function public.is_rewards_customer_eligible(uuid) to authenticated, service_role;
-grant execute on function public.get_reward_metric_total(uuid, text) to authenticated, service_role;
+grant execute on function public.get_reward_metric_total(uuid, text, uuid) to authenticated, service_role;
 grant execute on function public.issue_reward_entitlements_for_metric(uuid, text, numeric, uuid) to authenticated, service_role;
 grant execute on function public.process_rewards_for_completed_sale(uuid) to authenticated, service_role;
 grant execute on function public.reverse_rewards_for_cancelled_sale(uuid) to authenticated, service_role;

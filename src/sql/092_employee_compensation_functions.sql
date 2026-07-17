@@ -365,7 +365,13 @@ begin
   insert into public.employee_settlement_service_lines (settlement_id, production_entry_id, service_name_snapshot, production_date_snapshot, commissionable_amount, commission_rate, commission_amount, fixed_commission_amount)
   select v_settlement.id, esp.id, s.name, esp.production_date, esp.commissionable_amount, case when esp.production_source in ('reward', 'courtesy') then 0 else p_commission_rate end, case when esp.production_source in ('reward', 'courtesy') then 0 else round(esp.commissionable_amount * p_commission_rate / 100, 2) end, esp.fixed_commission_amount from public.employee_service_production esp join public.services s on s.id = esp.service_id where esp.payroll_period_id = p_period_id and esp.employee_id = p_employee_id and esp.status = 'active';
   insert into public.employee_settlement_bonus_lines (settlement_id, product_bonus_entry_id, product_name_snapshot, bonus_amount)
-  select v_settlement.id, epb.id, p.name, epb.total_bonus_amount from public.employee_product_bonus_entries epb join public.products p on p.id = epb.product_id where epb.payroll_period_id = p_period_id and epb.employee_id = p_employee_id and epb.status = 'active';
+  select v_settlement.id, epb.id, coalesce(p.name, s.name), epb.total_bonus_amount
+  from public.employee_product_bonus_entries epb
+  left join public.products p on p.id = epb.product_id
+  left join public.services s on s.id = epb.service_id
+  where epb.payroll_period_id = p_period_id
+    and epb.employee_id = p_employee_id
+    and epb.status = 'active';
   for v_item in select * from jsonb_array_elements(coalesce(p_debt_deductions, '[]'::jsonb)) loop
     select * into v_debt from public.employee_debts where id = (v_item ->> 'debt_id')::uuid; v_amount := round((v_item ->> 'amount')::numeric, 2);
     insert into public.employee_settlement_deductions (settlement_id, employee_debt_id, amount, balance_before, balance_after) values (v_settlement.id, v_debt.id, v_amount, v_debt.outstanding_amount, v_debt.outstanding_amount - v_amount);

@@ -21,7 +21,7 @@ const kindLabels: Record<CompensationKind, string> = {
   operational: "Aportes operativos",
   reward: "Comisiones rewards",
   courtesy: "Comisiones cortesias",
-  product_bonus: "Bonos productos",
+  product_bonus: "Bonos de venta",
   supply_markup: "Recargos insumos",
 };
 
@@ -33,7 +33,7 @@ const kindDescriptions: Record<CompensationKind, string> = {
   courtesy:
     "Define la comision fija del barbero cuando un servicio se entrega como cortesia validada en POS.",
   product_bonus:
-    "Define el bono fijo que recibe el equipo por vender un producto o una categoria de productos.",
+    "Define el bono fijo que recibe el equipo por vender un producto, servicio o una de sus categorias.",
   supply_markup:
     "Define el recargo para insumos entregados a empleados. No modifica el precio de venta de productos en POS.",
 };
@@ -101,7 +101,24 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
     setForm({
       id: rule.id,
       name: rule.name,
-      scope_type: serviceId ? "service" : productId ? "product" : serviceCategoryId || productCategoryId ? "category" : "global",
+      scope_type:
+        kind === "product_bonus"
+          ? serviceId
+            ? "service"
+            : serviceCategoryId
+              ? "service_category"
+              : productId
+                ? "product"
+                : productCategoryId
+                  ? "product_category"
+                  : "product"
+          : serviceId
+            ? "service"
+            : productId
+              ? "product"
+              : serviceCategoryId || productCategoryId
+                ? "category"
+                : "global",
       scope_id: serviceId || productId || serviceCategoryId || productCategoryId,
       calculation_type: String(rule.calculation_type ?? rule.markup_type ?? "fixed"),
       value: String(rule.calculation_value ?? rule.fixed_commission_amount ?? rule.bonus_value ?? rule.markup_value ?? ""),
@@ -167,7 +184,15 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
       ? form.scope_type === "service"
         ? options.services
         : options.serviceCategories
-      : kind === "product_bonus" || kind === "supply_markup"
+      : kind === "product_bonus"
+        ? form.scope_type === "service"
+          ? options.services
+          : form.scope_type === "service_category"
+            ? options.serviceCategories
+            : form.scope_type === "product"
+              ? options.products
+              : options.productCategories
+        : kind === "supply_markup"
         ? form.scope_type === "product"
           ? options.products
           : options.productCategories
@@ -181,7 +206,7 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
           <p className="mt-1 text-sm text-slate-600">{kindDescriptions[kind]}</p>
           <p className="mt-1 text-xs text-slate-500">Las reglas tienen vigencia y prioridad; no modifican liquidaciones ya creadas.</p>
         </div>
-        <Button type="button" onClick={() => { setForm(emptyForm); setOpen(true); }}>
+        <Button type="button" onClick={() => { setForm({ ...emptyForm, scope_type: kind === "product_bonus" ? "product" : "global" }); setOpen(true); }}>
           Nueva regla
         </Button>
       </div>
@@ -256,13 +281,20 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
                 value={form.scope_type}
                 onChange={(e) => setForm({ ...form, scope_type: e.target.value, scope_id: "" })}
               >
-                <option value="global">Global</option>
+                {kind !== "product_bonus" ? <option value="global">Global</option> : null}
                 {kind === "reward" || kind === "courtesy" ? (
                   <option value="service">Servicio</option>
+                ) : kind === "product_bonus" ? (
+                  <>
+                    <option value="product">Producto</option>
+                    <option value="product_category">Categoria de productos</option>
+                    <option value="service">Servicio</option>
+                    <option value="service_category">Categoria de servicios</option>
+                  </>
                 ) : (
                   <option value="product">Producto</option>
                 )}
-                <option value="category">Categoria</option>
+                {kind !== "product_bonus" ? <option value="category">Categoria</option> : null}
               </Select>
             </label>
           ) : null}

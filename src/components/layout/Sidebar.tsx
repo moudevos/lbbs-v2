@@ -17,8 +17,11 @@ import {
   faChartLine,
   faMoneyCheckDollar,
   faCalculator,
+  faHandHoldingDollar,
+  faMobileScreenButton,
   faScissors,
   faUsers,
+  faWifi,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -55,6 +58,9 @@ const items = [
   { href: "/control/liquidaciones", label: "Liquidaciones", icon: faMoneyCheckDollar, module: "settlements" },
   { href: "/control/simulaciones-pago", label: "Simulaciones", icon: faCalculator, module: "payment_simulations" },
   { href: "/control/finanzas", label: "Finanzas", icon: faMoneyCheckDollar, module: "finance" },
+  { href: "/control/deudas-empleados", label: "Deudas de empleados", icon: faHandHoldingDollar, module: "employee_debts" },
+  { href: "/control/dispositivos", label: "Dispositivos", icon: faMobileScreenButton, module: "devices" },
+  { href: "/control/hotspots", label: "Hotspots", icon: faWifi, module: "hotspots" },
 ] satisfies Array<{
   href: string;
   label: string;
@@ -73,11 +79,11 @@ const groups: SidebarGroup[] = [
   { id: "operacion", label: "Operacion", modules: ["pos", "sales", "cash", "reservations"] },
   { id: "clientes", label: "Clientes", modules: ["customers", "contacts", "rewards"] },
   { id: "catalogo", label: "Catalogo", modules: ["services", "products"] },
-  { id: "personal", label: "Personal", modules: ["production", "settlements", "payment_simulations"] },
+  { id: "personal", label: "Personal", modules: ["production", "settlements", "payment_simulations", "employee_debts"] },
   {
     id: "administracion",
     label: "Administracion",
-    modules: ["branches", "employees", "settings", "finance"],
+    modules: ["branches", "employees", "settings", "finance", "devices", "hotspots"],
   },
 ];
 
