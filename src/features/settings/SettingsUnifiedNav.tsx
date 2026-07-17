@@ -29,23 +29,30 @@ export type SettingsTabId =
   | "comp:courtesy"
   | "comp:product_bonus"
   | "comp:supply_markup"
+  | "rewards"
   | "whatsapp";
 
-type NavTab = { id: SettingsTabId; label: string; icon: IconDefinition };
+export type SettingsNavTab = {
+  id: SettingsTabId;
+  label: string;
+  description: string;
+  icon: IconDefinition;
+};
 
-export const settingsTabs: NavTab[] = [
-  { id: "cat:service_categories", label: "Servicios", icon: faScissors },
-  { id: "cat:product_categories", label: "Productos", icon: faBoxOpen },
-  { id: "cat:payment_methods", label: "Pagos", icon: faCreditCard },
-  { id: "cat:product_units", label: "Unidades", icon: faRulerCombined },
-  { id: "cat:courtesy_reasons", label: "Cortesias", icon: faHandHoldingHeart },
-  { id: "cat:stock_adjustment_reasons", label: "Stock", icon: faBoxesStacked },
-  { id: "comp:operational", label: "Aportes", icon: faSackDollar },
-  { id: "comp:reward", label: "Rewards", icon: faGift },
-  { id: "comp:courtesy", label: "Com. cortesias", icon: faHeart },
-  { id: "comp:product_bonus", label: "Bonos", icon: faStar },
-  { id: "comp:supply_markup", label: "Recargos", icon: faPercent },
-  { id: "whatsapp", label: "Plantillas", icon: faCommentDots },
+export const settingsTabs: SettingsNavTab[] = [
+  { id: "cat:service_categories", label: "Servicios", description: "Ordena el catalogo de servicios para facilitar su busqueda y reporte.", icon: faScissors },
+  { id: "cat:product_categories", label: "Productos", description: "Clasifica los productos del catalogo para POS, stock y reportes.", icon: faBoxOpen },
+  { id: "cat:payment_methods", label: "Pagos", description: "Define los medios de cobro disponibles en nuevas ventas de POS.", icon: faCreditCard },
+  { id: "cat:product_units", label: "Unidades", description: "Define unidades de medida para registrar productos e inventario de forma consistente.", icon: faRulerCombined },
+  { id: "cat:courtesy_reasons", label: "Cortesias", description: "Registra los motivos que el equipo debe indicar al entregar una cortesia en POS.", icon: faHandHoldingHeart },
+  { id: "cat:stock_adjustment_reasons", label: "Stock", description: "Define motivos auditables para ajustes, mermas, reposiciones y transferencias de inventario.", icon: faBoxesStacked },
+  { id: "comp:operational", label: "Aportes", description: "Configura el aporte operativo descontado de la produccion antes de calcular una liquidacion.", icon: faSackDollar },
+  { id: "comp:reward", label: "Rewards", description: "Configura la comision fija del barbero por servicios cobrados con un reward. No crea rewards para clientes.", icon: faGift },
+  { id: "comp:courtesy", label: "Com. cortesias", description: "Configura la comision fija del barbero por servicios otorgados como cortesia aprobada.", icon: faHeart },
+  { id: "comp:product_bonus", label: "Bonos", description: "Configura bonos por cada producto vendido, por producto o categoria.", icon: faStar },
+  { id: "comp:supply_markup", label: "Recargos", description: "Configura el recargo al entregar insumos del inventario a un empleado. No cambia precios de venta al cliente.", icon: faPercent },
+  { id: "rewards", label: "Fidelizacion", description: "Consulta reglas y premios de clientes. La gestion completa se realiza en el modulo Rewards.", icon: faGift },
+  { id: "whatsapp", label: "Plantillas", description: "Edita los mensajes base usados para recordar reservas y agradecer atenciones.", icon: faCommentDots },
 ];
 
 type SettingsUnifiedNavProps = {
@@ -64,7 +71,7 @@ export function SettingsUnifiedNav({ active, onChange }: SettingsUnifiedNavProps
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            title={tab.label}
+            title={`${tab.label}: ${tab.description}`}
             className={[
               "group flex items-center rounded-full py-2 pl-2.5 transition-colors duration-200",
               isActive ? "bg-emerald-50 pr-3.5" : "pr-2.5 hover:bg-slate-100",

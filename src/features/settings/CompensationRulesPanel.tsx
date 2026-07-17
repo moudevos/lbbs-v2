@@ -25,6 +25,19 @@ const kindLabels: Record<CompensationKind, string> = {
   supply_markup: "Recargos insumos",
 };
 
+const kindDescriptions: Record<CompensationKind, string> = {
+  operational:
+    "Define el aporte operativo que se descuenta de cada servicio antes de calcular la base de una liquidacion.",
+  reward:
+    "Define la comision fija del barbero cuando un servicio se realiza usando un reward ya ganado por el cliente.",
+  courtesy:
+    "Define la comision fija del barbero cuando un servicio se entrega como cortesia validada en POS.",
+  product_bonus:
+    "Define el bono fijo que recibe el equipo por vender un producto o una categoria de productos.",
+  supply_markup:
+    "Define el recargo para insumos entregados a empleados. No modifica el precio de venta de productos en POS.",
+};
+
 const emptyForm = {
   id: "",
   name: "",
@@ -165,7 +178,8 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-900">{kindLabels[kind]}</p>
-          <p className="mt-1 text-sm text-slate-600">Reglas editables con vigencia y prioridad.</p>
+          <p className="mt-1 text-sm text-slate-600">{kindDescriptions[kind]}</p>
+          <p className="mt-1 text-xs text-slate-500">Las reglas tienen vigencia y prioridad; no modifican liquidaciones ya creadas.</p>
         </div>
         <Button type="button" onClick={() => { setForm(emptyForm); setOpen(true); }}>
           Nueva regla

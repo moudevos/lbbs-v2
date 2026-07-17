@@ -5,8 +5,13 @@ import Swal from "sweetalert2";
 
 import { SettingFormModal } from "@/features/settings/SettingFormModal";
 import { SettingTable } from "@/features/settings/SettingTable";
-import { SettingsUnifiedNav, type SettingsTabId } from "@/features/settings/SettingsUnifiedNav";
+import {
+  SettingsUnifiedNav,
+  settingsTabs,
+  type SettingsTabId,
+} from "@/features/settings/SettingsUnifiedNav";
 import { CompensationRulesPanel, type CompensationKind } from "@/features/settings/CompensationRulesPanel";
+import { RewardsConfigurationSummary } from "@/features/settings/RewardsConfigurationSummary";
 import { WhatsAppTemplatesPanel } from "@/features/settings/WhatsAppTemplatesPanel";
 import {
   createEmptySettingForm,
@@ -66,6 +71,10 @@ export function SettingsPageClient() {
   const activeConfig = useMemo(
     () => (activeSection ? getSectionConfig(activeSection) : null),
     [activeSection],
+  );
+  const activeTabConfig = useMemo(
+    () => settingsTabs.find((tab) => tab.id === activeTab) ?? null,
+    [activeTab],
   );
   const activeItems = activeSection ? itemsBySection[activeSection] ?? [] : [];
   const isLoading = activeSection ? loadingBySection[activeSection] ?? false : false;
@@ -273,6 +282,10 @@ export function SettingsPageClient() {
           <div className="mt-4">
             <SettingsUnifiedNav active={activeTab} onChange={setActiveTab} />
           </div>
+
+          {activeTabConfig ? (
+            <p className="mt-3 text-sm text-slate-600">{activeTabConfig.description}</p>
+          ) : null}
         </section>
 
         {activeSection && activeConfig ? (
@@ -289,6 +302,8 @@ export function SettingsPageClient() {
         {activeCompensationKind ? (
           <CompensationRulesPanel kind={activeCompensationKind} />
         ) : null}
+
+        {activeTab === "rewards" ? <RewardsConfigurationSummary /> : null}
 
         {activeTab === "whatsapp" ? <WhatsAppTemplatesPanel /> : null}
       </div>
