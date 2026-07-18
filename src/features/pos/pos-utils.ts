@@ -8,7 +8,7 @@ import type {
 } from "@/features/pos/pos-types";
 
 export function validateSaleCommercialComposition(items: PosCartItem[]) {
-  const hasCommercialItem = items.some((item) => !item.is_courtesy && item.quantity * item.unit_price - item.discount_amount > 0);
+  const hasCommercialItem = items.some((item) => !item.is_courtesy);
   const hasCourtesyItems = items.some((item) => item.is_courtesy);
   return { isValid: hasCommercialItem, hasCommercialItem, hasCourtesyItems, reasonCode: hasCommercialItem ? null : "COURTESY_ONLY_SALE", message: hasCommercialItem ? null : "No puedes continuar con una venta compuesta únicamente por cortesías. Agrega al menos un servicio o producto de pago." };
 }

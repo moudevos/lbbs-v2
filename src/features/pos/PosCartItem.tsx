@@ -3,7 +3,7 @@
 import { faMinus, faPlus, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
-import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import type { PosCartItem } from "@/features/pos/pos-types";
 import { formatMoney, getItemSubtotal } from "@/features/pos/pos-utils";
 
@@ -14,6 +14,7 @@ type PosCartItemProps = {
   onRemove: () => void;
   onToggleCourtesy: () => void;
   onCourtesyReasonChange: (value: string) => void;
+  courtesyReasons: Array<{ id: string; name: string }>;
 };
 
 export function PosCartItem({
@@ -23,7 +24,15 @@ export function PosCartItem({
   onRemove,
   onToggleCourtesy,
   onCourtesyReasonChange,
+  courtesyReasons,
 }: PosCartItemProps) {
+  const defaultReason = "Cortesia de servicio";
+  const reasonOptions = courtesyReasons.filter(
+    (reason) =>
+      reason.name.trim().toLocaleLowerCase("es-PE") !==
+      defaultReason.toLocaleLowerCase("es-PE"),
+  );
+
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-2.5">
       <div className="flex items-start justify-between gap-2">
@@ -81,26 +90,35 @@ export function PosCartItem({
         </span>
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-3">
-        <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-            checked={item.is_courtesy}
-            onChange={onToggleCourtesy}
-          />
-          Cortesia
-        </label>
-      </div>
+      {item.item_type === "product" ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              checked={item.is_courtesy}
+              onChange={onToggleCourtesy}
+            />
+            Cortesia
+          </label>
+        </div>
+      ) : null}
 
-      {item.is_courtesy ? (
+      {item.item_type === "product" && item.is_courtesy ? (
         <div className="mt-1.5">
-          <Input
-            value={item.courtesy_reason}
+          <Select
+            value={item.courtesy_reason || defaultReason}
             onChange={(event) => onCourtesyReasonChange(event.target.value)}
-            placeholder="Motivo de cortesia"
             className="h-8 text-xs"
-          />
+            aria-label="Motivo de cortesia"
+          >
+            <option value={defaultReason}>Cortesia de servicio</option>
+            {reasonOptions.map((reason) => (
+              <option key={reason.id} value={reason.name}>
+                {reason.name}
+              </option>
+            ))}
+          </Select>
         </div>
       ) : null}
     </article>

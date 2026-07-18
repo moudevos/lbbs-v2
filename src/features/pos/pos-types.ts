@@ -53,6 +53,12 @@ export type PosPaymentMethodRecord = {
   counts_as_cash: boolean;
 };
 
+export type PosCourtesyReasonRecord = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 export type PosServiceRecord = {
   id: string;
   category_id: string | null;
@@ -424,6 +430,7 @@ export type PosBootstrapPayload = {
   activeSession: PosSessionRecord | null;
   customerVarious: PosCustomerRecord | null;
   paymentMethods: PosPaymentMethodRecord[];
+  courtesyReasons: PosCourtesyReasonRecord[];
   reservationPrefill?: {
     id: string;
     customer: PosCustomerRecord;

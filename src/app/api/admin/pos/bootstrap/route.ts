@@ -181,6 +181,24 @@ export async function GET(request: Request) {
     );
   }
 
+  const { data: courtesyReasons, error: courtesyReasonsError } = await supabase
+    .from("courtesy_reasons")
+    .select("id, code, name")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (courtesyReasonsError) {
+    console.error("[pos/bootstrap] No se pudieron cargar los motivos de cortesia", {
+      message: courtesyReasonsError.message,
+      code: courtesyReasonsError.code,
+    });
+    return NextResponse.json(
+      { error: "No se pudieron cargar los motivos de cortesia." },
+      { status: 500 },
+    );
+  }
+
   const { data: customerVarious, error: customerError } = await supabase
     .from("customers")
     .select("id, full_name, phone, document_number, is_active")
@@ -228,6 +246,7 @@ export async function GET(request: Request) {
       null,
     customerVarious: customerVarious ?? null,
     paymentMethods: paymentMethods ?? [],
+    courtesyReasons: courtesyReasons ?? [],
     reservationPrefill,
   });
 }

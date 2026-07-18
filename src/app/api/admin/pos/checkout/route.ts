@@ -9,11 +9,6 @@ import {
   toMoneyNumber,
   trimOrNull,
 } from "@/app/api/admin/pos/route-helpers";
-import {
-  validateCourtesySelection,
-  type CourtesyRule,
-  type CourtesyValidationResult,
-} from "@/features/pos/courtesy-validation";
 import { createClient } from "@/lib/supabase/server";
 import { requirePosWriteSession } from "@/lib/supabase/route-auth";
 
@@ -57,13 +52,11 @@ function isMissingServiceCustomPriceColumn(error: { code?: string; message?: str
 
 type ProductRow = {
   id: string;
-  category_id: string | null;
   name: string;
   cost_price: number | string;
   base_sale_price: number | string;
   allow_custom_price: boolean;
   is_stockable: boolean;
-  is_courtesy_allowed: boolean;
   is_active: boolean;
 };
 
@@ -350,7 +343,7 @@ async function findCompletedIdempotentSale(
           unitPrice: toMoneyNumber(item.unit_price),
           discountAmount: toMoneyNumber(item.discount_amount),
           isCourtesy: item.is_courtesy,
-          courtesyReason: item.is_courtesy ? trimOrNull(item.courtesy_reason) : null,
+          courtesyReason: item.is_courtesy ? trimOrNull(item.courtesy_reason) ?? "Cortesia de servicio" : null,
         })),
         payments: ((paymentsResult.data ?? []) as IdempotencySalePaymentRow[]).map((payment) => ({
           paymentMethodId: payment.payment_method_id,
@@ -409,7 +402,7 @@ function normalizeCheckoutItems(rawItems: unknown) {
       unitPrice: Number(unitPrice.toFixed(2)),
       discountAmount: Number(discountAmount.toFixed(2)),
       isCourtesy,
-      courtesyReason: trimOrNull(item.courtesy_reason),
+      courtesyReason: isCourtesy ? trimOrNull(item.courtesy_reason) ?? "Cortesia de servicio" : null,
       total,
     };
   });
@@ -513,6 +506,23 @@ export async function POST(request: Request) {
 
   const items = normalizedItems.items;
   const payments = normalizedPayments.payments;
+
+  if (items.some((item) => item.isCourtesy && item.itemType !== "product")) {
+    return NextResponse.json(
+      { error: "Las cortesias se registran solo para productos." },
+      { status: 400 },
+    );
+  }
+
+  const hasChargeableItem = items.some((item) => !item.isCourtesy);
+
+  if (!hasChargeableItem) {
+    return NextResponse.json(
+      { error: "La venta debe incluir al menos un servicio o producto normal ademas de las cortesias." },
+      { status: 400 },
+    );
+  }
+
   const checkoutSignature = buildCheckoutSignature({
     branchId,
     customerId,
@@ -524,17 +534,6 @@ export async function POST(request: Request) {
     payments,
   });
   const requiresBarber = items.some((item) => item.itemType === "service");
-
-  const hasChargeableItem = items.some(
-    (item) => !item.isCourtesy && item.quantity * item.unitPrice - item.discountAmount > 0,
-  );
-
-  if (!hasChargeableItem) {
-    return NextResponse.json(
-      { error: "No puedes completar una venta compuesta unicamente por cortesias." },
-      { status: 400 },
-    );
-  }
 
   if (requiresBarber && !barberId) {
     return NextResponse.json(
@@ -732,7 +731,7 @@ export async function POST(request: Request) {
     productIds.length
       ? supabase
           .from("products")
-          .select("id, category_id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active")
+          .select("id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_active")
           .in("id", productIds)
       : Promise.resolve({ data: [], error: null }),
     payments.length
@@ -811,63 +810,6 @@ export async function POST(request: Request) {
   const stockMap = new Map(
     ((stockResult.data ?? []) as ProductStockRow[]).map((row) => [row.product_id, row]),
   );
-
-  let courtesyValidation: CourtesyValidationResult | null = null;
-  if (items.some((item) => item.isCourtesy)) {
-    const { data: rawRules, error: courtesyRulesError } = await supabase
-      .from("courtesy_rules")
-      .select("id,name,branch_id,priority,qualifying_service_id,qualifying_service_category_id,minimum_unit_amount,maximum_courtesy_items,maximum_courtesy_amount,allow_with_reward,starts_at,ends_at,is_active,benefits:courtesy_rule_benefits(id,benefit_item_type,service_id,product_id,service_category_id,product_category_id,max_quantity,max_unit_amount,is_active)")
-      .eq("is_active", true)
-      .or(`branch_id.is.null,branch_id.eq.${branchId}`)
-      .order("priority", { ascending: false });
-
-    if (courtesyRulesError) {
-      console.error("[pos/checkout] No se pudieron cargar las reglas de cortesia", {
-        message: courtesyRulesError.message,
-        code: courtesyRulesError.code,
-      });
-      return NextResponse.json({ error: "No se pudieron validar las reglas de cortesia." }, { status: 500 });
-    }
-
-    const rules = ((rawRules ?? []) as unknown as Array<Record<string, unknown>>).map((rawRule) => ({
-      ...rawRule,
-      priority: Number(rawRule.priority ?? 0),
-      minimum_unit_amount: toMoneyNumber(rawRule.minimum_unit_amount),
-      maximum_courtesy_items: Number(rawRule.maximum_courtesy_items ?? 0),
-      maximum_courtesy_amount: rawRule.maximum_courtesy_amount === null ? null : toMoneyNumber(rawRule.maximum_courtesy_amount),
-      benefits: (Array.isArray(rawRule.benefits) ? rawRule.benefits : []).map((rawBenefit) => {
-        const benefit = rawBenefit as Record<string, unknown>;
-        return {
-          ...benefit,
-          max_quantity: Number(benefit.max_quantity ?? 0),
-          max_unit_amount: benefit.max_unit_amount === null ? null : toMoneyNumber(benefit.max_unit_amount),
-        };
-      }),
-    })) as CourtesyRule[];
-
-    courtesyValidation = validateCourtesySelection({
-      branchId,
-      hasReward: Boolean(rewardEntitlementId),
-      rules,
-      items: items.map((item) => {
-        const service = item.itemType === "service" ? servicesMap.get(item.catalogId) : null;
-        const product = item.itemType === "product" ? productsMap.get(item.catalogId) : null;
-        return {
-          catalogId: item.catalogId,
-          itemType: item.itemType,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          isCourtesy: item.isCourtesy,
-          courtesyReason: item.courtesyReason,
-          categoryId: service?.category_id ?? product?.category_id ?? null,
-          isCourtesyAllowed: item.itemType === "service" || product?.is_courtesy_allowed === true,
-        };
-      }),
-    });
-    if (!courtesyValidation.ok) {
-      return NextResponse.json({ error: courtesyValidation.message }, { status: 400 });
-    }
-  }
 
   for (const item of items) {
     if (item.itemType === "service") {
@@ -1129,8 +1071,8 @@ export async function POST(request: Request) {
         barber_id: item.itemType === "service" ? barberId : null,
         is_courtesy: item.isCourtesy,
         courtesy_reason: item.isCourtesy ? item.courtesyReason : null,
-        courtesy_rule_id: item.isCourtesy && courtesyValidation?.ok ? courtesyValidation.rule.id : null,
-        courtesy_rule_name_snapshot: item.isCourtesy && courtesyValidation?.ok ? courtesyValidation.rule.name : null,
+        courtesy_rule_id: null,
+        courtesy_rule_name_snapshot: null,
         original_unit_price: item.isCourtesy ? item.unitPrice : null,
         original_total: item.isCourtesy ? Number((item.quantity * item.unitPrice).toFixed(2)) : null,
         courtesy_amount: item.isCourtesy ? Number((item.quantity * item.unitPrice).toFixed(2)) : null,
@@ -1138,24 +1080,12 @@ export async function POST(request: Request) {
       };
     });
 
-    const { data: insertedItems, error: itemsInsertError } = await supabase
+    const { error: itemsInsertError } = await supabase
       .from("sale_items")
-      .insert(saleItemsPayload)
-      .select("id,service_id,is_courtesy");
+      .insert(saleItemsPayload);
 
     if (itemsInsertError) {
       throw new Error(itemsInsertError.message);
-    }
-
-    if (courtesyValidation?.ok) {
-      const qualifyingItemId = (insertedItems ?? []).find((item) => item.service_id === courtesyValidation.qualifyingCatalogId && item.is_courtesy === false)?.id ?? null;
-      const courtesyItemIds = (insertedItems ?? []).filter((item) => item.is_courtesy === true).map((item) => item.id);
-      if (!qualifyingItemId || courtesyItemIds.length === 0) throw new Error("No se pudo auditar la cortesia seleccionada.");
-      const { error: courtesyAuditError } = await supabase
-        .from("sale_items")
-        .update({ qualifying_sale_item_id: qualifyingItemId })
-        .in("id", courtesyItemIds);
-      if (courtesyAuditError) throw new Error(courtesyAuditError.message);
     }
 
     if (rewardEntitlementId) {

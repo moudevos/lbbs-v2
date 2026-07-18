@@ -39,7 +39,12 @@ export type CourtesyRule = {
 };
 
 export type CourtesyValidationResult =
-  | { ok: true; rule: CourtesyRule; benefitByCatalogId: Map<string, CourtesyRuleBenefit>; qualifyingCatalogId: string }
+  | {
+      ok: true;
+      rule: CourtesyRule | null;
+      benefitByCatalogId: Map<string, CourtesyRuleBenefit>;
+      qualifyingCatalogId: string | null;
+    }
   | { ok: false; message: string };
 
 function benefitMatches(item: CourtesyValidationItem, benefit: CourtesyRuleBenefit) {
@@ -59,7 +64,6 @@ export function validateCourtesySelection(input: {
 }): CourtesyValidationResult {
   const courtesyItems = input.items.filter((item) => item.isCourtesy);
   if (courtesyItems.length === 0) return { ok: false, message: "No hay cortesias para validar." };
-  if (courtesyItems.some((item) => !item.courtesyReason)) return { ok: false, message: "Indica el motivo de cada cortesia." };
   if (courtesyItems.some((item) => item.itemType === "product" && !item.isCourtesyAllowed)) {
     return { ok: false, message: "Uno de los productos no admite cortesia." };
   }
@@ -99,5 +103,19 @@ export function validateCourtesySelection(input: {
     if (allBenefitsValid) return { ok: true, rule, benefitByCatalogId, qualifyingCatalogId: qualifyingItem.catalogId };
   }
 
-  return { ok: false, message: "La cortesia no cumple una regla activa para esta sede." };
+  // Una cortesia de servicio puede registrarse manualmente si ninguna regla aplica.
+  // Las reglas siguen siendo obligatorias para productos y se usan para auditar cuando coinciden.
+  if (courtesyItems.every((item) => item.itemType === "service")) {
+    return {
+      ok: true,
+      rule: null,
+      benefitByCatalogId: new Map(),
+      qualifyingCatalogId: null,
+    };
+  }
+
+  return {
+    ok: false,
+    message: "Los productos en cortesia requieren una regla activa aplicable para esta sede.",
+  };
 }

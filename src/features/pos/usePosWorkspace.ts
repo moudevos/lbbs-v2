@@ -203,6 +203,7 @@ export function usePosWorkspace() {
   const activeReservationId = selectedReservationId;
   const branches = bootstrap?.branches ?? [];
   const paymentMethods = bootstrap?.paymentMethods ?? [];
+  const courtesyReasons = bootstrap?.courtesyReasons ?? [];
   const customerVarious = bootstrap?.customerVarious ?? null;
   const customerVariousId = bootstrap?.customerVarious?.id ?? null;
   const isBranchLocked =
@@ -603,6 +604,7 @@ export function usePosWorkspace() {
     catalogTab,
     categoryFilter,
     courtesyTotal,
+    courtesyReasons,
     customerVarious,
     customerVariousId,
     discountTotal,

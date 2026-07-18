@@ -14,17 +14,19 @@ import { PosRewardModal } from "@/features/pos/PosRewardModal";
 import { PosSummary } from "@/features/pos/PosSummary";
 import type {
   PosCartItem as PosCartItemRecord,
+  PosCourtesyReasonRecord,
   PosCustomerRecord,
   PosEmployeeRecord,
   PosPaymentMethodRecord,
   PosPreparedPayment,
   PosRewardEntitlement,
 } from "@/features/pos/pos-types";
-import { formatMoney, reconcilePosPayments, validateSaleCommercialComposition } from "@/features/pos/pos-utils";
+import { formatMoney, reconcilePosPayments } from "@/features/pos/pos-utils";
 
 type PosCartProps = {
   customer: PosCustomerRecord | null;
   customerVariousId: string | null;
+  courtesyReasons: PosCourtesyReasonRecord[];
   items: PosCartItemRecord[];
   barbers: PosEmployeeRecord[];
   selectedBarberId: string;
@@ -58,6 +60,7 @@ type PosCartProps = {
 export function PosCart({
   customer,
   customerVariousId,
+  courtesyReasons,
   items,
   barbers,
   selectedBarberId,
@@ -100,7 +103,6 @@ export function PosCart({
     (reward) => reward.id === selectedRewardEntitlementId,
   )?.reward_benefits?.name;
 
-  const commercialComposition = validateSaleCommercialComposition(items);
   const canOpenPayment =
     items.length > 0 && Boolean(customer) && (!barberRequired || Boolean(selectedBarberId));
 
@@ -110,7 +112,7 @@ export function PosCart({
       ? "Selecciona un cliente."
       : barberRequired && !selectedBarberId
         ? "Selecciona el barbero del servicio."
-        : !commercialComposition.isValid ? commercialComposition.message : null;
+        : null;
 
   return (
     <aside className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-100 p-3">
@@ -134,6 +136,7 @@ export function PosCart({
                 onRemove={() => onRemoveItem(item.id)}
                 onToggleCourtesy={() => onToggleCourtesy(item.id)}
                 onCourtesyReasonChange={(value) => onCourtesyReasonChange(item.id, value)}
+                courtesyReasons={courtesyReasons}
               />
             ))
           ) : (
@@ -194,7 +197,7 @@ export function PosCart({
         <Button
           type="button"
           className="mt-4 h-14 w-full text-base"
-          disabled={!canOpenPayment || !commercialComposition.isValid}
+          disabled={!canOpenPayment}
           onClick={() => setIsPaymentModalOpen(true)}
         >
           <FontAwesomeIcon icon={faCreditCard} />

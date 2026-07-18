@@ -166,7 +166,7 @@ export function PosPaymentModal({
 
         {total === 0 ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-            Cubierto completamente con reward. No se requiere pago monetario.
+            Esta venta no requiere pago monetario.
           </div>
         ) : (
           <>

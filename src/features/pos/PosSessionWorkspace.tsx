@@ -60,6 +60,7 @@ export function PosSessionWorkspace() {
     catalogSearch,
     categoryFilter,
     courtesyTotal,
+    courtesyReasons,
     customerVarious,
     customerVariousId,
     discountTotal,
@@ -719,6 +720,7 @@ export function PosSessionWorkspace() {
               <PosCart
                 customer={selectedCustomer}
                 customerVariousId={customerVariousId}
+                courtesyReasons={courtesyReasons}
                 items={cartItems}
                 barbers={employees}
                 selectedBarberId={selectedBarberId}
@@ -758,7 +760,7 @@ export function PosSessionWorkspace() {
                         ? {
                           ...item,
                           is_courtesy: !item.is_courtesy,
-                          courtesy_reason: !item.is_courtesy ? item.courtesy_reason : "",
+                          courtesy_reason: !item.is_courtesy ? "Cortesia de servicio" : "",
                         }
                         : item,
                     ),
