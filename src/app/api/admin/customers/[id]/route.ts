@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomerDuplicate, getCustomerDuplicateMessage } from "@/features/customers/customer-duplicates";
 import { requireCustomerWriteSession } from "@/lib/supabase/route-auth";
-import { normalizeLookupDocument } from "@/lib/utils/document";
+import { normalizeLookupDocument, validateCustomerDocument } from "@/lib/utils/document";
 import { normalizePhone } from "@/lib/utils/phone";
 
 function trimOrNull(value: unknown) {
@@ -122,6 +122,8 @@ export async function PUT(
     documentType,
     trimOrNull(payload?.document_number),
   ) || null;
+  const documentError = validateCustomerDocument(documentType, documentNumber);
+  if (documentError) return NextResponse.json({ error: documentError }, { status: 400 });
 
   try {
     const duplicate = await findCustomerDuplicate(supabase, {

@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/select";
 import { CustomerFormModal } from "@/features/customers/CustomerFormModal";
 import { CustomersTable } from "@/features/customers/CustomersTable";
 import type { CustomerFormValue, CustomerRecord } from "@/features/customers/customer-types";
-import { normalizeLookupDocument } from "@/lib/utils/document";
+import { normalizeLookupDocument, validateCustomerDocument } from "@/lib/utils/document";
 import { normalizePhone } from "@/lib/utils/phone";
 
 const emptyForm: CustomerFormValue = {
@@ -51,28 +51,6 @@ function normalizeText(value: string) {
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function validateDocument(documentType: CustomerFormValue["document_type"], documentNumber: string) {
-  const value = documentNumber.trim();
-
-  if (!documentType || !value) {
-    return null;
-  }
-
-  if (documentType === "DNI" && !/^\d{8}$/.test(value)) {
-    return "El DNI debe tener 8 digitos.";
-  }
-
-  if (documentType === "CE" && value.length > 12) {
-    return "El CE no debe superar 12 caracteres.";
-  }
-
-  if (documentType === "RUC" && !/^\d{11}$/.test(value)) {
-    return "El RUC debe tener 11 digitos.";
-  }
-
-  return null;
 }
 
 async function confirmToggleCustomer(isActive: boolean) {
@@ -404,7 +382,7 @@ export function CustomersPanel() {
       return;
     }
 
-    const documentError = validateDocument(form.document_type, form.document_number);
+    const documentError = validateCustomerDocument(form.document_type, form.document_number);
     if (documentError) {
       await Swal.fire({
         icon: "warning",

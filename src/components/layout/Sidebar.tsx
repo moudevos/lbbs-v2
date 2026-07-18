@@ -199,7 +199,7 @@ export function Sidebar({
               </div>
               {!isCollapsed ? (
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">LBBS v2</p>
+                  <p className="truncate text-sm font-semibold text-white">LA BAJADITA</p>
                   <p className="truncate text-xs text-slate-400">Panel de control</p>
                 </div>
               ) : null}
@@ -294,7 +294,7 @@ export function Sidebar({
                 />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">LBBS v2</p>
+                <p className="truncate text-sm font-semibold text-white">LA BAJADITA</p>
                 <p className="truncate text-xs text-slate-400">Panel de control</p>
               </div>
             </div>

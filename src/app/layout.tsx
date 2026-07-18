@@ -16,8 +16,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LBBS v2",
-  description: "Sistema de control LBBS v2",
+  title: "LA BAJADITA",
+  description: "Sistema de control de LA BAJADITA",
+  icons: {
+    icon: "/branch/logobgg.png",
+    shortcut: "/branch/logobgg.png",
+    apple: "/branch/logobgg.png",
+  },
 };
 
 export default function RootLayout({

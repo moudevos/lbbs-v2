@@ -10,6 +10,7 @@ import { TextField } from "@/components/ui/TextField";
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerFormValue } from "@/features/customers/customer-types";
 import { customerDocumentTypeOptions } from "@/lib/ui/labels";
+import { validateCustomerDocument } from "@/lib/utils/document";
 
 type CustomerFormProps = {
   value: CustomerFormValue;
@@ -41,9 +42,7 @@ export function CustomerForm({
   }
 
   const isBusinessDocument = value.document_type === "RUC";
-  const canLookup =
-    (value.document_type === "DNI" && /^\d{8}$/.test(value.document_number.trim())) ||
-    (value.document_type === "RUC" && /^\d{11}$/.test(value.document_number.trim()));
+  const canLookup = !validateCustomerDocument(value.document_type, value.document_number);
   const showLookupButton = value.document_type === "DNI" || value.document_type === "RUC";
 
   return (

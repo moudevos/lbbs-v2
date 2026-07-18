@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomerDuplicate, getCustomerDuplicateMessage } from "@/features/customers/customer-duplicates";
 import { requireCustomerWriteSession } from "@/lib/supabase/route-auth";
-import { normalizeLookupDocument } from "@/lib/utils/document";
+import { normalizeLookupDocument, validateCustomerDocument } from "@/lib/utils/document";
 import { normalizePhone } from "@/lib/utils/phone";
 
 function trimOrNull(value: unknown) {
@@ -119,6 +119,7 @@ export async function POST(request: Request) {
   const firstName = trimOrNull(payload?.first_name);
   const lastName = trimOrNull(payload?.last_name);
   const businessName = trimOrNull(payload?.business_name);
+  const source = payload?.source === "sale" ? "sale" : "manual";
   const fullName = buildFullName(documentType, firstName, lastName, businessName);
   const phone = trimOrNull(payload?.phone);
 
@@ -141,6 +142,8 @@ export async function POST(request: Request) {
     documentType,
     trimOrNull(payload?.document_number),
   ) || null;
+  const documentError = validateCustomerDocument(documentType, documentNumber);
+  if (documentError) return NextResponse.json({ error: documentError }, { status: 400 });
 
   try {
     const duplicate = await findCustomerDuplicate(supabase, {
@@ -173,7 +176,7 @@ export async function POST(request: Request) {
       document_type: documentType,
       document_number: documentNumber,
       birthdate: trimOrNull(payload?.birthdate),
-      source: "manual",
+      source,
       preferred_branch_id: null,
       notes: trimOrNull(payload?.notes),
       is_active: true,

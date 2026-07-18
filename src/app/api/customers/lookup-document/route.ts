@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireCustomerWriteSession } from "@/lib/supabase/route-auth";
-import { maskDocument, normalizeLookupDocument } from "@/lib/utils/document";
+import { maskDocument, normalizeLookupDocument, validateCustomerDocument } from "@/lib/utils/document";
 
 type CustomerRow = {
   id: string;
@@ -190,19 +190,8 @@ export async function POST(request: Request) {
   }
 
   const normalizedDocument = normalizeLookupDocument(documentType, rawDocumentNumber);
-  const expectedLength = documentType === "DNI" ? 8 : 11;
-
-  if (normalizedDocument.length !== expectedLength) {
-    return NextResponse.json(
-      {
-        error:
-          documentType === "DNI"
-            ? "El DNI debe tener 8 digitos."
-            : "El RUC debe tener 11 digitos.",
-      },
-      { status: 400 },
-    );
-  }
+  const documentError = validateCustomerDocument(documentType, normalizedDocument);
+  if (documentError) return NextResponse.json({ error: documentError }, { status: 400 });
 
   const maskedDocument = maskDocument(normalizedDocument);
   const { data: employeeId } = await supabase.rpc("current_employee_id");
