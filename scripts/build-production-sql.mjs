@@ -60,9 +60,12 @@ const sourceFiles = [
   "117_settlement_finance_ledger.sql",
   "118_settlement_paid_transition_guard.sql",
   "119_pos_session_legacy_negative_closure.sql",
+  "121_reception_stock_customer_pos_lifecycle.sql",
   "122_seed_barbers_by_branch.sql",
   "124_seed_catalog_services_products.sql",
   "125_seed_operational_select_options.sql",
+  "126_pos_atomic_checkout.sql",
+  "127_distributed_rate_limits.sql",
 ];
 
 const branchSeed = `

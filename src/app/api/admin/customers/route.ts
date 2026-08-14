@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { findCustomerDuplicate, getCustomerDuplicateMessage } from "@/features/customers/customer-duplicates";
 import { requireCustomerWriteSession } from "@/lib/supabase/route-auth";
@@ -163,7 +164,18 @@ export async function POST(request: Request) {
 
   const { data: employeeId } = await supabase.rpc("current_employee_id");
 
-  const { data, error } = await supabase
+  if (auth.role === "reception" && !employeeId) {
+    return NextResponse.json(
+      { error: "Tu usuario de recepción no tiene un empleado activo asociado." },
+      { status: 403 },
+    );
+  }
+
+  // La autorización ya se verificó arriba con la sesión del usuario. La escritura
+  // se hace con el cliente de servidor para que una RLS desfasada no impida crear
+  // al cliente desde un flujo autorizado de recepción.
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin
     .from("customers")
     .insert({
       full_name: fullName,

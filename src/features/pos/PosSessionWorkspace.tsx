@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 
 import { Button } from "@/components/ui/button";
@@ -41,11 +41,18 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 import { PosLoadingScreen } from "@/features/pos/PosLoadingScreen";
+import {
+  enqueuePosCheckout,
+  listPendingPosCheckouts,
+  removePendingPosCheckout,
+} from "@/features/pos/pos-offline-queue";
+import type { PosCheckoutPayload } from "@/features/pos/pos-types";
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-PE", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Lima",
   }).format(new Date(value));
 }
 
@@ -72,6 +79,7 @@ export function PosSessionWorkspace() {
     loadCatalog,
     paymentMethods,
     payments,
+    checkoutIdempotencyKey,
     productCategories,
     selectedBarberId,
     selectedBranchId,
@@ -92,6 +100,7 @@ export function PosSessionWorkspace() {
     setCatalogSearch,
     setCategoryFilter,
     setPayments,
+    setCheckoutIdempotencyKey,
     setSelectedBarberId,
     setSelectedCustomer,
     setSelectedRewardEntitlementId,
@@ -114,7 +123,7 @@ export function PosSessionWorkspace() {
   const [isCancellingSale, setIsCancellingSale] = useState(false);
   const [isReservationsOpen, setIsReservationsOpen] = useState(false);
   const [reservationSuggestion, setReservationSuggestion] = useState<string | null>(null);
-  const checkoutIdempotencyKeyRef = useRef<string | null>(null);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
 
   const rewardDiscount = useMemo(
     () => getRewardDiscountPreview(cartItems, selectedReward),
@@ -142,6 +151,30 @@ export function PosSessionWorkspace() {
     const timer = window.setTimeout(() => setPayments(paymentReconciliation.payments), 0);
     return () => window.clearTimeout(timer);
   }, [paymentReconciliation.payments, payments, setPayments]);
+
+  useEffect(() => {
+    async function refreshQueue() {
+      const pending = await listPendingPosCheckouts();
+      setPendingOfflineCount(pending.length);
+    }
+    void refreshQueue();
+
+    async function synchronize() {
+      const pending = await listPendingPosCheckouts();
+      for (const entry of pending.sort((left, right) => left.createdAt.localeCompare(right.createdAt))) {
+        try {
+          await checkoutPosSale(entry.payload);
+          await removePendingPosCheckout(entry.id);
+        } catch {
+          // La validación del servidor decide cuándo una operación debe revisarse.
+          break;
+        }
+      }
+      await refreshQueue();
+    }
+    window.addEventListener("online", synchronize);
+    return () => window.removeEventListener("online", synchronize);
+  }, []);
 
   async function handleRewardChange(nextRewardId: string) {
     if (payments.length > 0 && nextRewardId !== selectedRewardEntitlementId) {
@@ -205,6 +238,15 @@ export function PosSessionWorkspace() {
   const currentSession = activeSession;
 
   async function handleOpenCloseSessionModal() {
+    if (pendingOfflineCount > 0) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Hay ventas pendientes de sincronización",
+        text: "Reconecta este dispositivo y espera la sincronización antes de cerrar la sesión POS.",
+        confirmButtonColor: "#0f766e",
+      });
+      return;
+    }
     setIsCloseSessionModalOpen(true);
     setIsLoadingCloseSummary(true);
 
@@ -465,10 +507,11 @@ export function PosSessionWorkspace() {
 
     setIsClosingSale(true);
 
+    let checkoutPayload: PosCheckoutPayload | null = null;
     try {
-      const idempotencyKey = checkoutIdempotencyKeyRef.current ?? crypto.randomUUID();
-      checkoutIdempotencyKeyRef.current = idempotencyKey;
-      const result = await checkoutPosSale({
+      const idempotencyKey = checkoutIdempotencyKey ?? crypto.randomUUID();
+      setCheckoutIdempotencyKey(idempotencyKey);
+      checkoutPayload = {
         idempotency_key: idempotencyKey,
         pos_session_id: currentSession.id,
         branch_id: selectedBranchId,
@@ -491,10 +534,11 @@ export function PosSessionWorkspace() {
           tendered_amount: payment.tendered_amount,
           change_amount: payment.change_amount,
         })),
-      });
+      };
+      const result = await checkoutPosSale(checkoutPayload);
 
       setClosedSale(result);
-      checkoutIdempotencyKeyRef.current = null;
+      setCheckoutIdempotencyKey(null);
       clearCurrentDraft();
       await loadCatalog(selectedBranchId);
     } catch (error) {
@@ -503,6 +547,20 @@ export function PosSessionWorkspace() {
         message,
         sessionId: currentSession.id,
       });
+      if (!navigator.onLine && checkoutPayload) {
+        await enqueuePosCheckout(checkoutPayload);
+        setPendingOfflineCount((count) => count + 1);
+        clearCurrentDraft();
+        setCartItems([]);
+        setPayments([]);
+        await Swal.fire({
+          icon: "info",
+          title: "Venta pendiente de sincronización",
+          text: "Se guardó solo en este dispositivo y se enviará automáticamente al recuperar internet. No cierres la sesión POS.",
+          confirmButtonColor: "#0f766e",
+        });
+        return;
+      }
       await Swal.fire({
         icon: "error",
         title: "No se pudo cerrar la venta",
@@ -521,6 +579,7 @@ export function PosSessionWorkspace() {
     setClosedSale(null);
     setCartItems([]);
     setPayments([]);
+    setCheckoutIdempotencyKey(null);
     setSelectedBarberId("");
     setSelectedRewardEntitlementId("");
     setSelectedReservationId(null);

@@ -166,7 +166,8 @@ test.describe.serial("iteracion 7: POS y pagos reales", () => {
         first_name: marker,
         last_name: "Cliente Principal",
         phone: `9${Date.now().toString().slice(-8)}`,
-        document_type: "Otro",
+        document_type: "DNI",
+        document_number: `8${Date.now().toString().slice(-7)}`,
         notes: marker,
       },
     });

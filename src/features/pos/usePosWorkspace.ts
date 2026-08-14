@@ -68,6 +68,7 @@ export function usePosWorkspace() {
   const [availableRewards, setAvailableRewards] = useState<PosRewardEntitlement[]>([]);
   const [selectedRewardEntitlementId, setSelectedRewardEntitlementId] = useState("");
   const [payments, setPayments] = useState<PosPreparedPayment[]>([]);
+  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string | null>(null);
   const [openSessionForm, setOpenSessionForm] =
     useState<OpenPosSessionPayload>(emptyOpenSessionForm);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,6 +230,8 @@ export function usePosWorkspace() {
         barberId: selectedBarberId,
         rewardEntitlementId: selectedRewardEntitlementId,
         items: cartItems,
+        payments,
+        checkoutIdempotencyKey,
       });
     }, 400);
 
@@ -243,6 +246,8 @@ export function usePosWorkspace() {
     selectedCustomer,
     selectedReservationId,
     selectedRewardEntitlementId,
+    payments,
+    checkoutIdempotencyKey,
   ]);
 
   useEffect(() => {
@@ -312,6 +317,8 @@ export function usePosWorkspace() {
       setSelectedReservationId(draft.reservationId);
       setSelectedBarberId(barberAvailable ? draft.barberId : "");
       setSelectedRewardEntitlementId(draft.rewardEntitlementId);
+      setPayments(draft.payments);
+      setCheckoutIdempotencyKey(draft.checkoutIdempotencyKey);
     });
   }, [
     activeSession,
@@ -617,6 +624,7 @@ export function usePosWorkspace() {
     openSessionForm,
     paymentMethods,
     payments,
+    checkoutIdempotencyKey,
     productCategories,
     selectedBarberId,
     selectedBranchId,
@@ -642,6 +650,7 @@ export function usePosWorkspace() {
     setCategoryFilter,
     setOpenSessionForm,
     setPayments,
+    setCheckoutIdempotencyKey,
     setSelectedBarberId,
     setSelectedBranchId,
     setSelectedCustomer: handleSelectedCustomerChange,

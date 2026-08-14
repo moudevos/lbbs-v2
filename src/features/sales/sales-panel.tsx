@@ -14,11 +14,9 @@ import type {
   SaleDetailRecord,
   SalesHistoryFilters,
   SalesHistoryPayload,
-  SalesHistoryRecord,
 } from "@/features/pos/pos-types";
 import {
   formatMoney,
-  getItemTypeLabel,
   getSaleStatusLabel,
 } from "@/features/pos/pos-utils";
 
@@ -65,7 +63,6 @@ export function SalesPanel() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleDetailRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const [ticket, setTicket] = useState<SaleDocumentPayload | null>(null);
 
   async function loadData(nextFilters: SalesHistoryFilters) {
@@ -151,89 +148,6 @@ export function SalesPanel() {
       setIsDetailOpen(false);
     } finally {
       setIsLoadingDetail(false);
-    }
-  }
-
-  async function handleCancelSale(sale: SalesHistoryRecord) {
-    if (!sale.canCancel) {
-      await Swal.fire({
-        icon: "info",
-        title: "Anulacion no disponible",
-        text: "No se puede anular una venta de una sesion cerrada.",
-        confirmButtonColor: "#0f766e",
-        background: "#ffffff",
-        color: "#0f172a",
-      });
-      return;
-    }
-
-    const result = await Swal.fire({
-      icon: "warning",
-      title: "Anular venta",
-      input: "textarea",
-      inputLabel: "Motivo obligatorio",
-      inputPlaceholder: "Describe por que se anula la venta",
-      showCancelButton: true,
-      confirmButtonText: "Anular venta",
-      cancelButtonText: "Cancelar",
-      confirmButtonColor: "#dc2626",
-      background: "#ffffff",
-      color: "#0f172a",
-      inputValidator: (value) => {
-        if (!value.trim()) {
-          return "Debes indicar el motivo de anulacion.";
-        }
-
-        return null;
-      },
-    });
-
-    if (!result.isConfirmed || typeof result.value !== "string") {
-      return;
-    }
-
-    setIsCancelling(sale.id);
-
-    try {
-      const response = await fetch(`/api/admin/pos/sales/${sale.id}/cancel`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ reason: result.value }),
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload.error || "No se pudo anular la venta.");
-      }
-
-      await loadData(filters);
-      if (selectedSale?.id === sale.id) {
-        setIsDetailOpen(false);
-        setSelectedSale(null);
-      }
-      await Swal.fire({
-        icon: "success",
-        title: "Venta anulada",
-        text: "La venta se anulo correctamente.",
-        confirmButtonColor: "#0f766e",
-        background: "#ffffff",
-        color: "#0f172a",
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error inesperado";
-      console.error("[sales/ui] Error al anular venta", { message, saleId: sale.id });
-      await Swal.fire({
-        icon: "error",
-        title: "No se pudo anular la venta",
-        text: message,
-        confirmButtonColor: "#0f766e",
-        background: "#ffffff",
-        color: "#0f172a",
-      });
-    } finally {
-      setIsCancelling(null);
     }
   }
 

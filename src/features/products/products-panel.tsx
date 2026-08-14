@@ -114,7 +114,11 @@ function normalizeText(value: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function ProductsPanel() {
+type ProductsPanelProps = {
+  canManageCatalog?: boolean;
+};
+
+export function ProductsPanel({ canManageCatalog = true }: ProductsPanelProps) {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [categories, setCategories] = useState<ProductCategoryRecord[]>([]);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
@@ -730,7 +734,9 @@ export function ProductsPanel() {
 
     setStockMovementForm({
       product_id: selectedProduct.id,
-      branch_id: branchId ?? selectedBranchId ?? branches[0]?.id ?? "",
+      branch_id: canManageCatalog
+        ? branchId ?? selectedBranchId ?? branches[0]?.id ?? ""
+        : selectedBranchId,
       movement_type: "purchase",
       quantity: "",
       unit_cost: "",
@@ -858,10 +864,12 @@ export function ProductsPanel() {
               </p>
             </div>
 
-            <Button type="button" onClick={startCreateProduct}>
-              <FontAwesomeIcon icon={faPlus} />
-              Nuevo producto
-            </Button>
+            {canManageCatalog ? (
+              <Button type="button" onClick={startCreateProduct}>
+                <FontAwesomeIcon icon={faPlus} />
+                Nuevo producto
+              </Button>
+            ) : null}
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -898,6 +906,7 @@ export function ProductsPanel() {
 
             <Select
               value={selectedBranchId}
+              disabled={!canManageCatalog}
               onChange={(event) => setSelectedBranchId(event.target.value)}
             >
               <option value="">Ver precio base</option>
@@ -923,6 +932,7 @@ export function ProductsPanel() {
             onManageBranchPrice={openBranchPriceModal}
             onManageStock={openStockModal}
             onToggleActive={toggleProduct}
+            canManageCatalog={canManageCatalog}
           />
         )}
       </div>
@@ -965,6 +975,7 @@ export function ProductsPanel() {
         movements={stockMovements}
         onClose={closeStockModal}
         onCreateMovement={openStockMovementModal}
+        canCreateForAllBranches={canManageCatalog}
       />
 
       <StockMovementFormModal
@@ -976,6 +987,7 @@ export function ProductsPanel() {
         onClose={closeStockMovementModal}
         onChange={setStockMovementForm}
         onSubmit={handleSaveStockMovement}
+        receptionMode={!canManageCatalog}
       />
     </>
   );

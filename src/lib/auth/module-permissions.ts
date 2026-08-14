@@ -74,6 +74,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "rewards",
     "sales",
     "customers",
+    "products",
     "contacts",
     "reservations",
   ],

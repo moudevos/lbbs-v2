@@ -22,6 +22,7 @@ type StockMovementFormModalProps = {
   onClose: () => void;
   onChange: (next: StockMovementFormValue) => void;
   onSubmit: () => void;
+  receptionMode?: boolean;
 };
 
 export function StockMovementFormModal({
@@ -33,6 +34,7 @@ export function StockMovementFormModal({
   onClose,
   onChange,
   onSubmit,
+  receptionMode = false,
 }: StockMovementFormModalProps) {
   const isDirty = useModalDirtyState(open, value);
 
@@ -58,6 +60,7 @@ export function StockMovementFormModal({
           <SelectField
             label="Sede"
             value={value.branch_id}
+            disabled={receptionMode}
             onChange={(event) => onChange({ ...value, branch_id: event.target.value })}
           >
             <option value="">Selecciona una sede</option>
@@ -68,22 +71,26 @@ export function StockMovementFormModal({
             ))}
           </SelectField>
 
-          <SelectField
-            label="Tipo de movimiento"
-            value={value.movement_type}
-            onChange={(event) =>
-              onChange({
-                ...value,
-                movement_type: event.target.value as StockMovementFormValue["movement_type"],
-              })
-            }
-          >
-            {productMovementTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
+          {receptionMode ? (
+            <TextField label="Tipo de movimiento" value="Ingreso de stock" disabled />
+          ) : (
+            <SelectField
+              label="Tipo de movimiento"
+              value={value.movement_type}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  movement_type: event.target.value as StockMovementFormValue["movement_type"],
+                })
+              }
+            >
+              {productMovementTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </SelectField>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

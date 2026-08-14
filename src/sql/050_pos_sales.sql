@@ -866,7 +866,7 @@ begin
     raise exception 'Solo se pueden reabrir sesiones cerradas.';
   end if;
 
-  if v_session.business_date <> current_date then
+  if v_session.business_date <> public.pos_business_date() then
     raise exception 'Solo se puede reabrir una sesion cerrada del mismo dia.';
   end if;
 

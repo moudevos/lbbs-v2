@@ -31,6 +31,20 @@ function redirectToControl(request: NextRequest, response: NextResponse) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Limpia enlaces heredados que hayan colocado credenciales en la URL antes
+  // de que la página o cualquier cliente de autenticación pueda hacer requests.
+  if (
+    pathname === "/login" &&
+    request.method === "GET" &&
+    request.nextUrl.searchParams.has("password")
+  ) {
+    const sanitizedLoginUrl = new URL("/login", request.url);
+    const sanitizedResponse = NextResponse.redirect(sanitizedLoginUrl);
+    sanitizedResponse.headers.set("Referrer-Policy", "no-referrer");
+    return sanitizedResponse;
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   let response = NextResponse.next({ request });

@@ -7,5 +7,5 @@ export default async function ProductosPage() {
     return renderModuleAccessDenied(access.message ?? undefined);
   }
 
-  return <ProductsPanel />;
+  return <ProductsPanel canManageCatalog={access.context?.role !== "reception"} />;
 }

@@ -1,6 +1,10 @@
-import type { PosCartItem, PosCustomerRecord } from "@/features/pos/pos-types";
+import type {
+  PosCartItem,
+  PosCustomerRecord,
+  PosPreparedPayment,
+} from "@/features/pos/pos-types";
 
-const draftVersion = 1;
+const draftVersion = 2;
 
 export type PosDraft = {
   version: number;
@@ -13,6 +17,8 @@ export type PosDraft = {
   barberId: string;
   rewardEntitlementId: string;
   items: PosCartItem[];
+  payments: PosPreparedPayment[];
+  checkoutIdempotencyKey: string | null;
 };
 
 export function getPosDraftKey(sessionId: string, branchId: string, employeeId: string) {
@@ -30,7 +36,8 @@ export function readPosDraft(key: string): PosDraft | null {
       !parsed.sessionId ||
       !parsed.branchId ||
       !parsed.employeeId ||
-      !Array.isArray(parsed.items)
+      !Array.isArray(parsed.items) ||
+      !Array.isArray(parsed.payments)
     ) {
       window.localStorage.removeItem(key);
       return null;

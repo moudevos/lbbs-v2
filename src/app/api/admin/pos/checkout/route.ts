@@ -976,6 +976,134 @@ export async function POST(request: Request) {
     );
   }
 
+  // La parte que cambia el estado financiero vive en una única RPC. PostgreSQL
+  // revierte toda la llamada si falla un item, reward, pago, stock o cierre.
+  const atomicItems = items.map((item) => {
+    const product = item.itemType === "product" ? productsMap.get(item.catalogId) : null;
+    const service = item.itemType === "service" ? servicesMap.get(item.catalogId) : null;
+    const courtesyAmount = item.isCourtesy
+      ? Number((item.quantity * item.unitPrice).toFixed(2))
+      : null;
+
+    return {
+      item_type: item.itemType,
+      service_id: item.itemType === "service" ? item.catalogId : null,
+      product_id: item.itemType === "product" ? item.catalogId : null,
+      description_snapshot: service?.name ?? product?.name ?? "Item POS",
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      discount_amount: item.discountAmount,
+      total: item.total,
+      cost_snapshot: product ? toMoneyNumber(product.cost_price) : null,
+      barber_id: item.itemType === "service" ? barberId : null,
+      is_courtesy: item.isCourtesy,
+      courtesy_reason: item.isCourtesy ? item.courtesyReason : null,
+      original_unit_price: item.isCourtesy ? item.unitPrice : null,
+      original_total: courtesyAmount,
+      courtesy_amount: courtesyAmount,
+    };
+  });
+
+  const atomicPayments = payments.map((payment) => ({
+    payment_method_id: payment.paymentMethodId,
+    amount: payment.amount,
+    tendered_amount: payment.tenderedAmount,
+    change_amount: payment.changeAmount,
+  }));
+
+  try {
+    const { data: atomicSaleId, error: atomicCheckoutError } = await supabase.rpc(
+      "checkout_pos_sale",
+      {
+        p_payload: {
+          pos_session_id: posSessionId,
+          branch_id: branchId,
+          customer_id: customerId,
+          barber_id: barberId,
+          reservation_id: reservationId,
+          reward_entitlement_id: rewardEntitlementId,
+          idempotency_key: idempotencyKey,
+          notes,
+          subtotal,
+          discount_total: discountTotal,
+          courtesy_total: courtesyTotal,
+          total,
+          paid_total: paidTotal,
+          change_amount: saleChangeAmount,
+          items: atomicItems,
+          payments: atomicPayments,
+        },
+      },
+    );
+
+    if (atomicCheckoutError?.code === "23505") {
+      const existingSale = await findCompletedIdempotentSale(
+        supabase,
+        posSessionId,
+        idempotencyKey,
+        checkoutSignature,
+      );
+      if ("error" in existingSale) {
+        return NextResponse.json({ error: existingSale.error }, { status: 500 });
+      }
+      if (existingSale.saleId) {
+        const result = await loadCompletedSaleResult(supabase, existingSale.saleId, {
+          branchName: unwrapRelation(sessionRow.branch)?.name ?? "Sin sede",
+          customerName: customerRow.full_name,
+          barberName: barberRow?.full_name ?? null,
+          reservationId,
+        });
+        return "error" in result
+          ? NextResponse.json({ error: result.error }, { status: 500 })
+          : NextResponse.json({ data: result.data });
+      }
+      return NextResponse.json(
+        { error: existingSale.payloadMismatch ? "La clave de cierre ya fue usada con datos diferentes." : "Este cierre de venta sigue en proceso. Intenta nuevamente." },
+        { status: existingSale.payloadMismatch ? 409 : 409 },
+      );
+    }
+
+    if (atomicCheckoutError || !atomicSaleId) {
+      throw new Error(atomicCheckoutError?.message ?? "No se pudo completar la venta.");
+    }
+
+    const completedSaleId = atomicSaleId as string;
+    try {
+      await appendReservationNote(
+        supabase,
+        reservationId,
+        employeeId ?? null,
+        `Venta ${formatSaleReference(completedSaleId)} completada desde POS.`,
+      );
+    } catch (error) {
+      console.warn("[pos/checkout] La venta fue completada, pero no se pudo registrar la nota de reserva", {
+        saleId: completedSaleId,
+        message: error instanceof Error ? error.message : "Error inesperado",
+      });
+    }
+
+    const result = await loadCompletedSaleResult(supabase, completedSaleId, {
+      branchName: unwrapRelation(sessionRow.branch)?.name ?? "Sin sede",
+      customerName: customerRow.full_name,
+      barberName: barberRow?.full_name ?? null,
+      reservationId,
+    });
+    return "error" in result
+      ? NextResponse.json({ error: result.error }, { status: 500 })
+      : NextResponse.json({ data: result.data });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error inesperado";
+    console.error("[pos/checkout] Error atómico al cerrar la venta", {
+      posSessionId,
+      branchId,
+      customerId,
+      message,
+    });
+    return NextResponse.json({ error: mapPosErrorMessage(message) }, { status: 400 });
+  }
+
+  /* Implementación histórica conservada temporalmente como referencia de
+     compatibilidad; el retorno anterior hace que ya no se ejecute.
   let createdSaleId: string | null = null;
   let saleCompleted = false;
 
@@ -1233,4 +1361,5 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  */
 }

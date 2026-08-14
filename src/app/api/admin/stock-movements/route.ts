@@ -103,6 +103,11 @@ function toSignedQuantity(row: MovementRow) {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireStockMovementSession();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: auth.status });
+  }
+
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const productId = trimOrNull(searchParams.get("productId"));
@@ -114,22 +119,36 @@ export async function GET(request: Request) {
     );
   }
 
-  const [stockResponse, movementsResponse, branchesResponse] = await Promise.all([
-    supabase
+  if (auth.role === "reception" && !auth.branchId) {
+    return NextResponse.json({ error: "Tu usuario de recepción no tiene una sede asignada." }, { status: 403 });
+  }
+
+  let stockQuery = supabase
       .from("vw_product_stock")
       .select(
         "product_id, branch_id, stock_quantity, base_sale_price, branch_sale_price, final_sale_price, is_stockable, is_courtesy_allowed, is_active",
       )
-      .eq("product_id", productId),
-    supabase
+      .eq("product_id", productId);
+  let movementsQuery = supabase
       .from("stock_movements")
       .select(
         "id, product_id, branch_id, movement_type, quantity, unit_cost, notes, created_at, branch:branches(id, name, slug), creator:employees(id, full_name)",
       )
       .eq("product_id", productId)
       .order("created_at", { ascending: false })
-      .limit(30),
-    supabase.from("branches").select("id, name, slug, code").order("name", { ascending: true }),
+      .limit(30);
+  let branchesQuery = supabase.from("branches").select("id, name, slug, code").order("name", { ascending: true });
+
+  if (auth.role === "reception" && auth.branchId) {
+    stockQuery = stockQuery.eq("branch_id", auth.branchId);
+    movementsQuery = movementsQuery.eq("branch_id", auth.branchId);
+    branchesQuery = branchesQuery.eq("id", auth.branchId);
+  }
+
+  const [stockResponse, movementsResponse, branchesResponse] = await Promise.all([
+    stockQuery,
+    movementsQuery,
+    branchesQuery,
   ]);
 
   if (stockResponse.error) {
@@ -274,26 +293,16 @@ export async function POST(request: Request) {
   }
 
   if (auth.role === "reception") {
-    const supabase = await createClient();
-    const { data: canAccessBranch, error: accessError } = await supabase.rpc("can_access_branch", {
-      branch_id: branchId,
-    });
-
-    if (accessError) {
-      console.error("[stock-movements/post] No se pudo validar acceso a sede", {
-        message: accessError.message,
-        code: accessError.code,
-        branchId,
-      });
+    if (!auth.branchId || branchId !== auth.branchId) {
       return NextResponse.json(
-        { error: "No se pudo validar la sede del movimiento." },
-        { status: 500 },
+        { error: "No tienes acceso a la sede seleccionada." },
+        { status: 403 },
       );
     }
 
-    if (!canAccessBranch) {
+    if (movementType !== "purchase" || quantity <= 0) {
       return NextResponse.json(
-        { error: "No tienes acceso a la sede seleccionada." },
+        { error: "Recepción solo puede registrar ingresos de stock con cantidades positivas." },
         { status: 403 },
       );
     }

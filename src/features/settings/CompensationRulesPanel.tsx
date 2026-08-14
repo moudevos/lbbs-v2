@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,7 +70,7 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/admin/compensation-rules/${kind}`, { cache: "no-store" });
@@ -84,14 +84,12 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [kind]);
 
-  // La consulta depende de la familia de reglas seleccionada.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-  }, [kind]);
+  }, [load]);
 
   function edit(rule: Rule) {
     const serviceId = String(rule.service_id ?? "");

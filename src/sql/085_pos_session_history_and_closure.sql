@@ -74,6 +74,17 @@ grant select, insert, update on public.pos_session_payment_closures to authentic
 grant all on public.pos_session_payment_closures to service_role;
 revoke all on public.pos_session_payment_closures from anon, public;
 
+-- La jornada operativa se rige por Lima independientemente del timezone de
+-- la conexión o del servidor PostgreSQL.
+create or replace function public.pos_business_date()
+returns date
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select timezone('America/Lima', now())::date;
+$$;
+
 create or replace function public.mark_overdue_pos_sessions()
 returns integer
 language plpgsql
@@ -87,7 +98,7 @@ begin
   set status = 'pending_close',
       updated_at = now()
   where status = 'open'
-    and business_date < current_date
+    and business_date < public.pos_business_date()
     and public.can_manage_pos_branch(branch_id);
 
   get diagnostics v_count = row_count;
@@ -287,7 +298,7 @@ begin
   return jsonb_build_object(
     'session_id', v_session.id,
     'status', v_session.status,
-    'is_overdue', v_session.business_date < current_date and v_session.status in ('open', 'pending_close'),
+    'is_overdue', v_session.business_date < public.pos_business_date() and v_session.status in ('open', 'pending_close'),
     'business_date', v_session.business_date,
     'branch_id', v_session.branch_id,
     'branch_name', (select b.name from public.branches b where b.id = v_session.branch_id),
@@ -396,7 +407,7 @@ begin
     );
   end loop;
 
-  if (v_has_difference or v_session.status = 'pending_close' or v_session.business_date < current_date)
+  if (v_has_difference or v_session.status = 'pending_close' or v_session.business_date < public.pos_business_date())
      and v_notes is null then
     raise exception 'Debes registrar una observacion para este cierre.';
   end if;

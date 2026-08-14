@@ -1646,24 +1646,7 @@ using (
   or public.can_access_branch(branch_id)
 );
 
-create policy "stock_movements_insert_admin_or_reception"
-on public.stock_movements
-for insert
-to authenticated
-with check (
-  (
-    public.is_admin()
-    or (
-      public.current_user_role() = 'reception'
-      and public.can_access_branch(branch_id)
-    )
-  )
-  and (
-    created_by is null
-    or created_by = public.current_employee_id()
-    or public.is_admin()
-  )
-);
+-- Policy historica omitida: stock_movements_insert_admin_or_reception. La definicion final se conserva mas adelante.
 
 create policy "stock_movements_update_admin"
 on public.stock_movements
@@ -2655,7 +2638,7 @@ begin
     raise exception 'Solo se pueden reabrir sesiones cerradas.';
   end if;
 
-  if v_session.business_date <> current_date then
+  if v_session.business_date <> public.pos_business_date() then
     raise exception 'Solo se puede reabrir una sesion cerrada del mismo dia.';
   end if;
 
@@ -6717,6 +6700,17 @@ grant select, insert, update on public.pos_session_payment_closures to authentic
 grant all on public.pos_session_payment_closures to service_role;
 revoke all on public.pos_session_payment_closures from anon, public;
 
+-- La jornada operativa se rige por Lima independientemente del timezone de
+-- la conexión o del servidor PostgreSQL.
+create or replace function public.pos_business_date()
+returns date
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select timezone('America/Lima', now())::date;
+$$;
+
 create or replace function public.mark_overdue_pos_sessions()
 returns integer
 language plpgsql
@@ -6730,7 +6724,7 @@ begin
   set status = 'pending_close',
       updated_at = now()
   where status = 'open'
-    and business_date < current_date
+    and business_date < public.pos_business_date()
     and public.can_manage_pos_branch(branch_id);
 
   get diagnostics v_count = row_count;
@@ -6930,7 +6924,7 @@ begin
   return jsonb_build_object(
     'session_id', v_session.id,
     'status', v_session.status,
-    'is_overdue', v_session.business_date < current_date and v_session.status in ('open', 'pending_close'),
+    'is_overdue', v_session.business_date < public.pos_business_date() and v_session.status in ('open', 'pending_close'),
     'business_date', v_session.business_date,
     'branch_id', v_session.branch_id,
     'branch_name', (select b.name from public.branches b where b.id = v_session.branch_id),
@@ -7039,7 +7033,7 @@ begin
     );
   end loop;
 
-  if (v_has_difference or v_session.status = 'pending_close' or v_session.business_date < current_date)
+  if (v_has_difference or v_session.status = 'pending_close' or v_session.business_date < public.pos_business_date())
      and v_notes is null then
     raise exception 'Debes registrar una observacion para este cierre.';
   end if;
@@ -9083,14 +9077,7 @@ $$;
 -- Reception activa: clientes activos globales.
 -- ------------------------------------------------------------
 
-create policy "customers_select_team"
-on public.customers
-as permissive
-for select
-to authenticated
-using (
-  public.can_access_customer(id)
-);
+-- Policy historica omitida: customers_select_team. La definicion final se conserva mas adelante.
 
 -- ------------------------------------------------------------
 -- INSERT
@@ -9098,26 +9085,7 @@ using (
 -- No puede crear clientes internos con source = system.
 -- ------------------------------------------------------------
 
-create policy "customers_insert_team"
-on public.customers
-as permissive
-for insert
-to authenticated
-with check (
-  public.is_admin()
-  or (
-    public.current_user_role() = 'reception'
-    and exists (
-      select 1
-      from public.employees employee
-      where employee.id = public.current_employee_id()
-        and employee.status = 'active'::public.employee_status
-    )
-    and created_by = public.current_employee_id()
-    and is_active = true
-    and coalesce(source, '') <> 'system'
-  )
-);
+-- Policy historica omitida: customers_insert_team. La definicion final se conserva mas adelante.
 
 -- ------------------------------------------------------------
 -- UPDATE
@@ -9126,37 +9094,14 @@ with check (
 -- registros mediante acceso directo.
 -- ------------------------------------------------------------
 
-create policy "customers_update_team"
-on public.customers
-as permissive
-for update
-to authenticated
-using (
-  public.can_access_customer(id)
-)
-with check (
-  public.is_admin()
-  or (
-    public.current_user_role() = 'reception'
-    and public.can_access_customer(id)
-    and is_active = true
-    and coalesce(source, '') <> 'system'
-  )
-);
+-- Policy historica omitida: customers_update_team. La definicion final se conserva mas adelante.
 
 -- ------------------------------------------------------------
 -- DELETE
 -- Exclusivo para owner/admin.
 -- ------------------------------------------------------------
 
-create policy "customers_delete_admin"
-on public.customers
-as permissive
-for delete
-to authenticated
-using (
-  public.is_admin()
-);
+-- Policy historica omitida: customers_delete_admin. La definicion final se conserva mas adelante.
 
 -- Los grants habilitan operaciones de tabla.
 -- RLS decide qué filas puede operar cada sesión.
@@ -10297,6 +10242,242 @@ select
 
 
 -- ============================================================================
+-- Fuente consolidada: 121_reception_stock_customer_pos_lifecycle.sql
+-- ============================================================================
+-- Correcciones operativas: clientes de recepción, ingresos de stock y ciclo POS.
+-- Ejecutar después de 119_pos_session_legacy_negative_closure.sql.
+
+-- Clientes: reestablece el acceso global operativo de recepción y elimina
+-- políticas residuales que pudieran bloquear el INSERT autorizado.
+alter table public.customers enable row level security;
+
+create or replace function public.can_access_customer(p_customer_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select public.is_admin()
+    or (
+      public.current_user_role() = 'reception'
+      and exists (
+        select 1
+        from public.employees employee
+        where employee.id = public.current_employee_id()
+          and employee.status = 'active'::public.employee_status
+      )
+      and exists (
+        select 1
+        from public.customers customer
+        where customer.id = p_customer_id
+          and customer.is_active
+      )
+    );
+$$;
+
+revoke all on function public.can_access_customer(uuid) from public;
+grant execute on function public.can_access_customer(uuid) to authenticated, service_role;
+
+do $$
+declare
+  policy_record record;
+begin
+  for policy_record in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'customers'
+  loop
+    execute format('drop policy if exists %I on public.customers', policy_record.policyname);
+  end loop;
+end;
+$$;
+
+create policy "customers_select_team"
+on public.customers for select to authenticated
+using (public.can_access_customer(id));
+
+create policy "customers_insert_team"
+on public.customers for insert to authenticated
+with check (
+  public.is_admin()
+  or (
+    public.current_user_role() = 'reception'
+    and exists (
+      select 1 from public.employees employee
+      where employee.id = public.current_employee_id()
+        and employee.status = 'active'::public.employee_status
+    )
+    and created_by = public.current_employee_id()
+    and is_active
+    and coalesce(source, '') <> 'system'
+  )
+);
+
+create policy "customers_update_team"
+on public.customers for update to authenticated
+using (public.can_access_customer(id))
+with check (
+  public.is_admin()
+  or (
+    public.current_user_role() = 'reception'
+    and public.can_access_customer(id)
+    and is_active
+    and coalesce(source, '') <> 'system'
+  )
+);
+
+create policy "customers_delete_admin"
+on public.customers for delete to authenticated
+using (public.is_admin());
+
+grant select, insert, update, delete on public.customers to authenticated;
+revoke all on public.customers from anon;
+
+-- Stock: recepción solo puede insertar compras positivas para su propia sede.
+drop policy if exists "stock_movements_insert_admin_or_reception" on public.stock_movements;
+
+create policy "stock_movements_insert_admin_or_reception"
+on public.stock_movements for insert to authenticated
+with check (
+  public.is_admin()
+  or (
+    public.current_user_role() = 'reception'
+    and public.can_access_branch(branch_id)
+    and movement_type = 'purchase'
+    and quantity > 0
+    and created_by = public.current_employee_id()
+  )
+);
+
+-- Al abrir una nueva jornada para una sede, se cierra automáticamente la
+-- sesión activa de una fecha anterior. El cierre conserva sus importes
+-- esperados como contados, queda auditado y se fecha a las 23:50 de Lima.
+-- La fecha operativa no depende del huso horario de la instancia Postgres
+-- ni del navegador del operador: siempre se calcula en Lima.
+create or replace function public.pos_business_date()
+returns date
+language sql
+stable
+set search_path = public, pg_temp
+as $$
+  select timezone('America/Lima', now())::date;
+$$;
+
+revoke all on function public.pos_business_date() from public;
+grant execute on function public.pos_business_date() to authenticated, service_role;
+
+create or replace function public.open_pos_session(
+  p_branch_id uuid,
+  p_opening_cash_amount numeric,
+  p_notes text default null
+)
+returns public.pos_sessions
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_session public.pos_sessions%rowtype;
+  v_active_session public.pos_sessions%rowtype;
+  v_employee_id uuid := public.current_employee_id();
+  v_business_date date := public.pos_business_date();
+  v_summary jsonb;
+  v_counted_amounts jsonb;
+  v_auto_close_note text;
+begin
+  if not public.can_manage_pos_branch(p_branch_id) then
+    raise exception 'No tienes permisos para abrir una sesion POS en esta sede.';
+  end if;
+
+  if coalesce(p_opening_cash_amount, 0) < 0 then
+    raise exception 'El monto inicial no puede ser negativo.';
+  end if;
+
+  select * into v_active_session
+  from public.pos_sessions
+  where branch_id = p_branch_id
+    and status in ('open', 'pending_close')
+  order by opened_at desc
+  limit 1
+  for update;
+
+  if found then
+    if v_active_session.business_date >= v_business_date then
+      raise exception 'Ya existe una sesion POS activa para esta sede y fecha.';
+    end if;
+
+    v_summary := public.get_pos_session_closure_summary(v_active_session.id);
+    if coalesce((v_summary ->> 'draft_sales_count')::integer, 0) > 0 then
+      raise exception 'No se puede cerrar automáticamente la sesión anterior porque tiene ventas en borrador. Resuélvelas antes de abrir la nueva sesión.';
+    end if;
+
+    select coalesce(
+      jsonb_object_agg(
+        item ->> 'payment_method_id',
+        greatest(coalesce((item ->> 'expected_amount')::numeric, 0), 0)
+      ),
+      '{}'::jsonb
+    )
+    into v_counted_amounts
+    from jsonb_array_elements(v_summary -> 'payment_methods') item;
+
+    v_auto_close_note := format(
+      'Cierre automático al iniciar la jornada %s. La sesión corresponde a %s y se registra a las 23:50 (America/Lima).',
+      v_business_date,
+      v_active_session.business_date
+    );
+
+    perform public.close_pos_session(v_active_session.id, v_counted_amounts, v_auto_close_note);
+
+    update public.pos_sessions
+    set closed_at = (v_active_session.business_date::timestamp + time '23:50') at time zone 'America/Lima',
+        updated_at = now()
+    where id = v_active_session.id;
+
+    insert into public.pos_session_events (
+      pos_session_id, employee_id, event_type, message, metadata
+    ) values (
+      v_active_session.id,
+      v_employee_id,
+      'closed',
+      'Sesión cerrada automáticamente al iniciar una nueva jornada.',
+      jsonb_build_object(
+        'automatic', true,
+        'trigger_business_date', v_business_date,
+        'closed_at_local', v_active_session.business_date::text || ' 23:50 America/Lima'
+      )
+    );
+  end if;
+
+  insert into public.pos_sessions (
+    branch_id, opened_by, business_date, status, opening_cash_amount,
+    expected_cash_amount, opening_notes, opened_at
+  ) values (
+    p_branch_id, v_employee_id, v_business_date, 'open',
+    coalesce(p_opening_cash_amount, 0), coalesce(p_opening_cash_amount, 0),
+    nullif(btrim(coalesce(p_notes, '')), ''), now()
+  ) returning * into v_session;
+
+  insert into public.pos_session_events (
+    pos_session_id, employee_id, event_type, message, metadata
+  ) values (
+    v_session.id, v_employee_id, 'opened', 'Sesión POS abierta.',
+    jsonb_build_object('opening_cash_amount', v_session.opening_cash_amount)
+  );
+
+  return v_session;
+end;
+$$;
+
+revoke all on function public.open_pos_session(uuid, numeric, text) from public;
+grant execute on function public.open_pos_session(uuid, numeric, text) to authenticated, service_role;
+
+notify pgrst, 'reload schema';
+
+
+-- ============================================================================
 -- Fuente consolidada: 122_seed_barbers_by_branch.sql
 -- ============================================================================
 -- Seed manual de barberos por sede.
@@ -10696,6 +10877,190 @@ union all
 select 'categorias_finanzas', count(*) from public.finance_categories where is_active
 union all
 select 'plantillas_whatsapp', count(*) from public.whatsapp_templates where is_active;
+
+
+-- ============================================================================
+-- Fuente consolidada: 126_pos_atomic_checkout.sql
+-- ============================================================================
+-- Cierre POS atómico. Una llamada de función PostgreSQL se ejecuta como una
+-- sola transacción: si falla un paso, no se conserva venta, item, pago ni reward.
+
+create or replace function public.checkout_pos_sale(p_payload jsonb)
+returns uuid
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_sale_id uuid;
+  v_session public.pos_sessions%rowtype;
+  v_employee_id uuid := public.current_employee_id();
+  v_item jsonb;
+  v_payment jsonb;
+  v_final_total numeric(12,2);
+  v_paid_total numeric(12,2);
+  v_pos_session_id uuid := (p_payload ->> 'pos_session_id')::uuid;
+  v_branch_id uuid := (p_payload ->> 'branch_id')::uuid;
+  v_customer_id uuid := (p_payload ->> 'customer_id')::uuid;
+  v_barber_id uuid := nullif(p_payload ->> 'barber_id', '')::uuid;
+  v_reservation_id uuid := nullif(p_payload ->> 'reservation_id', '')::uuid;
+  v_reward_entitlement_id uuid := nullif(p_payload ->> 'reward_entitlement_id', '')::uuid;
+begin
+  if v_employee_id is null or not public.can_manage_pos_branch(v_branch_id) then
+    raise exception 'No tienes permisos para cerrar ventas en esta sede.';
+  end if;
+
+  select * into v_session
+  from public.pos_sessions
+  where id = v_pos_session_id
+    and branch_id = v_branch_id
+  for update;
+
+  if not found or v_session.status <> 'open' then
+    raise exception 'La sesion POS ya esta cerrada.';
+  end if;
+
+  if jsonb_typeof(coalesce(p_payload -> 'items', 'null'::jsonb)) <> 'array'
+     or jsonb_array_length(p_payload -> 'items') = 0 then
+    raise exception 'La venta debe incluir al menos un item.';
+  end if;
+
+  insert into public.sales (
+    pos_session_id, branch_id, customer_id, reservation_id, barber_id, status,
+    subtotal, discount_total, courtesy_total, total, paid_total, change_amount,
+    checkout_idempotency_key, notes, created_by
+  ) values (
+    v_pos_session_id, v_branch_id, v_customer_id, v_reservation_id, v_barber_id, 'draft',
+    coalesce((p_payload ->> 'subtotal')::numeric, 0),
+    coalesce((p_payload ->> 'discount_total')::numeric, 0),
+    coalesce((p_payload ->> 'courtesy_total')::numeric, 0),
+    coalesce((p_payload ->> 'total')::numeric, 0),
+    coalesce((p_payload ->> 'paid_total')::numeric, 0),
+    coalesce((p_payload ->> 'change_amount')::numeric, 0),
+    nullif(p_payload ->> 'idempotency_key', ''),
+    nullif(btrim(coalesce(p_payload ->> 'notes', '')), ''),
+    v_employee_id
+  ) returning id into v_sale_id;
+
+  for v_item in select value from jsonb_array_elements(p_payload -> 'items')
+  loop
+    insert into public.sale_items (
+      sale_id, item_type, service_id, product_id, description_snapshot, quantity,
+      unit_price, discount_amount, total, cost_snapshot, barber_id, is_courtesy,
+      courtesy_reason, courtesy_rule_id, courtesy_rule_name_snapshot,
+      original_unit_price, original_total, courtesy_amount, courtesy_authorized_by
+    ) values (
+      v_sale_id,
+      v_item ->> 'item_type',
+      nullif(v_item ->> 'service_id', '')::uuid,
+      nullif(v_item ->> 'product_id', '')::uuid,
+      coalesce(nullif(v_item ->> 'description_snapshot', ''), 'Item POS'),
+      (v_item ->> 'quantity')::numeric,
+      (v_item ->> 'unit_price')::numeric,
+      coalesce((v_item ->> 'discount_amount')::numeric, 0),
+      (v_item ->> 'total')::numeric,
+      nullif(v_item ->> 'cost_snapshot', '')::numeric,
+      nullif(v_item ->> 'barber_id', '')::uuid,
+      coalesce((v_item ->> 'is_courtesy')::boolean, false),
+      nullif(v_item ->> 'courtesy_reason', ''),
+      null,
+      null,
+      nullif(v_item ->> 'original_unit_price', '')::numeric,
+      nullif(v_item ->> 'original_total', '')::numeric,
+      nullif(v_item ->> 'courtesy_amount', '')::numeric,
+      case when coalesce((v_item ->> 'is_courtesy')::boolean, false) then v_employee_id else null end
+    );
+  end loop;
+
+  if v_reward_entitlement_id is not null then
+    perform public.apply_reward_to_sale(v_sale_id, v_reward_entitlement_id);
+  end if;
+
+  select total into v_final_total from public.sales where id = v_sale_id;
+  select coalesce(sum((value ->> 'amount')::numeric), 0) into v_paid_total
+  from jsonb_array_elements(coalesce(p_payload -> 'payments', '[]'::jsonb));
+
+  if round(v_paid_total, 2) <> round(coalesce(v_final_total, 0), 2) then
+    raise exception 'El monto pagado no cubre el total final de la venta.';
+  end if;
+
+  for v_payment in select value from jsonb_array_elements(coalesce(p_payload -> 'payments', '[]'::jsonb))
+  loop
+    insert into public.sale_payments (
+      sale_id, payment_method_id, amount, tendered_amount, change_amount
+    ) values (
+      v_sale_id,
+      (v_payment ->> 'payment_method_id')::uuid,
+      (v_payment ->> 'amount')::numeric,
+      (v_payment ->> 'tendered_amount')::numeric,
+      coalesce((v_payment ->> 'change_amount')::numeric, 0)
+    );
+  end loop;
+
+  perform public.complete_sale(v_sale_id);
+  return v_sale_id;
+end;
+$$;
+
+revoke all on function public.checkout_pos_sale(jsonb) from public, anon;
+grant execute on function public.checkout_pos_sale(jsonb) to authenticated, service_role;
+
+notify pgrst, 'reload schema';
+
+
+-- ============================================================================
+-- Fuente consolidada: 127_distributed_rate_limits.sql
+-- ============================================================================
+-- Límite distribuido: todas las instancias comparten el mismo contador.
+create table if not exists public.api_rate_limit_windows (
+  scope text not null,
+  client_key text not null,
+  window_started_at timestamptz not null,
+  request_count integer not null default 0 check (request_count >= 0),
+  primary key (scope, client_key, window_started_at)
+);
+
+alter table public.api_rate_limit_windows enable row level security;
+revoke all on public.api_rate_limit_windows from public, anon, authenticated;
+grant all on public.api_rate_limit_windows to service_role;
+
+create or replace function public.consume_distributed_rate_limit(
+  p_scope text,
+  p_client_key text,
+  p_max_requests integer,
+  p_window_seconds integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_window timestamptz;
+  v_count integer;
+begin
+  if p_max_requests < 1 or p_window_seconds < 1 then
+    raise exception 'Configuración de límite inválida.';
+  end if;
+
+  v_window := to_timestamp(floor(extract(epoch from now()) / p_window_seconds) * p_window_seconds);
+  insert into public.api_rate_limit_windows (scope, client_key, window_started_at, request_count)
+  values (left(p_scope, 80), left(p_client_key, 160), v_window, 1)
+  on conflict (scope, client_key, window_started_at) do update
+  set request_count = public.api_rate_limit_windows.request_count + 1
+  returning request_count into v_count;
+
+  return v_count <= p_max_requests;
+end;
+$$;
+
+revoke all on function public.consume_distributed_rate_limit(text, text, integer, integer) from public, anon, authenticated;
+grant execute on function public.consume_distributed_rate_limit(text, text, integer, integer) to service_role;
+
+create index if not exists api_rate_limit_windows_expiry_idx
+  on public.api_rate_limit_windows (window_started_at);
+
+notify pgrst, 'reload schema';
 
 insert into public.app_settings (key, value, description)
 values

@@ -32,7 +32,11 @@ const statusLabels = {
 
 function formatDateTime(value: string | null) {
   if (!value) return "Sin registro";
-  return new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("es-PE", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Lima",
+  }).format(new Date(value));
 }
 
 export function PosSessionHistory({ branches, onSessionClosed }: Props) {

@@ -22,6 +22,7 @@ type ProductsTableProps = {
   onManageBranchPrice: (product: ProductRecord) => void;
   onManageStock: (product: ProductRecord) => void;
   onToggleActive: (product: ProductRecord) => void;
+  canManageCatalog?: boolean;
 };
 
 function formatMoney(value: string) {
@@ -51,6 +52,7 @@ export function ProductsTable({
   onManageBranchPrice,
   onManageStock,
   onToggleActive,
+  canManageCatalog = true,
 }: ProductsTableProps) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -131,20 +133,24 @@ export function ProductsTable({
                     >
                       <FontAwesomeIcon icon={faEye} />
                     </Button>
-                    <Button
-                      type="button"
-                      className="h-9 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200"
-                      onClick={() => onEdit(product)}
-                    >
-                      <FontAwesomeIcon icon={faPenToSquare} />
-                    </Button>
-                    <Button
-                      type="button"
-                      className="h-9 bg-sky-100 px-3 text-sky-700 hover:bg-sky-200"
-                      onClick={() => onManageBranchPrice(product)}
-                    >
-                      <FontAwesomeIcon icon={faStore} />
-                    </Button>
+                    {canManageCatalog ? (
+                      <>
+                        <Button
+                          type="button"
+                          className="h-9 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200"
+                          onClick={() => onEdit(product)}
+                        >
+                          <FontAwesomeIcon icon={faPenToSquare} />
+                        </Button>
+                        <Button
+                          type="button"
+                          className="h-9 bg-sky-100 px-3 text-sky-700 hover:bg-sky-200"
+                          onClick={() => onManageBranchPrice(product)}
+                        >
+                          <FontAwesomeIcon icon={faStore} />
+                        </Button>
+                      </>
+                    ) : null}
                     <Button
                       type="button"
                       className="h-9 bg-emerald-100 px-3 text-emerald-700 hover:bg-emerald-200"
@@ -152,18 +158,20 @@ export function ProductsTable({
                     >
                       <FontAwesomeIcon icon={faBoxArchive} />
                     </Button>
-                    <Button
-                      type="button"
-                      className={[
-                        "h-9 px-3",
-                        product.is_active
-                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                          : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
-                      ].join(" ")}
-                      onClick={() => onToggleActive(product)}
-                    >
-                      <FontAwesomeIcon icon={faPowerOff} />
-                    </Button>
+                    {canManageCatalog ? (
+                      <Button
+                        type="button"
+                        className={[
+                          "h-9 px-3",
+                          product.is_active
+                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                            : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
+                        ].join(" ")}
+                        onClick={() => onToggleActive(product)}
+                      >
+                        <FontAwesomeIcon icon={faPowerOff} />
+                      </Button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

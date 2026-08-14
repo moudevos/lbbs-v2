@@ -19,6 +19,7 @@ type ProductStockModalProps = {
   movements: StockMovementRecord[];
   onClose: () => void;
   onCreateMovement: (branchId?: string) => void;
+  canCreateForAllBranches?: boolean;
 };
 
 function formatMoney(value: string | null) {
@@ -47,6 +48,7 @@ export function ProductStockModal({
   movements,
   onClose,
   onCreateMovement,
+  canCreateForAllBranches = true,
 }: ProductStockModalProps) {
   if (!product) {
     return null;
@@ -94,13 +96,15 @@ export function ProductStockModal({
                   </p>
                 </div>
 
-                <Button
-                  type="button"
-                  className="h-9 bg-sky-100 px-3 text-sky-700 hover:bg-sky-200"
-                  onClick={() => onCreateMovement(item.branch_id)}
-                >
-                  <FontAwesomeIcon icon={faArrowRightArrowLeft} />
-                </Button>
+                {canCreateForAllBranches ? (
+                  <Button
+                    type="button"
+                    className="h-9 bg-sky-100 px-3 text-sky-700 hover:bg-sky-200"
+                    onClick={() => onCreateMovement(item.branch_id)}
+                  >
+                    <FontAwesomeIcon icon={faArrowRightArrowLeft} />
+                  </Button>
+                ) : null}
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">

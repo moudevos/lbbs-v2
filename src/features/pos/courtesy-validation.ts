@@ -64,6 +64,9 @@ export function validateCourtesySelection(input: {
 }): CourtesyValidationResult {
   const courtesyItems = input.items.filter((item) => item.isCourtesy);
   if (courtesyItems.length === 0) return { ok: false, message: "No hay cortesias para validar." };
+  if (courtesyItems.some((item) => !item.courtesyReason?.trim())) {
+    return { ok: false, message: "Debes registrar el motivo de cada cortesia." };
+  }
   if (courtesyItems.some((item) => item.itemType === "product" && !item.isCourtesyAllowed)) {
     return { ok: false, message: "Uno de los productos no admite cortesia." };
   }

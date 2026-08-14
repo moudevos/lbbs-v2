@@ -238,6 +238,7 @@ type StockMovementCheckResult =
       userId: string;
       role: string;
       employeeId: string | null;
+      branchId: string | null;
     }
   | {
       ok: false;
@@ -307,10 +308,23 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
     };
   }
 
+  const { data: employee, error: employeeLookupError } = employeeId
+    ? await supabase.from("employees").select("branch_id").eq("id", employeeId).maybeSingle()
+    : { data: null, error: null };
+
+  if (employeeLookupError) {
+    console.error("[auth/stock] No se pudo leer la sede del empleado", {
+      message: employeeLookupError.message,
+      code: employeeLookupError.code,
+    });
+    return { ok: false, status: 500, message: "No se pudo validar la sede del empleado actual." };
+  }
+
   return {
     ok: true,
     userId: userData.user.id,
     role,
     employeeId: employeeId ?? null,
+    branchId: employee?.branch_id ?? null,
   };
 }

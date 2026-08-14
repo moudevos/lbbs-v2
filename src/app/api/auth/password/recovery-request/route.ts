@@ -3,10 +3,19 @@ import { NextResponse } from "next/server";
 import { getPublicAppUrl } from "@/lib/auth/public-url";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit } from "@/lib/security/rate-limit";
 
 const genericMessage = "Si el correo está registrado, recibirá un enlace para restablecer tu contraseña.";
 
 export async function POST(request: Request) {
+  const retryAfter = await enforceRateLimit(request, "password-recovery", 5, 15 * 60 * 1000);
+  if (retryAfter) {
+    return NextResponse.json(
+      { data: { message: genericMessage } },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
   const payload = await request.json().catch(() => null);
   const email = typeof payload?.email === "string" ? payload.email.trim().toLowerCase() : "";
   const appUrl = getPublicAppUrl();
