@@ -66,6 +66,9 @@ const sourceFiles = [
   "125_seed_operational_select_options.sql",
   "126_pos_atomic_checkout.sql",
   "127_distributed_rate_limits.sql",
+  "128_internal_pos_benefits_and_accounts.sql",
+  "129_pos_current_day_session_guard.sql",
+  "130_internal_pos_enforcement_and_production.sql",
 ];
 
 const branchSeed = `

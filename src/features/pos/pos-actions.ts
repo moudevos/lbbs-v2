@@ -2,6 +2,7 @@ import type {
   ClosePosSessionPayload,
   OpenPosSessionPayload,
   PosCheckoutPayload,
+  PosInternalCustomerOptions,
   PosRewardEntitlement,
   PosSessionCloseSummary,
   PosSessionHistoryRecord,
@@ -37,6 +38,14 @@ export async function fetchPosBootstrap(branchId?: string, sessionId?: string, r
   }
 
   return payload;
+}
+
+export async function fetchPosInternalCustomerOptions(customerId: string, branchId: string) {
+  const params = new URLSearchParams({ customerId, branchId });
+  const response = await fetch(`/api/admin/pos/internal-options?${params.toString()}`, { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "No se pudieron cargar las opciones internas.");
+  return payload.data as PosInternalCustomerOptions;
 }
 
 export async function openPosSession(payload: OpenPosSessionPayload) {
@@ -228,4 +237,11 @@ export async function closePosSession(sessionId: string, payload: ClosePosSessio
   }
 
   return result.data as PosSessionCloseSummary;
+}
+
+export async function resumePosSession(sessionId: string) {
+  const response = await fetch(`/api/admin/pos/sessions/${sessionId}/resume`, { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? "No se pudo reabrir la sesión POS.");
+  return payload.data;
 }

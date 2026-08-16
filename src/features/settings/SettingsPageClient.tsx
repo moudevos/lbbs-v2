@@ -1,18 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Swal from "sweetalert2";
 
 import { SettingFormModal } from "@/features/settings/SettingFormModal";
 import { SettingTable } from "@/features/settings/SettingTable";
-import {
-  SettingsUnifiedNav,
-  settingsTabs,
-  type SettingsTabId,
-} from "@/features/settings/SettingsUnifiedNav";
+import { settingsTabs, type SettingsTabId } from "@/features/settings/SettingsUnifiedNav";
 import { CompensationRulesPanel, type CompensationKind } from "@/features/settings/CompensationRulesPanel";
 import { RewardsConfigurationSummary } from "@/features/settings/RewardsConfigurationSummary";
 import { WhatsAppTemplatesPanel } from "@/features/settings/WhatsAppTemplatesPanel";
+import { InternalBenefitsPanel } from "@/features/settings/InternalBenefitsPanel";
 import {
   createEmptySettingForm,
   fetchSettings,
@@ -53,7 +51,11 @@ function getToggleText(config: SettingsSectionConfig, item: SettingRecord) {
 }
 
 export function SettingsPageClient() {
-  const [activeTab, setActiveTab] = useState<SettingsTabId>("cat:service_categories");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab: SettingsTabId = settingsTabs.some((tab) => tab.id === requestedTab)
+    ? (requestedTab as SettingsTabId)
+    : "cat:service_categories";
   const [itemsBySection, setItemsBySection] = useState<SettingsMap>({});
   const [loadingBySection, setLoadingBySection] = useState<LoadingMap>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,10 +73,6 @@ export function SettingsPageClient() {
   const activeConfig = useMemo(
     () => (activeSection ? getSectionConfig(activeSection) : null),
     [activeSection],
-  );
-  const activeTabConfig = useMemo(
-    () => settingsTabs.find((tab) => tab.id === activeTab) ?? null,
-    [activeTab],
   );
   const activeItems = activeSection ? itemsBySection[activeSection] ?? [] : [];
   const isLoading = activeSection ? loadingBySection[activeSection] ?? false : false;
@@ -273,21 +271,6 @@ export function SettingsPageClient() {
   return (
     <>
       <div className="space-y-4">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Configuraciones operativas</p>
-          <p className="mt-1 text-sm text-slate-600">
-            Gestiona catalogos base sin tocar historicos ni reglas criticas del sistema.
-          </p>
-
-          <div className="mt-4">
-            <SettingsUnifiedNav active={activeTab} onChange={setActiveTab} />
-          </div>
-
-          {activeTabConfig ? (
-            <p className="mt-3 text-sm text-slate-600">{activeTabConfig.description}</p>
-          ) : null}
-        </section>
-
         {activeSection && activeConfig ? (
           <SettingTable
             config={activeConfig}
@@ -306,6 +289,8 @@ export function SettingsPageClient() {
         {activeTab === "rewards" ? <RewardsConfigurationSummary /> : null}
 
         {activeTab === "whatsapp" ? <WhatsAppTemplatesPanel /> : null}
+
+        {activeTab === "internal-benefits" ? <InternalBenefitsPanel /> : null}
       </div>
 
       {activeConfig ? (

@@ -25,6 +25,7 @@ type PosSessionOverviewProps = {
   onFormChange: (next: OpenPosSessionPayload) => void;
   onOpenSession: () => Promise<boolean> | boolean;
   onCloseSessionRequest?: () => void;
+  onResumeSession?: () => void;
   isCloseSessionDisabled?: boolean;
   compact?: boolean;
 };
@@ -53,6 +54,7 @@ export function PosSessionOverview({
   onFormChange,
   onOpenSession,
   onCloseSessionRequest,
+  onResumeSession,
   isCloseSessionDisabled = false,
   compact = false,
 }: PosSessionOverviewProps) {
@@ -117,6 +119,12 @@ export function PosSessionOverview({
                 onClick={onCloseSessionRequest}
               >
                 Cerrar sesion POS
+              </Button>
+            ) : null}
+
+            {activeSession?.status === "pending_close" ? (
+              <Button type="button" className="bg-amber-700 hover:bg-amber-600" onClick={onResumeSession}>
+                Reabrir interfaz
               </Button>
             ) : null}
           </div>

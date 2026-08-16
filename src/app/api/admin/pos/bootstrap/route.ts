@@ -162,12 +162,17 @@ export async function GET(request: Request) {
   }
 
   const scope = resolveOperationalBranchScope(role, employee, requestedBranchId);
-  const selectedBranchId = requestedSession?.branch_id ?? scope.branchId ?? "";
+  // Owner/admin no tienen una sede fija. Si ya hay una sesión accesible, la
+  // seleccionamos por defecto para que el panel abra su interfaz en vez de
+  // mostrar falsamente “Sin sesión activa”.
+  const fallbackSession = formattedSessions.find((session) => session.status === "open") ?? formattedSessions[0] ?? null;
+  const selectedBranchId = requestedSession?.branch_id ?? scope.branchId ?? fallbackSession?.branch_id ?? "";
 
   const { data: paymentMethods, error: methodsError } = await supabase
     .from("payment_methods")
     .select("id, code, name, description, sort_order, is_active, payment_kind, allows_change, counts_as_cash")
     .eq("is_active", true)
+    .neq("payment_kind", "internal_credit")
     .order("sort_order", { ascending: true });
 
   if (methodsError) {
@@ -243,6 +248,7 @@ export async function GET(request: Request) {
     activeSession:
       requestedSession ??
       formattedSessions.find((session) => session.branch_id === selectedBranchId) ??
+      fallbackSession ??
       null,
     customerVarious: customerVarious ?? null,
     paymentMethods: paymentMethods ?? [],

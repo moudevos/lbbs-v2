@@ -71,7 +71,7 @@ type PaymentMethodRow = {
   code: string;
   name: string;
   is_active: boolean;
-  payment_kind: "cash" | "wallet_qr" | "card" | "bank_transfer" | "other_digital";
+  payment_kind: "cash" | "wallet_qr" | "card" | "bank_transfer" | "other_digital" | "internal_credit";
   allows_change: boolean;
   counts_as_cash: boolean;
 };
@@ -142,12 +142,21 @@ type IdempotencyRewardRedemptionRow = {
   status: string;
 };
 
+type IdempotencyInternalOperationRow = {
+  benefit_rule_id: string | null;
+  operation_kind: "employee_benefit" | "employee_credit" | "internal_complimentary";
+  authorization_reason: string | null;
+};
+
 type CheckoutSignatureInput = {
   branchId: string;
   customerId: string;
   barberId: string | null;
   reservationId: string | null;
   rewardEntitlementId: string | null;
+  employeeBenefitRuleId: string | null;
+  internalCredit: boolean;
+  authorizationReason: string | null;
   notes: string | null;
   items: Array<{
     catalogId: string;
@@ -202,6 +211,9 @@ function buildCheckoutSignature(input: CheckoutSignatureInput) {
     barberId: input.barberId,
     reservationId: input.reservationId,
     rewardEntitlementId: input.rewardEntitlementId,
+    employeeBenefitRuleId: input.employeeBenefitRuleId,
+    internalCredit: input.internalCredit,
+    authorizationReason: input.authorizationReason,
     notes: input.notes,
     items,
     payments,
@@ -308,7 +320,7 @@ async function findCompletedIdempotentSale(
     const sale = data as IdempotencySaleRow | null;
 
     if (sale?.status === "completed") {
-      const [itemsResult, paymentsResult, rewardsResult] = await Promise.all([
+      const [itemsResult, paymentsResult, rewardsResult, internalOperationResult] = await Promise.all([
         supabase
           .from("sale_items")
           .select("item_type, service_id, product_id, quantity, unit_price, discount_amount, is_courtesy, courtesy_reason")
@@ -322,19 +334,28 @@ async function findCompletedIdempotentSale(
           .select("entitlement_id, status")
           .eq("sale_id", sale.id)
           .eq("status", "applied"),
+        supabase
+          .from("internal_pos_operations")
+          .select("benefit_rule_id,operation_kind,authorization_reason")
+          .eq("sale_id", sale.id)
+          .maybeSingle(),
       ]);
 
-      if (itemsResult.error || paymentsResult.error || rewardsResult.error) {
+      if (itemsResult.error || paymentsResult.error || rewardsResult.error || internalOperationResult.error) {
         return { error: "No se pudo verificar el intento de venta." as const };
       }
 
       const rewardRows = (rewardsResult.data ?? []) as IdempotencyRewardRedemptionRow[];
+      const internalOperation = internalOperationResult.data as IdempotencyInternalOperationRow | null;
       const persistedSignature = buildCheckoutSignature({
         branchId: sale.branch_id,
         customerId: sale.customer_id,
         barberId: sale.barber_id,
         reservationId: sale.reservation_id,
         rewardEntitlementId: rewardRows[0]?.entitlement_id ?? null,
+        employeeBenefitRuleId: internalOperation?.benefit_rule_id ?? null,
+        internalCredit: internalOperation?.operation_kind === "employee_credit",
+        authorizationReason: internalOperation?.authorization_reason ?? null,
         notes: sale.notes,
         items: ((itemsResult.data ?? []) as IdempotencySaleItemRow[]).map((item) => ({
           catalogId: item.item_type === "service" ? item.service_id ?? "" : item.product_id ?? "",
@@ -477,6 +498,10 @@ export async function POST(request: Request) {
   const barberId = trimOrNull(payload?.barber_id);
   const reservationId = trimOrNull(payload?.reservation_id);
   const rewardEntitlementId = trimOrNull(payload?.reward_entitlement_id);
+  const employeeBenefitRuleId = trimOrNull(payload?.employee_benefit_rule_id);
+  const internalCredit = payload?.internal_credit === true;
+  const authorizationReason = trimOrNull(payload?.authorization_reason);
+  const authorizationPin = trimOrNull(payload?.authorization_pin);
   const idempotencyKey = normalizeIdempotencyKey(payload?.idempotency_key);
   const notes = trimOrNull(payload?.notes);
   const normalizedItems = normalizeCheckoutItems(payload?.items);
@@ -529,6 +554,9 @@ export async function POST(request: Request) {
     barberId,
     reservationId,
     rewardEntitlementId,
+    employeeBenefitRuleId,
+    internalCredit,
+    authorizationReason,
     notes,
     items,
     payments,
@@ -884,6 +912,13 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    if (method.payment_kind === "internal_credit") {
+      return NextResponse.json(
+        { error: "El crédito de empleado solo se registra desde una operación interna autorizada." },
+        { status: 400 },
+      );
+    }
   }
 
   const requestedProductQuantities = new Map<string, number>();
@@ -1011,6 +1046,16 @@ export async function POST(request: Request) {
     change_amount: payment.changeAmount,
   }));
 
+  if (employeeBenefitRuleId) {
+    const { data: internalRule, error: internalRuleError } = await supabase.from("employee_benefit_rules").select("is_internal_complimentary").eq("id", employeeBenefitRuleId).maybeSingle();
+    if (internalRuleError) return NextResponse.json({ error: "No se pudo validar el beneficio interno." }, { status: 500 });
+    if (internalRule?.is_internal_complimentary) {
+      if (!authorizationPin) return NextResponse.json({ error: "Ingresa el PIN de autorización del owner." }, { status: 400 });
+      const { data: isAuthorized, error: pinError } = await supabase.rpc("verify_owner_internal_authorization_pin", { p_pin: authorizationPin });
+      if (pinError || !isAuthorized) return NextResponse.json({ error: "El PIN de autorización no es válido." }, { status: 403 });
+    }
+  }
+
   try {
     const { data: atomicSaleId, error: atomicCheckoutError } = await supabase.rpc(
       "checkout_pos_sale",
@@ -1022,6 +1067,9 @@ export async function POST(request: Request) {
           barber_id: barberId,
           reservation_id: reservationId,
           reward_entitlement_id: rewardEntitlementId,
+          employee_benefit_rule_id: employeeBenefitRuleId,
+          internal_credit: internalCredit,
+          authorization_reason: authorizationReason,
           idempotency_key: idempotencyKey,
           notes,
           subtotal,

@@ -75,6 +75,11 @@ export function PosSessionWorkspace() {
     isLoading,
     isLoadingCatalog,
     isLoadingRewards,
+    internalAuthorizationReason,
+    internalAuthorizationPin,
+    internalBenefitDiscount,
+    internalCredit,
+    internalCustomerOptions,
     loadBootstrap,
     loadCatalog,
     paymentMethods,
@@ -85,6 +90,8 @@ export function PosSessionWorkspace() {
     selectedBranchId,
     selectedCustomer,
     selectedReward,
+    selectedInternalBenefit,
+    selectedInternalBenefitRuleId,
     selectedRewardEntitlementId,
     serviceCategories,
     subtotal,
@@ -104,6 +111,10 @@ export function PosSessionWorkspace() {
     setSelectedBarberId,
     setSelectedCustomer,
     setSelectedRewardEntitlementId,
+    setSelectedInternalBenefitRuleId,
+    setInternalAuthorizationReason,
+    setInternalAuthorizationPin,
+    setInternalCredit,
     setSelectedReservationId,
   } = usePosWorkspace();
 
@@ -129,7 +140,7 @@ export function PosSessionWorkspace() {
     () => getRewardDiscountPreview(cartItems, selectedReward),
     [cartItems, selectedReward],
   );
-  const checkoutTotal = Math.max(total - rewardDiscount, 0);
+  const checkoutTotal = Math.max(total - rewardDiscount - internalBenefitDiscount, 0);
   const paymentReconciliation = useMemo(
     () => reconcilePosPayments(checkoutTotal, payments),
     [checkoutTotal, payments],
@@ -141,7 +152,7 @@ export function PosSessionWorkspace() {
     Boolean(selectedCustomer) &&
     (!barberRequired || Boolean(selectedBarberId)) &&
     checkoutTotal >= 0 &&
-    pendingBalance === 0 &&
+    (internalCredit || pendingBalance === 0) &&
     !paymentReconciliation.requiresAdjustment;
 
   useEffect(() => {
@@ -480,7 +491,7 @@ export function PosSessionWorkspace() {
       return;
     }
 
-    if (pendingBalance > 0) {
+    if (pendingBalance > 0 && !internalCredit) {
       await Swal.fire({
         icon: "warning",
         title: "Pago incompleto",
@@ -519,6 +530,10 @@ export function PosSessionWorkspace() {
         barber_id: selectedBarberId || null,
         reservation_id: activeReservationId,
         reward_entitlement_id: selectedRewardEntitlementId || null,
+        employee_benefit_rule_id: selectedInternalBenefitRuleId || null,
+        internal_credit: internalCredit,
+        authorization_reason: internalAuthorizationReason || null,
+        authorization_pin: internalAuthorizationPin || null,
         items: cartItems.map((item) => ({
           catalog_id: item.catalog_id,
           item_type: item.item_type,
@@ -528,7 +543,7 @@ export function PosSessionWorkspace() {
           is_courtesy: item.is_courtesy,
           courtesy_reason: item.courtesy_reason,
         })),
-        payments: payments.map((payment) => ({
+        payments: internalCredit ? [] : payments.map((payment) => ({
           payment_method_id: payment.payment_method_id,
           amount: payment.amount,
           tendered_amount: payment.tendered_amount,
@@ -787,6 +802,13 @@ export function PosSessionWorkspace() {
                 availableRewards={availableRewards}
                 selectedRewardEntitlementId={selectedRewardEntitlementId}
                 rewardDiscount={rewardDiscount}
+                internalBenefitDiscount={internalBenefitDiscount}
+                internalCustomerOptions={internalCustomerOptions}
+                selectedInternalBenefit={selectedInternalBenefit}
+                selectedInternalBenefitRuleId={selectedInternalBenefitRuleId}
+                internalCredit={internalCredit}
+                internalAuthorizationReason={internalAuthorizationReason}
+                internalAuthorizationPin={internalAuthorizationPin}
                 isLoadingRewards={isLoadingRewards}
                 paymentMethods={paymentMethods}
                 payments={payments}
@@ -803,6 +825,10 @@ export function PosSessionWorkspace() {
                 onCustomerSearch={searchPosCustomers}
                 onBarberChange={setSelectedBarberId}
                 onRewardChange={(value) => void handleRewardChange(value)}
+                onInternalBenefitChange={(value) => { setSelectedInternalBenefitRuleId(value); if (value) { setSelectedRewardEntitlementId(""); setInternalCredit(false); } }}
+                onInternalCreditChange={(value) => { setInternalCredit(value); if (value) { setSelectedRewardEntitlementId(""); setSelectedInternalBenefitRuleId(""); } }}
+                onInternalAuthorizationReasonChange={setInternalAuthorizationReason}
+                onInternalAuthorizationPinChange={setInternalAuthorizationPin}
                 onDecreaseItem={(itemId) => {
                   void changeItemQuantity(itemId, -1);
                 }}

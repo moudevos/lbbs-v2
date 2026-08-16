@@ -8,6 +8,7 @@ import {
   fetchPosAvailableRewards,
   fetchPosBootstrap,
   fetchPosEmployees,
+  fetchPosInternalCustomerOptions,
   fetchPosProducts,
   fetchPosServices,
   openPosSession,
@@ -20,6 +21,7 @@ import type {
   PosCatalogTab,
   PosCustomerRecord,
   PosEmployeeRecord,
+  PosInternalCustomerOptions,
   PosPreparedPayment,
   PosProductRecord,
   PosRewardEntitlement,
@@ -67,6 +69,11 @@ export function usePosWorkspace() {
   const [suggestedServiceId, setSuggestedServiceId] = useState<string | null>(null);
   const [availableRewards, setAvailableRewards] = useState<PosRewardEntitlement[]>([]);
   const [selectedRewardEntitlementId, setSelectedRewardEntitlementId] = useState("");
+  const [internalCustomerOptions, setInternalCustomerOptions] = useState<PosInternalCustomerOptions | null>(null);
+  const [selectedInternalBenefitRuleId, setSelectedInternalBenefitRuleId] = useState("");
+  const [internalCredit, setInternalCredit] = useState(false);
+  const [internalAuthorizationReason, setInternalAuthorizationReason] = useState("");
+  const [internalAuthorizationPin, setInternalAuthorizationPin] = useState("");
   const [payments, setPayments] = useState<PosPreparedPayment[]>([]);
   const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string | null>(null);
   const [openSessionForm, setOpenSessionForm] =
@@ -220,7 +227,7 @@ export function usePosWorkspace() {
 
     const timer = window.setTimeout(() => {
       writePosDraft(draftKey, {
-        version: 1,
+        version: 3,
         savedAt: new Date().toISOString(),
         sessionId: activeSession.id,
         branchId: selectedBranchId,
@@ -229,6 +236,9 @@ export function usePosWorkspace() {
         reservationId: selectedReservationId,
         barberId: selectedBarberId,
         rewardEntitlementId: selectedRewardEntitlementId,
+        internalBenefitRuleId: selectedInternalBenefitRuleId,
+        internalCredit,
+        internalAuthorizationReason,
         items: cartItems,
         payments,
         checkoutIdempotencyKey,
@@ -246,6 +256,10 @@ export function usePosWorkspace() {
     selectedCustomer,
     selectedReservationId,
     selectedRewardEntitlementId,
+    selectedInternalBenefitRuleId,
+    internalCredit,
+    internalAuthorizationReason,
+    internalAuthorizationPin,
     payments,
     checkoutIdempotencyKey,
   ]);
@@ -317,6 +331,9 @@ export function usePosWorkspace() {
       setSelectedReservationId(draft.reservationId);
       setSelectedBarberId(barberAvailable ? draft.barberId : "");
       setSelectedRewardEntitlementId(draft.rewardEntitlementId);
+      setSelectedInternalBenefitRuleId(draft.internalBenefitRuleId ?? "");
+      setInternalCredit(Boolean(draft.internalCredit));
+      setInternalAuthorizationReason(draft.internalAuthorizationReason ?? "");
       setPayments(draft.payments);
       setCheckoutIdempotencyKey(draft.checkoutIdempotencyKey);
     });
@@ -404,12 +421,45 @@ export function usePosWorkspace() {
   const barberRequired = cartRequiresBarber(cartItems);
   const selectedReward =
     availableRewards.find((reward) => reward.id === selectedRewardEntitlementId) ?? null;
+  const selectedInternalBenefit = internalCustomerOptions?.rules.find((rule) => rule.id === selectedInternalBenefitRuleId) ?? null;
+  const internalBenefitDiscount = useMemo(() => {
+    if (!selectedInternalBenefit) return 0;
+    return cartItems.reduce((sum, item) => {
+      const matches = selectedInternalBenefit.applies_to === "all" || (
+        selectedInternalBenefit.applies_to === item.item_type &&
+        (item.item_type === "service" ? !selectedInternalBenefit.service_id || selectedInternalBenefit.service_id === item.catalog_id : !selectedInternalBenefit.product_id || selectedInternalBenefit.product_id === item.catalog_id)
+      );
+      if (!matches) return sum;
+      const line = item.quantity * item.unit_price;
+      const value = Number(selectedInternalBenefit.benefit_value);
+      const discount = selectedInternalBenefit.benefit_type === "free" ? line : selectedInternalBenefit.benefit_type === "fixed_price" ? Math.max(line - value * item.quantity, 0) : line * value / 100;
+      return sum + discount;
+    }, 0);
+  }, [cartItems, selectedInternalBenefit]);
 
   function handleSelectedCustomerChange(customer: PosCustomerRecord | null) {
     setSelectedCustomer(customer);
     setAvailableRewards([]);
     setSelectedRewardEntitlementId("");
+    setInternalCustomerOptions(null);
+    setSelectedInternalBenefitRuleId("");
+    setInternalCredit(false);
+    setInternalAuthorizationReason("");
   }
+
+  useEffect(() => {
+    if (!selectedCustomer || selectedCustomer.id === customerVariousId || !selectedBranchId) return;
+    const timer = window.setTimeout(() => {
+      void fetchPosInternalCustomerOptions(selectedCustomer.id, selectedBranchId)
+        .then((options) => {
+          setInternalCustomerOptions(options);
+          setSelectedInternalBenefitRuleId((current) => options.rules.some((rule) => rule.id === current) ? current : "");
+          if (!options.canUseCredit) setInternalCredit(false);
+        })
+        .catch(() => setInternalCustomerOptions(null));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [customerVariousId, selectedBranchId, selectedCustomer]);
 
   useEffect(() => {
     async function loadRewards(customerId: string) {
@@ -620,6 +670,11 @@ export function usePosWorkspace() {
     isLoading,
     isLoadingCatalog,
     isLoadingRewards,
+    internalAuthorizationReason,
+    internalAuthorizationPin,
+    internalBenefitDiscount,
+    internalCredit,
+    internalCustomerOptions,
     isOpeningSession,
     openSessionForm,
     paymentMethods,
@@ -630,6 +685,8 @@ export function usePosWorkspace() {
     selectedBranchId,
     selectedCustomer,
     selectedReward,
+    selectedInternalBenefit,
+    selectedInternalBenefitRuleId,
     selectedRewardEntitlementId,
     serviceCategories,
     subtotal,
@@ -655,6 +712,10 @@ export function usePosWorkspace() {
     setSelectedBranchId,
     setSelectedCustomer: handleSelectedCustomerChange,
     setSelectedRewardEntitlementId,
+    setSelectedInternalBenefitRuleId,
+    setInternalCredit,
+    setInternalAuthorizationReason,
+    setInternalAuthorizationPin,
     setSelectedReservationId,
   };
 }

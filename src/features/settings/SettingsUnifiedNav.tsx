@@ -15,6 +15,7 @@ import {
   faSackDollar,
   faScissors,
   faStar,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 
 export type SettingsTabId =
@@ -30,7 +31,8 @@ export type SettingsTabId =
   | "comp:product_bonus"
   | "comp:supply_markup"
   | "rewards"
-  | "whatsapp";
+  | "whatsapp"
+  | "internal-benefits";
 
 export type SettingsNavTab = {
   id: SettingsTabId;
@@ -53,6 +55,7 @@ export const settingsTabs: SettingsNavTab[] = [
   { id: "comp:supply_markup", label: "Recargos", description: "Configura el recargo al entregar insumos del inventario a un empleado. No cambia precios de venta al cliente.", icon: faPercent },
   { id: "rewards", label: "Fidelizacion", description: "Consulta reglas y premios de clientes. La gestion completa se realiza en el modulo Rewards.", icon: faGift },
   { id: "whatsapp", label: "Plantillas", description: "Edita los mensajes base usados para recordar reservas y agradecer atenciones.", icon: faCommentDots },
+  { id: "internal-benefits", label: "Beneficios internos", description: "Vincula clientes con empleados y configura beneficios, crédito y consumos internos de POS.", icon: faUsers },
 ];
 
 type SettingsUnifiedNavProps = {
@@ -87,8 +90,7 @@ export function SettingsUnifiedNav({ active, onChange }: SettingsUnifiedNavProps
 
             <span
               className={[
-                "overflow-hidden whitespace-nowrap text-sm font-semibold transition-all duration-300 ease-out",
-                isActive ? "ml-2 max-w-[160px] opacity-100" : "ml-0 max-w-0 opacity-0",
+              "ml-2 max-w-[160px] overflow-hidden whitespace-nowrap text-sm font-semibold opacity-100 transition-colors",
                 isActive ? "text-emerald-700" : "text-slate-600",
               ].join(" ")}
             >

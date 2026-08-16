@@ -4,7 +4,7 @@ import { useState } from "react";
 import Swal from "sweetalert2";
 
 import { Button } from "@/components/ui/button";
-import { closePosSession, fetchPosSessionCloseSummary } from "@/features/pos/pos-actions";
+import { closePosSession, fetchPosSessionCloseSummary, resumePosSession } from "@/features/pos/pos-actions";
 import { PosSessionOverview } from "@/features/pos/PosSessionOverview";
 import { PosSessionCloseModal } from "@/features/pos/PosSessionCloseModal";
 import { PosSessionHistory } from "@/features/pos/PosSessionHistory";
@@ -134,16 +134,30 @@ export function PosPageClient() {
     }
   }
 
+  async function handleResumeSession() {
+    if (!activeSession) return;
+    try {
+      await resumePosSession(activeSession.id);
+      await loadBootstrap(selectedBranchId);
+      await Swal.fire({ icon: "success", title: "POS reabierto", text: "La sesión de hoy volvió a estar disponible para operar.", confirmButtonColor: "#0f766e" });
+    } catch (error) {
+      await Swal.fire({ icon: "error", title: "No se pudo reabrir", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
+    }
+  }
+
   return (
     <>
       {activeSession?.status === "pending_close" ? (
         <section className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-amber-900">Hay una sesion pendiente de cierre.</p>
-            <p className="mt-1 text-sm text-amber-800">Debes cerrarla antes de continuar operando el POS.</p>
+            <p className="mt-1 text-sm text-amber-800">Si es de hoy y fue marcada por error, puedes reabrir solo su interfaz. Las jornadas anteriores deben cerrarse.</p>
           </div>
           <Button type="button" className="bg-amber-700 hover:bg-amber-600" onClick={() => void handleOpenCloseModal()}>
             Cerrar sesion pendiente
+          </Button>
+          <Button type="button" className="bg-slate-800 hover:bg-slate-700" onClick={() => void handleResumeSession()}>
+            Reabrir interfaz POS
           </Button>
         </section>
       ) : null}
@@ -166,6 +180,7 @@ export function PosPageClient() {
         onCloseSessionRequest={() => {
           void handleOpenCloseModal();
         }}
+        onResumeSession={() => { void handleResumeSession(); }}
         isCloseSessionDisabled={!activeSession}
         compact={Boolean(activeSession)}
       />

@@ -48,7 +48,7 @@ export type PosPaymentMethodRecord = {
   description: string | null;
   sort_order: number;
   is_active: boolean;
-  payment_kind: "cash" | "wallet_qr" | "card" | "bank_transfer" | "other_digital";
+  payment_kind: "cash" | "wallet_qr" | "card" | "bank_transfer" | "other_digital" | "internal_credit";
   allows_change: boolean;
   counts_as_cash: boolean;
 };
@@ -158,6 +158,30 @@ export type PosRewardEntitlement = {
   reward_benefits?: PosRewardBenefitRecord | null;
 };
 
+export type PosInternalBenefitRule = {
+  id: string;
+  name: string;
+  description: string | null;
+  applies_to: "service" | "product" | "all";
+  service_id: string | null;
+  product_id: string | null;
+  benefit_type: "free" | "fixed_price" | "discount_percent";
+  benefit_value: number | string;
+  usage_limit: number;
+  period_kind: "calendar_month" | "payroll_period" | "none";
+  production_mode?: "fixed" | "percentage" | "none";
+  fixed_barber_payout: number | string;
+  operational_contribution: number | string;
+  requires_owner_authorization: boolean;
+  is_internal_complimentary: boolean;
+};
+
+export type PosInternalCustomerOptions = {
+  employee: { id: string; fullName: string; role: string } | null;
+  canUseCredit: boolean;
+  rules: PosInternalBenefitRule[];
+};
+
 export type PosCheckoutPayload = {
   idempotency_key: string;
   pos_session_id: string;
@@ -166,6 +190,10 @@ export type PosCheckoutPayload = {
   barber_id: string | null;
   reservation_id?: string | null;
   reward_entitlement_id?: string | null;
+  employee_benefit_rule_id?: string | null;
+  internal_credit?: boolean;
+  authorization_reason?: string | null;
+  authorization_pin?: string | null;
   notes?: string | null;
   items: Array<{
     catalog_id: string;

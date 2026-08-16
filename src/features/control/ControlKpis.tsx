@@ -5,8 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 type Payload = {
   financial: boolean;
   metrics: Record<string, number | null>;
+  paymentMethods: Array<{ code: string; name: string; total: number }>;
+  range: { dateFrom: string; dateTo: string };
+  internal: { employeeCredit: number; complimentaryRetail: number; complimentaryDiscount: number; benefitRetail: number; benefitDiscount: number };
   sessions: Array<{ id: string; branchName: string; status: string }>;
 };
+
+const paymentColors = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#ec4899", "#64748b"];
+const limaToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
 type ControlKpisProps = {
   greetingName: string;
@@ -277,6 +283,8 @@ function PaymentDonut({ segments }: { segments: Array<{ label: string; value: nu
 export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [error, setError] = useState(false);
+  const [dateFrom, setDateFrom] = useState(limaToday);
+  const [dateTo, setDateTo] = useState(limaToday);
 
   // Derivado una sola vez en el render inicial del cliente — no necesita un
   // efecto porque no sincroniza con nada externo, solo calcula un valor.
@@ -294,7 +302,8 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch("/api/admin/control/kpis", { cache: "no-store" });
+        const query = new URLSearchParams({ dateFrom, dateTo });
+        const response = await fetch(`/api/admin/control/kpis?${query.toString()}`, { cache: "no-store" });
         const result = await response.json();
         if (!response.ok) throw new Error();
         setPayload(result);
@@ -303,7 +312,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
         setError(true);
       }
     })();
-  }, []);
+  }, [dateFrom, dateTo]);
 
   if (error) {
     return (
@@ -322,6 +331,12 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
   }
 
   const m = payload.metrics;
+  const internal = payload.internal;
+  const paymentSegments = payload.paymentMethods.map((method, index) => ({
+    label: method.name,
+    value: method.total,
+    color: paymentColors[index % paymentColors.length],
+  }));
 
   return (
     <div className="space-y-4">
@@ -355,6 +370,14 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
           </blockquote>
         </div>
       </section>
+
+      {payload.financial ? (
+        <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label className="text-xs font-medium text-slate-500">Desde<input type="date" value={dateFrom} max={dateTo} onChange={(event) => setDateFrom(event.target.value)} className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" /></label>
+          <label className="text-xs font-medium text-slate-500">Hasta<input type="date" value={dateTo} min={dateFrom} onChange={(event) => setDateTo(event.target.value)} className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" /></label>
+          <p className="pb-1 text-xs text-slate-500">Rango por fecha operativa Lima.</p>
+        </section>
+      ) : null}
 
       {/* Cifras clave — la más importante primero, en tamaño destacado */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -396,11 +419,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
             <p className="text-sm font-semibold text-slate-900">Métodos de pago</p>
             <div className="mt-4">
               <PaymentDonut
-                segments={[
-                  { label: "Efectivo", value: m.cash ?? 0, color: "#0ea5e9" },
-                  { label: "QR", value: m.wallet ?? 0, color: "#10b981" },
-                  { label: "Tarjeta", value: m.card ?? 0, color: "#f59e0b" },
-                ]}
+                segments={paymentSegments}
               />
             </div>
           </div>
@@ -426,6 +445,16 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
           </div>
         </section>
       )}
+
+      {payload.financial ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Resultados y operaciones internas</p>
+          <p className="mt-1 text-xs text-slate-500">No incrementan caja ni ventas cobradas si no existe pago real.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {[["Crédito de empleados", internal.employeeCredit], ["Beneficios · valor lista", internal.benefitRetail], ["Beneficios · descuento", internal.benefitDiscount], ["Consumo dueño · valor lista", internal.complimentaryRetail], ["Consumo dueño · descuento", internal.complimentaryDiscount]].map(([label, value]) => <article key={String(label)} className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">{String(label)}</p><p className="mt-1 text-sm font-semibold text-slate-900">{money(Number(value))}</p></article>)}
+          </div>
+        </section>
+      ) : null}
 
       {/* Operación */}
       <section className="grid gap-4 sm:grid-cols-2">

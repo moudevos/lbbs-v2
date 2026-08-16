@@ -10,7 +10,6 @@ import {
   faChevronLeft,
   faChevronRight,
   faFileInvoiceDollar,
-  faGear,
   faGift,
   faHouse,
   faPeopleGroup,
@@ -26,7 +25,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { SidebarItem } from "@/components/layout/SidebarItem";
 import { canAccessModule, type AppModule, type AppRole } from "@/lib/auth/module-permissions";
@@ -48,7 +47,20 @@ const items = [
   { href: "/control/pos", label: "POS", icon: faCashRegister, module: "pos" },
   { href: "/control/rewards", label: "Rewards", icon: faGift, module: "rewards" },
   { href: "/control/ventas", label: "Ventas", icon: faFileInvoiceDollar, module: "sales" },
-  { href: "/control/configuracion", label: "Configuracion", icon: faGear, module: "settings" },
+  { href: "/control/configuracion?tab=cat:service_categories", label: "Servicios", icon: faScissors, module: "settings" },
+  { href: "/control/configuracion?tab=cat:product_categories", label: "Productos", icon: faBoxOpen, module: "settings" },
+  { href: "/control/configuracion?tab=cat:payment_methods", label: "Pagos", icon: faMoneyCheckDollar, module: "settings" },
+  { href: "/control/configuracion?tab=cat:product_units", label: "Unidades", icon: faBoxOpen, module: "settings" },
+  { href: "/control/configuracion?tab=cat:courtesy_reasons", label: "Cortesias", icon: faGift, module: "settings" },
+  { href: "/control/configuracion?tab=cat:stock_adjustment_reasons", label: "Stock", icon: faBoxOpen, module: "settings" },
+  { href: "/control/configuracion?tab=comp:operational", label: "Aportes", icon: faHandHoldingDollar, module: "settings" },
+  { href: "/control/configuracion?tab=comp:reward", label: "Com. rewards", icon: faGift, module: "settings" },
+  { href: "/control/configuracion?tab=comp:courtesy", label: "Com. cortesias", icon: faGift, module: "settings" },
+  { href: "/control/configuracion?tab=comp:product_bonus", label: "Bonos", icon: faChartLine, module: "settings" },
+  { href: "/control/configuracion?tab=comp:supply_markup", label: "Recargos", icon: faCalculator, module: "settings" },
+  { href: "/control/configuracion?tab=rewards", label: "Fidelizacion", icon: faGift, module: "settings" },
+  { href: "/control/configuracion?tab=whatsapp", label: "Plantillas", icon: faComments, module: "settings" },
+  { href: "/control/configuracion?tab=internal-benefits", label: "Beneficios internos", icon: faUsers, module: "settings" },
   { href: "/control/servicios", label: "Servicios", icon: faScissors, module: "services" },
   { href: "/control/productos", label: "Productos", icon: faBoxOpen, module: "products" },
   { href: "/control/clientes", label: "Clientes", icon: faUsers, module: "customers" },
@@ -80,14 +92,19 @@ const groups: SidebarGroup[] = [
   { id: "clientes", label: "Clientes", modules: ["customers", "contacts", "rewards"] },
   { id: "catalogo", label: "Catalogo", modules: ["services", "products"] },
   { id: "personal", label: "Personal", modules: ["production", "settlements", "payment_simulations", "employee_debts"] },
+  { id: "configuracion", label: "Configuracion", modules: ["settings"] },
   {
     id: "administracion",
     label: "Administracion",
-    modules: ["branches", "employees", "settings", "finance", "devices", "hotspots"],
+    modules: ["branches", "employees", "finance", "devices", "hotspots"],
   },
 ];
 
-function isRouteActive(pathname: string, href: string) {
+function isRouteActive(pathname: string, search: string, href: string) {
+  const [hrefPath, hrefSearch = ""] = href.split("?");
+
+  if (pathname !== hrefPath) return false;
+  if (hrefSearch) return search === hrefSearch;
   if (href === "/control") {
     return pathname === href;
   }
@@ -120,6 +137,7 @@ export function Sidebar({
   onCloseMobile,
 }: SidebarProps) {
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const visibleItems = useMemo(
     () => items.filter((item) => canAccessModule(role, item.module)),
@@ -135,7 +153,7 @@ export function Sidebar({
         .filter((group) => group.items.length > 0),
     [visibleItems],
   );
-  const activeGroupId = visibleGroups.find((group) => group.items.some((item) => isRouteActive(pathname, item.href)))?.id ?? null;
+  const activeGroupId = visibleGroups.find((group) => group.items.some((item) => isRouteActive(pathname, search, item.href)))?.id ?? null;
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -227,14 +245,14 @@ export function Sidebar({
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  active={isRouteActive(pathname, item.href)}
+                  active={isRouteActive(pathname, search, item.href)}
                   collapsed
-                  pending={pendingHref === item.href && !isRouteActive(pathname, item.href)}
+                  pending={pendingHref === item.href && !isRouteActive(pathname, search, item.href)}
                   onNavigate={() => setPendingHref(item.href)}
                 />
               ))
             : visibleGroups.map((group) => {
-                const hasActiveItem = group.items.some((item) => isRouteActive(pathname, item.href));
+                const hasActiveItem = group.items.some((item) => isRouteActive(pathname, search, item.href));
                 const isOpen = hasActiveItem || openGroupId === group.id;
 
                 return (
@@ -259,9 +277,9 @@ export function Sidebar({
                             href={item.href}
                             label={item.label}
                             icon={item.icon}
-                            active={isRouteActive(pathname, item.href)}
+                            active={isRouteActive(pathname, search, item.href)}
                             collapsed={false}
-                            pending={pendingHref === item.href && !isRouteActive(pathname, item.href)}
+                            pending={pendingHref === item.href && !isRouteActive(pathname, search, item.href)}
                             onNavigate={() => setPendingHref(item.href)}
                           />
                         ))}
@@ -312,7 +330,7 @@ export function Sidebar({
         <DotGlow />
         <nav className="flex-1 space-y-3 overflow-y-auto p-3">
           {visibleGroups.map((group) => {
-            const hasActiveItem = group.items.some((item) => isRouteActive(pathname, item.href));
+            const hasActiveItem = group.items.some((item) => isRouteActive(pathname, search, item.href));
             const isOpen = hasActiveItem || openGroupId === group.id;
 
             return (
@@ -337,9 +355,9 @@ export function Sidebar({
                         href={item.href}
                         label={item.label}
                         icon={item.icon}
-                        active={isRouteActive(pathname, item.href)}
+                        active={isRouteActive(pathname, search, item.href)}
                         collapsed={false}
-                        pending={pendingHref === item.href && !isRouteActive(pathname, item.href)}
+                        pending={pendingHref === item.href && !isRouteActive(pathname, search, item.href)}
                         onNavigate={() => { setPendingHref(item.href); onCloseMobile(); }}
                       />
                     ))}

@@ -35,6 +35,7 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
   await supabase.rpc("mark_overdue_pos_sessions");
+  const { data: businessDate } = await supabase.rpc("pos_business_date");
 
   const { searchParams } = new URL(request.url);
   const branchId = searchParams.get("branchId")?.trim();
@@ -78,7 +79,7 @@ export async function GET(request: Request) {
       status: session.status,
       isOverdue:
         session.status === "pending_close" ||
-        ((session.status === "open") && session.business_date < new Date().toISOString().slice(0, 10)),
+        ((session.status === "open") && Boolean(businessDate) && session.business_date < businessDate),
       openingCashAmount: toMoneyNumber(session.opening_cash_amount),
       totalSalesAmount: toMoneyNumber(session.total_sales_amount),
       expectedCashAmount: toMoneyNumber(session.expected_cash_amount),

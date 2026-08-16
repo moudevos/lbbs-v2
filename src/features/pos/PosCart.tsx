@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { faCreditCard, faGift, faPenToSquare } from "@fortawesome/free-solid-svg-icons";
+import { faCreditCard, faGift, faPenToSquare, faUserShield } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { PosCartItem } from "@/features/pos/PosCartItem";
 import { PosCustomerSelector } from "@/features/pos/PosCustomerSelector";
 import { PosEmptyState } from "@/features/pos/PosEmptyState";
 import { PosPaymentModal } from "@/features/pos/PosPaymentModal";
+import { PosInternalOperationModal } from "@/features/pos/PosInternalOperationModal";
 import { PosRewardModal } from "@/features/pos/PosRewardModal";
 import { PosSummary } from "@/features/pos/PosSummary";
 import type {
@@ -17,6 +18,8 @@ import type {
   PosCourtesyReasonRecord,
   PosCustomerRecord,
   PosEmployeeRecord,
+  PosInternalBenefitRule,
+  PosInternalCustomerOptions,
   PosPaymentMethodRecord,
   PosPreparedPayment,
   PosRewardEntitlement,
@@ -34,6 +37,13 @@ type PosCartProps = {
   availableRewards: PosRewardEntitlement[];
   selectedRewardEntitlementId: string;
   rewardDiscount: number;
+  internalBenefitDiscount: number;
+  internalCustomerOptions: PosInternalCustomerOptions | null;
+  selectedInternalBenefit: PosInternalBenefitRule | null;
+  selectedInternalBenefitRuleId: string;
+  internalCredit: boolean;
+  internalAuthorizationReason: string;
+  internalAuthorizationPin: string;
   isLoadingRewards: boolean;
   paymentMethods: PosPaymentMethodRecord[];
   payments: PosPreparedPayment[];
@@ -48,6 +58,10 @@ type PosCartProps = {
   onCustomerSearch: (query: string) => Promise<PosCustomerRecord[]>;
   onBarberChange: (value: string) => void;
   onRewardChange: (value: string) => void;
+  onInternalBenefitChange: (value: string) => void;
+  onInternalCreditChange: (value: boolean) => void;
+  onInternalAuthorizationReasonChange: (value: string) => void;
+  onInternalAuthorizationPinChange: (value: string) => void;
   onDecreaseItem: (itemId: string) => void;
   onIncreaseItem: (itemId: string) => void;
   onRemoveItem: (itemId: string) => void;
@@ -68,6 +82,13 @@ export function PosCart({
   availableRewards,
   selectedRewardEntitlementId,
   rewardDiscount,
+  internalBenefitDiscount,
+  internalCustomerOptions,
+  selectedInternalBenefit,
+  selectedInternalBenefitRuleId,
+  internalCredit,
+  internalAuthorizationReason,
+  internalAuthorizationPin,
   isLoadingRewards,
   paymentMethods,
   payments,
@@ -82,6 +103,10 @@ export function PosCart({
   onCustomerSearch,
   onBarberChange,
   onRewardChange,
+  onInternalBenefitChange,
+  onInternalCreditChange,
+  onInternalAuthorizationReasonChange,
+  onInternalAuthorizationPinChange,
   onDecreaseItem,
   onIncreaseItem,
   onRemoveItem,
@@ -92,13 +117,14 @@ export function PosCart({
 }: PosCartProps) {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  const [isInternalModalOpen, setIsInternalModalOpen] = useState(false);
 
   const reconciliation = useMemo(() => reconcilePosPayments(total, payments), [payments, total]);
   const paidTotal = reconciliation.appliedTotal;
   const pendingBalance = reconciliation.pendingBalance;
   const changeAmount = reconciliation.changeAmount;
 
-  const canShowReward = Boolean(customer) && customer?.id !== customerVariousId;
+  const canShowReward = Boolean(customer) && customer?.id !== customerVariousId && !internalCustomerOptions?.employee;
   const selectedRewardName = availableRewards.find(
     (reward) => reward.id === selectedRewardEntitlementId,
   )?.reward_benefits?.name;
@@ -190,6 +216,22 @@ export function PosCart({
                   </button>
                 </div>
               ) : null}
+
+              {internalCustomerOptions?.employee ? (
+                <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
+                  <button type="button" onClick={() => setIsInternalModalOpen(true)} className="flex h-10 w-full items-center justify-between rounded-md border border-violet-200 bg-white px-3 text-left hover:border-violet-300">
+                    <span className="flex items-center gap-2"><FontAwesomeIcon icon={faUserShield} className="text-violet-700" /><span className="text-sm font-semibold text-violet-900">{selectedInternalBenefit?.name ?? (internalCredit ? "Crédito de empleado" : "Elegir operación interna")}</span></span><FontAwesomeIcon icon={faPenToSquare} className="text-violet-600" />
+                  </button>
+                  <p className="text-xs font-semibold text-violet-900">Operación interna · {internalCustomerOptions.employee.fullName}</p>
+                  <p className="text-xs text-violet-800">
+                    {selectedInternalBenefit
+                      ? `Descuento aplicado: ${formatMoney(internalBenefitDiscount)}`
+                      : internalCredit
+                        ? "Compra de productos a crédito: no ingresa dinero a caja."
+                        : "Elige una regla, un crédito de productos o deja la venta como normal."}
+                  </p>
+                </div>
+              ) : null}
             </div>
           }
         />
@@ -238,6 +280,7 @@ export function PosCart({
         onChange={onRewardChange}
         onClose={() => setIsRewardModalOpen(false)}
       />
+      {internalCustomerOptions?.employee ? <PosInternalOperationModal open={isInternalModalOpen} options={internalCustomerOptions} selectedRule={selectedInternalBenefit} selectedRuleId={selectedInternalBenefitRuleId} internalCredit={internalCredit} authorizationReason={internalAuthorizationReason} authorizationPin={internalAuthorizationPin} onlyProducts={items.length > 0 && items.every((item) => item.item_type === "product")} onRuleChange={onInternalBenefitChange} onCreditChange={onInternalCreditChange} onAuthorizationReasonChange={onInternalAuthorizationReasonChange} onAuthorizationPinChange={onInternalAuthorizationPinChange} onClose={() => setIsInternalModalOpen(false)} /> : null}
     </aside>
   );
 }
