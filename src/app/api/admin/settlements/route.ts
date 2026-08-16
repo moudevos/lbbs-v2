@@ -7,7 +7,12 @@ export async function GET() {
   const auth = await requireAdminSession();
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
   const supabase = await createClient();
-  const { error: ensurePeriodError } = await supabase.rpc("get_or_create_payroll_period", { p_date: new Date().toISOString().slice(0, 10) });
+  const { data: businessDate, error: businessDateError } = await supabase.rpc("pos_business_date");
+  if (businessDateError || !businessDate) {
+    console.error("[settlements/get] Error al obtener fecha operativa", { message: businessDateError?.message });
+    return NextResponse.json({ error: "No se pudo determinar la fecha operativa.", code: "BUSINESS_DATE_ERROR" }, { status: 500 });
+  }
+  const { error: ensurePeriodError } = await supabase.rpc("get_or_create_payroll_period", { p_date: businessDate });
   if (ensurePeriodError) {
     console.error("[settlements/get] Error al asegurar periodo actual", { message: ensurePeriodError.message, code: ensurePeriodError.code, details: ensurePeriodError.details, hint: ensurePeriodError.hint });
     return NextResponse.json({ error: "No se pudo preparar el periodo actual.", code: "PAYROLL_PERIOD_ERROR" }, { status: 500 });

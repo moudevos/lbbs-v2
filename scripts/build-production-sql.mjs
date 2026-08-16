@@ -69,6 +69,8 @@ const sourceFiles = [
   "128_internal_pos_benefits_and_accounts.sql",
   "129_pos_current_day_session_guard.sql",
   "130_internal_pos_enforcement_and_production.sql",
+  "131_employee_benefit_targets_and_owner_pin.sql",
+  "132_accounting_dates_and_period_integrity.sql",
 ];
 
 const branchSeed = `
@@ -122,6 +124,7 @@ function normalizeSource(fileName, source) {
     "122_seed_barbers_by_branch.sql",
     "124_seed_catalog_services_products.sql",
     "125_seed_operational_select_options.sql",
+    "132_accounting_dates_and_period_integrity.sql",
   ].includes(fileName)) {
     normalized = normalized
       .replace(/^begin;\s*/im, "")

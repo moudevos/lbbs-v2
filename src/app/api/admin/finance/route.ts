@@ -46,10 +46,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Completa tipo, categoria, monto y descripcion." }, { status: 400 });
   }
   const supabase = await createClient();
-  const { data: employeeId } = await supabase.rpc("current_employee_id");
+  const [{ data: employeeId }, { data: businessDate, error: businessDateError }] = await Promise.all([
+    supabase.rpc("current_employee_id"),
+    supabase.rpc("pos_business_date"),
+  ]);
+  if (!payload.entryDate && (businessDateError || !businessDate)) {
+    console.error("[finance/post] Error al obtener fecha operativa", { message: businessDateError?.message });
+    return NextResponse.json({ error: "No se pudo determinar la fecha operativa." }, { status: 500 });
+  }
   const { data, error } = await supabase.from("finance_manual_entries").insert({
     branch_id: payload.branchId || null,
-    entry_date: payload.entryDate || new Date().toISOString().slice(0, 10),
+    entry_date: payload.entryDate || businessDate,
     direction: payload.direction,
     category_id: payload.categoryId,
     amount,

@@ -38,6 +38,17 @@ const kindDescriptions: Record<CompensationKind, string> = {
     "Define el recargo para insumos entregados a empleados. No modifica el precio de venta de productos en POS.",
 };
 
+function limaToday() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 const emptyForm = {
   id: "",
   name: "",
@@ -48,7 +59,7 @@ const emptyForm = {
   minimum_amount: "0",
   maximum_amount: "",
   priority: "0",
-  effective_from: new Date().toISOString().slice(0, 10),
+  effective_from: limaToday(),
   effective_to: "",
   is_active: true,
 };
@@ -123,7 +134,7 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
       minimum_amount: String(rule.minimum_amount ?? 0),
       maximum_amount: String(rule.maximum_amount ?? ""),
       priority: String(rule.priority ?? 0),
-      effective_from: String(rule.effective_from ?? new Date().toISOString().slice(0, 10)),
+      effective_from: String(rule.effective_from ?? limaToday()),
       effective_to: String(rule.effective_to ?? ""),
       is_active: rule.is_active,
     });

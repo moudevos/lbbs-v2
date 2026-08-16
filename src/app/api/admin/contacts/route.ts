@@ -13,9 +13,13 @@ export async function GET(request: Request) {
   if (role !== "owner" && role !== "admin" && role !== "reception") return NextResponse.json({ error: "No tienes permiso para acceder a contactos." }, { status: 403 });
   const requestedBranchId = new URL(request.url).searchParams.get("branchId")?.trim() || null;
   const scope = resolveOperationalBranchScope(role, employee, requestedBranchId);
-  const today = new Date().toISOString().slice(0, 10);
+  const { data: today, error: businessDateError } = await supabase.rpc("pos_business_date");
+  if (businessDateError || !today) {
+    console.error("[contacts/get] Error al obtener fecha operativa", { message: businessDateError?.message });
+    return NextResponse.json({ error: "No se pudo determinar la fecha operativa." }, { status: 500 });
+  }
   let reservationsQuery = supabase.from("reservations").select("id,customer_id,branch_id,scheduled_date,scheduled_time,status,customer:customers(full_name,phone),branch:branches(name,address),barber:employees!reservations_preferred_barber_id_fkey(full_name),service:services(name)").eq("scheduled_date", today).in("status", ["pending", "contacted", "confirmed", "rescheduled"]);
-  let salesQuery = supabase.from("sales").select("id,customer_id,branch_id,barber_id,closed_at,customer:customers(full_name,phone),branch:branches(name),barber:employees!sales_barber_id_fkey(full_name)").eq("status", "completed").gte("closed_at", `${today}T00:00:00`).lte("closed_at", `${today}T23:59:59.999`);
+  let salesQuery = supabase.from("sales").select("id,customer_id,branch_id,barber_id,closed_at,accounting_date,customer:customers(full_name,phone),branch:branches(name),barber:employees!sales_barber_id_fkey(full_name)").eq("status", "completed").eq("accounting_date", today);
   if (scope.branchId) { reservationsQuery = reservationsQuery.eq("branch_id", scope.branchId); salesQuery = salesQuery.eq("branch_id", scope.branchId); }
   const [reservationsResult, salesResult, templatesResult] = await Promise.all([reservationsQuery, salesQuery, supabase.from("whatsapp_templates").select("id,contact_type,body").eq("is_active", true)]);
   const error = reservationsResult.error ?? salesResult.error ?? templatesResult.error;

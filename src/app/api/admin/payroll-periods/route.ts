@@ -11,7 +11,12 @@ export async function GET(request: Request) {
   const employeeId = searchParams.get("employeeId")?.trim() || null;
 
   if (searchParams.get("includeCurrent") === "true") {
-    const { error } = await supabase.rpc("get_or_create_payroll_period", { p_date: new Date().toISOString().slice(0, 10) });
+    const { data: businessDate, error: businessDateError } = await supabase.rpc("pos_business_date");
+    if (businessDateError || !businessDate) {
+      console.error("[payroll-periods/get] Error al obtener fecha operativa", { message: businessDateError?.message });
+      return NextResponse.json({ error: "No se pudo determinar la fecha operativa." }, { status: 500 });
+    }
+    const { error } = await supabase.rpc("get_or_create_payroll_period", { p_date: businessDate });
     if (error) {
       console.error("[payroll-periods/get] Error al asegurar periodo actual", { message: error.message, code: error.code, details: error.details, hint: error.hint });
       return NextResponse.json({ error: "No se pudo preparar el periodo actual." }, { status: 500 });

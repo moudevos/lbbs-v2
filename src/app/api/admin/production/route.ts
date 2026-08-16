@@ -13,6 +13,11 @@ export async function GET(request: Request) {
   const branchId = searchParams.get("branchId")?.trim() ?? "";
   const employeeId = searchParams.get("employeeId")?.trim() ?? "";
   const source = searchParams.get("source")?.trim() ?? "";
+  const { data: businessDate, error: businessDateError } = await supabase.rpc("pos_business_date");
+  if (businessDateError || !businessDate) {
+    console.error("[production/get] Error al obtener fecha operativa", { message: businessDateError?.message });
+    return NextResponse.json({ error: "No se pudo determinar la fecha operativa." }, { status: 500 });
+  }
 
   let { data: periods, error: periodsError } = await supabase
     .from("payroll_periods")
@@ -21,7 +26,7 @@ export async function GET(request: Request) {
 
   if (!periodsError && (periods?.length ?? 0) === 0) {
     const { error: createPeriodError } = await supabase.rpc("get_or_create_payroll_period", {
-      p_date: new Date().toISOString().slice(0, 10),
+      p_date: businessDate,
     });
     if (!createPeriodError) {
       const refreshed = await supabase.from("payroll_periods").select("id, period_year, period_month, period_half, start_date, end_date, status").order("start_date", { ascending: false });
@@ -37,16 +42,16 @@ export async function GET(request: Request) {
 
   if (!periodId) {
     const current = (periods ?? []).find((period) => {
-      const today = new Date().toISOString().slice(0, 10);
-      return period.start_date <= today && period.end_date >= today;
+      return period.start_date <= businessDate && period.end_date >= businessDate;
     });
     periodId = current?.id ?? periods?.[0]?.id ?? "";
   }
 
   let productionQuery = supabase
     .from("employee_service_production")
-    .select("id, payroll_period_id, employee_id, branch_id, sale_id, production_date, production_source, quantity, original_unit_price, original_line_total, commercial_discount_amount, reward_discount_amount, courtesy_discount_amount, collected_amount, operational_contribution_amount, commissionable_amount, fixed_commission_amount, status, reversed_at, reversed_reason, employee:employees(full_name), branch:branches(name), service:services(name), sale:sales(status,cancelled_at,cancelled_reason)")
+    .select("id, payroll_period_id, employee_id, branch_id, sale_id, production_date, accounting_date, production_source, quantity, original_unit_price, original_line_total, commercial_discount_amount, reward_discount_amount, courtesy_discount_amount, collected_amount, operational_contribution_amount, commissionable_amount, fixed_commission_amount, status, reversed_at, reversed_reason, employee:employees(full_name), branch:branches(name), service:services(name), sale:sales(status,cancelled_at,cancelled_reason)")
     .eq("payroll_period_id", periodId)
+    .order("accounting_date", { ascending: false })
     .order("production_date", { ascending: false });
   if (branchId) productionQuery = productionQuery.eq("branch_id", branchId);
   if (employeeId) productionQuery = productionQuery.eq("employee_id", employeeId);
@@ -54,7 +59,7 @@ export async function GET(request: Request) {
 
   let bonusesQuery = supabase
     .from("employee_product_bonus_entries")
-    .select("id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total)")
+    .select("id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, accounting_date, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total)")
     .eq("payroll_period_id", periodId);
   if (branchId) bonusesQuery = bonusesQuery.eq("branch_id", branchId);
   if (employeeId) bonusesQuery = bonusesQuery.eq("employee_id", employeeId);
@@ -88,6 +93,7 @@ export async function GET(request: Request) {
     settlements: settlementsResult.data ?? [],
     filters: { periods: periods ?? [], branches: branchesResult.data ?? [], employees: employeesResult.data ?? [] },
     selectedPeriodId: periodId,
+    businessDate,
   });
 }
 

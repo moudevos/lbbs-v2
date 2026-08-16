@@ -10,7 +10,7 @@ export async function GET(_request: Request, context: { params: Promise<{ settle
   const supabase = await createClient();
   const [settlement, services, bonuses, deductions, adjustments] = await Promise.all([
     supabase.from("employee_settlements").select("*").eq("id", settlementId).maybeSingle(),
-    supabase.from("employee_settlement_service_lines").select("*").eq("settlement_id", settlementId).order("production_date_snapshot"),
+    supabase.from("employee_settlement_service_lines").select("*").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
     supabase.from("employee_settlement_bonus_lines").select("*").eq("settlement_id", settlementId),
     supabase.from("employee_settlement_deductions").select("*, debt:employee_debts(description,outstanding_amount)").eq("settlement_id", settlementId),
     supabase.from("employee_settlement_adjustments").select("*").eq("settlement_id", settlementId),
