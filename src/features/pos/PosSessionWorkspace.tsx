@@ -79,6 +79,7 @@ export function PosSessionWorkspace() {
     internalBenefitDiscount,
     internalCredit,
     internalCustomerOptions,
+    internalOptionsError,
     loadBootstrap,
     loadCatalog,
     paymentMethods,
@@ -802,6 +803,7 @@ export function PosSessionWorkspace() {
                 rewardDiscount={rewardDiscount}
                 internalBenefitDiscount={internalBenefitDiscount}
                 internalCustomerOptions={internalCustomerOptions}
+                internalOptionsError={internalOptionsError}
                 selectedInternalBenefit={selectedInternalBenefit}
                 selectedInternalBenefitRuleId={selectedInternalBenefitRuleId}
                 internalCredit={internalCredit}

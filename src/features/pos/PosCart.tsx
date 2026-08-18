@@ -37,6 +37,7 @@ type PosCartProps = {
   rewardDiscount: number;
   internalBenefitDiscount: number;
   internalCustomerOptions: PosInternalCustomerOptions | null;
+  internalOptionsError: string | null;
   selectedInternalBenefit: PosInternalBenefitRule | null;
   selectedInternalBenefitRuleId: string;
   internalCredit: boolean;
@@ -80,6 +81,7 @@ export function PosCart({
   rewardDiscount,
   internalBenefitDiscount,
   internalCustomerOptions,
+  internalOptionsError,
   selectedInternalBenefit,
   selectedInternalBenefitRuleId,
   internalCredit,
@@ -224,6 +226,11 @@ export function PosCart({
                         : "Elige una regla, un crédito de productos o deja la venta como normal."}
                   </p>
                 </div>
+              ) : null}
+              {internalOptionsError ? (
+                <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  No se pudieron cargar las opciones internas: {internalOptionsError}
+                </p>
               ) : null}
             </div>
           }

@@ -70,6 +70,7 @@ export function usePosWorkspace() {
   const [availableRewards, setAvailableRewards] = useState<PosRewardEntitlement[]>([]);
   const [selectedRewardEntitlementId, setSelectedRewardEntitlementId] = useState("");
   const [internalCustomerOptions, setInternalCustomerOptions] = useState<PosInternalCustomerOptions | null>(null);
+  const [internalOptionsError, setInternalOptionsError] = useState<string | null>(null);
   const [selectedInternalBenefitRuleId, setSelectedInternalBenefitRuleId] = useState("");
   const [internalCredit, setInternalCredit] = useState(false);
   const [internalAuthorizationReason, setInternalAuthorizationReason] = useState("");
@@ -442,6 +443,7 @@ export function usePosWorkspace() {
     setAvailableRewards([]);
     setSelectedRewardEntitlementId("");
     setInternalCustomerOptions(null);
+    setInternalOptionsError(null);
     setSelectedInternalBenefitRuleId("");
     setInternalCredit(false);
     setInternalAuthorizationReason("");
@@ -453,10 +455,20 @@ export function usePosWorkspace() {
       void fetchPosInternalCustomerOptions(selectedCustomer.id, selectedBranchId)
         .then((options) => {
           setInternalCustomerOptions(options);
+          setInternalOptionsError(null);
           setSelectedInternalBenefitRuleId((current) => options.rules.some((rule) => rule.id === current) ? current : "");
           if (!options.canUseCredit) setInternalCredit(false);
         })
-        .catch(() => setInternalCustomerOptions(null));
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : "No se pudieron cargar las opciones internas.";
+          console.error("[pos/ui] Error al cargar opciones internas", {
+            message,
+            customerId: selectedCustomer.id,
+            branchId: selectedBranchId,
+          });
+          setInternalCustomerOptions(null);
+          setInternalOptionsError(message);
+        });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerVariousId, selectedBranchId, selectedCustomer]);
@@ -675,6 +687,7 @@ export function usePosWorkspace() {
     internalBenefitDiscount,
     internalCredit,
     internalCustomerOptions,
+    internalOptionsError,
     isOpeningSession,
     openSessionForm,
     paymentMethods,

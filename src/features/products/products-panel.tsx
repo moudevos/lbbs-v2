@@ -116,9 +116,13 @@ function normalizeText(value: string) {
 
 type ProductsPanelProps = {
   canManageCatalog?: boolean;
+  canCreateProducts?: boolean;
 };
 
-export function ProductsPanel({ canManageCatalog = true }: ProductsPanelProps) {
+export function ProductsPanel({
+  canManageCatalog = true,
+  canCreateProducts = canManageCatalog,
+}: ProductsPanelProps) {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [categories, setCategories] = useState<ProductCategoryRecord[]>([]);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
@@ -864,7 +868,7 @@ export function ProductsPanel({ canManageCatalog = true }: ProductsPanelProps) {
               </p>
             </div>
 
-            {canManageCatalog ? (
+            {canCreateProducts ? (
               <Button type="button" onClick={startCreateProduct}>
                 <FontAwesomeIcon icon={faPlus} />
                 Nuevo producto

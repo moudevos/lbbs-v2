@@ -1,6 +1,8 @@
--- Opciones internas visibles para cualquier operador autorizado de POS.
--- La visibilidad se determina por el empleado vinculado al cliente, nunca por
--- el rol de quien registra la venta.
+-- Visibilidad de beneficios internos para todo operador habilitado de POS.
+-- Ejecutar despues de 133_pos_atomic_courtesy_checkout.sql.
+-- Esta RPC evita depender de RLS de tablas administrativas desde el POS: la
+-- visibilidad se define por el EMPLEADO vinculado al cliente, no por el rol de
+-- quien opera la caja.
 
 create or replace function public.get_pos_internal_options(
   p_customer_id uuid,
@@ -67,6 +69,9 @@ begin
     and rule.effective_from <= public.pos_business_date()
     and (rule.effective_to is null or rule.effective_to >= public.pos_business_date())
     and (rule.branch_id is null or rule.branch_id = p_branch_id)
+    -- Este rol es el del empleado vinculado al cliente. No es el rol del
+    -- operador actual del POS: una recepción puede registrar el beneficio de
+    -- un barbero si la regla corresponde a barber.
     and (rule.eligible_role is null or rule.eligible_role = v_employee.role)
     and (
       not exists (
@@ -94,14 +99,10 @@ begin
 end;
 $$;
 
--- La operación ya valida explícitamente sesión, sede, vínculo y regla; usar
--- SECURITY DEFINER evita que RLS oculte el vínculo a recepción/admin durante
--- el checkout, sin abrir el acceso directo a las tablas.
+-- La operación ya valida sesión, sede, vínculo y regla. SECURITY DEFINER
+-- impide que RLS del vínculo bloquee el checkout de recepción/admin.
 alter function public.checkout_pos_sale(jsonb) security definer;
 
--- Si una regla tiene destinatarios individuales, esa lista prevalece sobre el
--- filtro general por rol. El trigger es una segunda barrera ante llamadas API
--- manipuladas; toda la transacción se revierte si falla.
 create or replace function public.guard_internal_pos_benefit_target()
 returns trigger
 language plpgsql
@@ -123,7 +124,6 @@ begin
      ) then
     raise exception 'El beneficio no está habilitado para el empleado vinculado al cliente.';
   end if;
-
   return new;
 end;
 $$;
@@ -132,13 +132,10 @@ drop trigger if exists internal_pos_operations_benefit_target_guard on public.in
 create trigger internal_pos_operations_benefit_target_guard
 before insert or update of benefit_rule_id, employee_id
 on public.internal_pos_operations
-for each row
-execute function public.guard_internal_pos_benefit_target();
+for each row execute function public.guard_internal_pos_benefit_target();
 
 revoke all on function public.get_pos_internal_options(uuid, uuid) from public, anon;
 grant execute on function public.get_pos_internal_options(uuid, uuid) to authenticated, service_role;
--- Las funciones de trigger no son una API pública: PostgreSQL las ejecuta
--- internamente y no requieren EXECUTE del usuario que inserta la fila.
 revoke all on function public.guard_internal_pos_benefit_target() from public, anon, authenticated;
 grant execute on function public.guard_internal_pos_benefit_target() to service_role;
 
