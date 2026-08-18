@@ -13,35 +13,18 @@ export async function GET(request: Request) {
   if (!customerId || !branchId) return NextResponse.json({ error: "Falta cliente o sede." }, { status: 400 });
 
   const supabase = await createClient();
-  const { data: link, error: linkError } = await supabase
-    .from("employee_customer_links")
-    .select("employee_id,can_use_internal_credit,employee:employees!employee_customer_links_employee_id_fkey(id,full_name,role,status)")
-    .eq("customer_id", customerId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (linkError) return NextResponse.json({ error: "No se pudo validar el cliente interno." }, { status: 500 });
-  if (!link) return NextResponse.json({ data: { employee: null, canUseCredit: false, rules: [] } });
-
-  const employee = Array.isArray(link.employee) ? link.employee[0] : link.employee;
-  if (!employee || employee.status !== "active") return NextResponse.json({ data: { employee: null, canUseCredit: false, rules: [] } });
-
-  const businessDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-  const { data: rules, error: rulesError } = await supabase
-    .from("employee_benefit_rules")
-    .select("id,name,description,applies_to,service_id,product_id,benefit_type,benefit_value,usage_limit,period_kind,production_mode,fixed_barber_payout,operational_contribution,requires_owner_authorization,is_internal_complimentary")
-    .eq("is_active", true)
-    .lte("effective_from", businessDate)
-    .or(`effective_to.is.null,effective_to.gte.${businessDate}`)
-    .or(`branch_id.is.null,branch_id.eq.${branchId}`)
-    .or(`eligible_role.is.null,eligible_role.eq.${employee.role}`)
-    .order("name");
-  if (rulesError) return NextResponse.json({ error: "No se pudieron cargar los beneficios internos." }, { status: 500 });
-
-  return NextResponse.json({
-    data: {
-      employee: { id: employee.id, fullName: employee.full_name, role: employee.role },
-      canUseCredit: Boolean(link.can_use_internal_credit),
-      rules: rules ?? [],
-    },
+  const { data, error } = await supabase.rpc("get_pos_internal_options", {
+    p_customer_id: customerId,
+    p_branch_id: branchId,
   });
+
+  if (error) {
+    const status = error.message.includes("permisos") ? 403 : 500;
+    return NextResponse.json(
+      { error: status === 403 ? error.message : "No se pudieron cargar las opciones internas." },
+      { status },
+    );
+  }
+
+  return NextResponse.json({ data });
 }
