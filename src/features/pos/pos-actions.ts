@@ -48,6 +48,17 @@ export async function fetchPosInternalCustomerOptions(customerId: string, branch
   return payload.data as PosInternalCustomerOptions;
 }
 
+export async function verifyPosInternalAuthorizationPin(pin: string, branchId: string) {
+  const response = await fetch("/api/admin/pos/internal-authorization", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pin, branchId }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "No se pudo verificar el PIN de autorización.");
+  return true;
+}
+
 export async function openPosSession(payload: OpenPosSessionPayload) {
   const response = await fetch("/api/admin/pos/sessions/open", {
     method: "POST",

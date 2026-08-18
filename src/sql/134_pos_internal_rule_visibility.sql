@@ -72,7 +72,7 @@ begin
     -- Este rol es el del empleado vinculado al cliente. No es el rol del
     -- operador actual del POS: una recepción puede registrar el beneficio de
     -- un barbero si la regla corresponde a barber.
-    and (rule.eligible_role is null or rule.eligible_role = v_employee.role)
+    and (rule.eligible_role is null or rule.eligible_role = v_employee.role::text)
     and (
       not exists (
         select 1

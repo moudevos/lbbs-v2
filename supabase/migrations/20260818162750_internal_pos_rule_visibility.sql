@@ -67,7 +67,7 @@ begin
     and rule.effective_from <= public.pos_business_date()
     and (rule.effective_to is null or rule.effective_to >= public.pos_business_date())
     and (rule.branch_id is null or rule.branch_id = p_branch_id)
-    and (rule.eligible_role is null or rule.eligible_role = v_employee.role)
+    and (rule.eligible_role is null or rule.eligible_role = v_employee.role::text)
     and (
       not exists (
         select 1

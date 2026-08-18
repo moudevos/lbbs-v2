@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { requireAdminSession } from "@/lib/supabase/route-auth";
+import { requirePosWriteSession } from "@/lib/supabase/route-auth";
 import { normalizeSlug } from "@/lib/utils/slug";
 
 function isMissingServiceCustomPriceColumn(error: { code?: string; message?: string } | null | undefined) {
@@ -109,7 +109,7 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdminSession();
+  const auth = await requirePosWriteSession();
 
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });

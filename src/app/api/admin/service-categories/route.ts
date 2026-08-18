@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { requireAdminSession } from "@/lib/supabase/route-auth";
+import { requirePosWriteSession } from "@/lib/supabase/route-auth";
 import { normalizeSlug } from "@/lib/utils/slug";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -36,7 +36,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdminSession();
+  const auth = await requirePosWriteSession();
 
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });

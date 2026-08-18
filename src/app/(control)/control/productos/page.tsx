@@ -9,7 +9,7 @@ export default async function ProductosPage() {
 
   return (
     <ProductsPanel
-      canManageCatalog={access.context?.role !== "reception"}
+      canManageCatalog
       canCreateProducts
     />
   );

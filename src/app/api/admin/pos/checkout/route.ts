@@ -157,7 +157,6 @@ type CheckoutSignatureInput = {
   rewardEntitlementId: string | null;
   employeeBenefitRuleId: string | null;
   internalCredit: boolean;
-  authorizationReason: string | null;
   notes: string | null;
   items: Array<{
     catalogId: string;
@@ -214,7 +213,6 @@ function buildCheckoutSignature(input: CheckoutSignatureInput) {
     rewardEntitlementId: input.rewardEntitlementId,
     employeeBenefitRuleId: input.employeeBenefitRuleId,
     internalCredit: input.internalCredit,
-    authorizationReason: input.authorizationReason,
     notes: input.notes,
     items,
     payments,
@@ -356,7 +354,6 @@ async function findCompletedIdempotentSale(
         rewardEntitlementId: rewardRows[0]?.entitlement_id ?? null,
         employeeBenefitRuleId: internalOperation?.benefit_rule_id ?? null,
         internalCredit: internalOperation?.operation_kind === "employee_credit",
-        authorizationReason: internalOperation?.authorization_reason ?? null,
         notes: sale.notes,
         items: ((itemsResult.data ?? []) as IdempotencySaleItemRow[]).map((item) => ({
           catalogId: item.item_type === "service" ? item.service_id ?? "" : item.product_id ?? "",
@@ -501,7 +498,6 @@ export async function POST(request: Request) {
   const rewardEntitlementId = trimOrNull(payload?.reward_entitlement_id);
   const employeeBenefitRuleId = trimOrNull(payload?.employee_benefit_rule_id);
   const internalCredit = payload?.internal_credit === true;
-  const authorizationReason = trimOrNull(payload?.authorization_reason);
   const authorizationPin = trimOrNull(payload?.authorization_pin);
   const idempotencyKey = normalizeIdempotencyKey(payload?.idempotency_key);
   const notes = trimOrNull(payload?.notes);
@@ -569,7 +565,6 @@ export async function POST(request: Request) {
     rewardEntitlementId,
     employeeBenefitRuleId,
     internalCredit,
-    authorizationReason,
     notes,
     items,
     payments,
@@ -1071,8 +1066,11 @@ export async function POST(request: Request) {
     if (internalRuleError) return NextResponse.json({ error: "No se pudo validar el beneficio interno." }, { status: 500 });
     if (internalRule?.is_internal_complimentary) {
       if (!authorizationPin) return NextResponse.json({ error: "Ingresa el PIN de autorización del owner." }, { status: 400 });
-      const { data: isAuthorized, error: pinError } = await supabase.rpc("verify_owner_internal_authorization_pin", { p_pin: authorizationPin });
-      if (pinError || !isAuthorized) return NextResponse.json({ error: "El PIN de autorización no es válido." }, { status: 403 });
+      const { data: authorizedBy, error: pinError } = await supabase.rpc(
+        "authorize_internal_complimentary_sale",
+        { p_pin: authorizationPin, p_branch_id: branchId },
+      );
+      if (pinError || !authorizedBy) return NextResponse.json({ error: "El PIN de autorización no es válido." }, { status: 403 });
     }
   }
 
@@ -1089,7 +1087,7 @@ export async function POST(request: Request) {
           reward_entitlement_id: rewardEntitlementId,
           employee_benefit_rule_id: employeeBenefitRuleId,
           internal_credit: internalCredit,
-          authorization_reason: authorizationReason,
+          authorization_pin: authorizationPin,
           idempotency_key: idempotencyKey,
           notes,
           subtotal,

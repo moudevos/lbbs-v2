@@ -192,7 +192,6 @@ export type PosCheckoutPayload = {
   reward_entitlement_id?: string | null;
   employee_benefit_rule_id?: string | null;
   internal_credit?: boolean;
-  authorization_reason?: string | null;
   authorization_pin?: string | null;
   notes?: string | null;
   items: Array<{

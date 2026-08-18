@@ -73,7 +73,6 @@ export function usePosWorkspace() {
   const [internalOptionsError, setInternalOptionsError] = useState<string | null>(null);
   const [selectedInternalBenefitRuleId, setSelectedInternalBenefitRuleId] = useState("");
   const [internalCredit, setInternalCredit] = useState(false);
-  const [internalAuthorizationReason, setInternalAuthorizationReason] = useState("");
   const [internalAuthorizationPin, setInternalAuthorizationPin] = useState("");
   const [payments, setPayments] = useState<PosPreparedPayment[]>([]);
   const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string | null>(null);
@@ -239,7 +238,6 @@ export function usePosWorkspace() {
         rewardEntitlementId: selectedRewardEntitlementId,
         internalBenefitRuleId: selectedInternalBenefitRuleId,
         internalCredit,
-        internalAuthorizationReason,
         items: cartItems,
         payments,
         checkoutIdempotencyKey,
@@ -259,7 +257,6 @@ export function usePosWorkspace() {
     selectedRewardEntitlementId,
     selectedInternalBenefitRuleId,
     internalCredit,
-    internalAuthorizationReason,
     internalAuthorizationPin,
     payments,
     checkoutIdempotencyKey,
@@ -334,7 +331,6 @@ export function usePosWorkspace() {
       setSelectedRewardEntitlementId(draft.rewardEntitlementId);
       setSelectedInternalBenefitRuleId(draft.internalBenefitRuleId ?? "");
       setInternalCredit(Boolean(draft.internalCredit));
-      setInternalAuthorizationReason(draft.internalAuthorizationReason ?? "");
       setPayments(draft.payments);
       setCheckoutIdempotencyKey(draft.checkoutIdempotencyKey);
     });
@@ -446,7 +442,6 @@ export function usePosWorkspace() {
     setInternalOptionsError(null);
     setSelectedInternalBenefitRuleId("");
     setInternalCredit(false);
-    setInternalAuthorizationReason("");
   }
 
   useEffect(() => {
@@ -682,7 +677,6 @@ export function usePosWorkspace() {
     isLoading,
     isLoadingCatalog,
     isLoadingRewards,
-    internalAuthorizationReason,
     internalAuthorizationPin,
     internalBenefitDiscount,
     internalCredit,
@@ -727,7 +721,6 @@ export function usePosWorkspace() {
     setSelectedRewardEntitlementId,
     setSelectedInternalBenefitRuleId,
     setInternalCredit,
-    setInternalAuthorizationReason,
     setInternalAuthorizationPin,
     setSelectedReservationId,
   };

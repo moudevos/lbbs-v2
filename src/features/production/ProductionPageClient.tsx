@@ -24,7 +24,7 @@ type BonusRow = {
   unit_bonus_amount: number | string; total_bonus_amount: number | string; status: string; employee: Relation; branch: Relation; product: Relation;
   sale_item: { description_snapshot?: string; total?: number | string } | Array<{ description_snapshot?: string; total?: number | string }> | null;
 };
-type DebtRow = { id: string; employee_id: string; branch_id: string; outstanding_amount: number | string; status: string };
+type DebtRow = { id: string; employee_id: string; branch_id: string; debt_type: string; outstanding_amount: number | string; status: string; description: string | null; created_at: string; employee: Relation; branch: Relation };
 type SettlementRow = { employee_id: string; commission_rate: number | string; percentage_commission_total: number | string; status: string };
 
 const sourceLabels = { normal: "Normal", reward: "Reward", courtesy: "Cortesia", commercial_discount: "Descuento comercial", employee_benefit: "Beneficio interno" };
@@ -89,8 +89,9 @@ export function ProductionPageClient() {
 
   const employeeSummaries = useMemo(() => {
     const map = new Map<string, { id: string; name: string; branch: string; services: number; gross: number; contribution: number; base: number; products: number; productGross: number; bonuses: number; rewards: number; rewardFixed: number; debt: number; settlement: SettlementRow | null }>();
+    const emptySummary = (id: string, name: string, branch: string) => ({ id, name, branch, services: 0, gross: 0, contribution: 0, base: 0, products: 0, productGross: 0, bonuses: 0, rewards: 0, rewardFixed: 0, debt: 0, settlement: null });
     for (const row of activeRows) {
-      const current = map.get(row.employee_id) ?? { id: row.employee_id, name: relationLabel(row.employee, "full_name"), branch: relationLabel(row.branch, "name"), services: 0, gross: 0, contribution: 0, base: 0, products: 0, productGross: 0, bonuses: 0, rewards: 0, rewardFixed: 0, debt: 0, settlement: null };
+      const current = map.get(row.employee_id) ?? emptySummary(row.employee_id, relationLabel(row.employee, "full_name"), relationLabel(row.branch, "name"));
       current.services += money(row.quantity); current.gross += money(row.original_line_total); current.contribution += money(row.operational_contribution_amount); current.base += money(row.commissionable_amount);
       if (row.production_source === "reward") { current.rewards += money(row.quantity); current.rewardFixed += money(row.fixed_commission_amount); }
       map.set(row.employee_id, current);
@@ -99,7 +100,11 @@ export function ProductionPageClient() {
       const current = map.get(bonus.employee_id);
       if (current) { current.products += money(bonus.quantity); current.productGross += money(single(bonus.sale_item)?.total); current.bonuses += money(bonus.total_bonus_amount); }
     }
-    for (const debt of debts) { const current = map.get(debt.employee_id); if (current) current.debt += money(debt.outstanding_amount); }
+    for (const debt of debts) {
+      const current = map.get(debt.employee_id) ?? emptySummary(debt.employee_id, relationLabel(debt.employee, "full_name"), relationLabel(debt.branch, "name"));
+      current.debt += money(debt.outstanding_amount);
+      map.set(debt.employee_id, current);
+    }
     for (const settlement of settlements) { const current = map.get(settlement.employee_id); if (current) current.settlement = settlement; }
     return Array.from(map.values());
   }, [activeBonuses, activeRows, debts, settlements]);
@@ -107,6 +112,7 @@ export function ProductionPageClient() {
   const selected = employeeSummaries.find((item) => item.id === detailEmployeeId) ?? null;
   const selectedServices = rows.filter((row) => row.employee_id === detailEmployeeId && (productionStatus === "all" || row.status === productionStatus));
   const selectedProducts = activeBonuses.filter((row) => row.employee_id === detailEmployeeId);
+  const selectedDebts = debts.filter((row) => row.employee_id === detailEmployeeId);
 
   async function generateProduction() {
     if (!periodId) return;
@@ -123,7 +129,7 @@ export function ProductionPageClient() {
 
   const metricCards = [
     ["Servicios realizados", String(summary.services)], ["Bruto de servicios", formatMoney(summary.serviceGross)], ["Aportes operativos", formatMoney(summary.contribution)], ["Base comisionable", formatMoney(summary.base)],
-    ["Productos vendidos", String(summary.products)], ["Bruto de productos", formatMoney(summary.productGross)], ["Bonos generados", formatMoney(summary.bonuses)], ["Rewards ejecutados", String(summary.rewards)], ["Comision fija rewards", formatMoney(summary.rewardFixed)], ["Deudas pendientes", formatMoney(summary.debts)], ["Registros revertidos", String(rows.filter((row) => row.status === "reversed").length)],
+    ["Productos vendidos", String(summary.products)], ["Bruto de productos", formatMoney(summary.productGross)], ["Bonos generados", formatMoney(summary.bonuses)], ["Rewards ejecutados", String(summary.rewards)], ["Comision fija rewards", formatMoney(summary.rewardFixed)], ["Deuda vigente total", formatMoney(summary.debts)], ["Registros revertidos", String(rows.filter((row) => row.status === "reversed").length)],
   ];
 
   return (
@@ -211,7 +217,7 @@ export function ProductionPageClient() {
             <th className="px-3 py-2.5 text-center font-semibold">Productos</th>
             <th className="px-3 py-2.5 text-center font-semibold">Bonos</th>
             <th className="px-3 py-2.5 text-center font-semibold">Rewards</th>
-            <th className="px-3 py-2.5 text-center font-semibold">Deuda</th>
+            <th className="px-3 py-2.5 text-center font-semibold">Deuda vigente</th>
             <th className="px-3 py-2.5 font-semibold">Liquidacion</th>
             <th className="px-3 py-2.5 text-right font-semibold">Acciones</th>
           </tr>
@@ -292,7 +298,7 @@ export function ProductionPageClient() {
         </tbody>
       </table>
     </section>
-    <Modal open={detailEmployeeId !== null} title="Detalle de produccion" description={selected ? `${selected.name} - ${selected.branch}` : ""} onClose={() => setDetailEmployeeId(null)} confirmBeforeClose={false} size="xl"><div className="max-h-[70vh] space-y-5 overflow-y-auto pr-1">{selected ? <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Servicios", selected.services], ["Bruto servicios", formatMoney(selected.gross)], ["Aporte operativo", formatMoney(selected.contribution)], ["Base", formatMoney(selected.base)], ["Productos", selected.products], ["Bruto productos", formatMoney(selected.productGross)], ["Bonos", formatMoney(selected.bonuses)], ["Rewards", selected.rewards], ["Comision fija rewards", formatMoney(selected.rewardFixed)], ["Deuda pendiente", formatMoney(selected.debt)], ["Total estimado", selected.settlement ? formatMoney(money(selected.settlement.percentage_commission_total) + selected.rewardFixed + selected.bonuses) : "Pendiente de porcentaje"]].map(([label, value]) => <article key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-slate-900">{value}</p></article>)}</section> : null}<section><p className="mb-2 text-sm font-semibold text-slate-900">Servicios del periodo</p><div className="overflow-x-auto"><table className="min-w-[900px] w-full text-sm"><thead className="text-left text-slate-500"><tr><th>Fecha contable</th><th>Venta</th><th>Servicio</th><th>Origen</th><th className="text-right">Bruto</th><th className="text-right">Descuentos</th><th className="text-right">Cobrado</th><th className="text-right">Aporte</th><th className="text-right">Base</th><th className="text-right">Fija</th></tr></thead><tbody className="divide-y divide-slate-100">{selectedServices.map((row) => <tr key={row.id}><td className="py-2">{formatAccountingDate(row.accounting_date)}</td><td>VTA-{row.sale_id.slice(0, 8).toUpperCase()}</td><td>{relationLabel(row.service, "name")}</td><td>{sourceLabels[row.production_source]}</td><td className="text-right">{formatMoney(money(row.original_line_total))}</td><td className="text-right">{formatMoney(money(row.commercial_discount_amount) + money(row.reward_discount_amount) + money(row.courtesy_discount_amount))}</td><td className="text-right">{formatMoney(money(row.collected_amount))}</td><td className="text-right">{formatMoney(money(row.operational_contribution_amount))}</td><td className="text-right">{formatMoney(money(row.commissionable_amount))}</td><td className="text-right">{formatMoney(money(row.fixed_commission_amount))}</td></tr>)}</tbody></table></div></section><section><p className="mb-2 text-sm font-semibold text-slate-900">Productos y bonos</p><div className="space-y-2">{selectedProducts.length ? selectedProducts.map((row) => <div key={row.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm"><span>{relationLabel(row.product, "name")} x{money(row.quantity)}</span><span>Bruto {formatMoney(money(single(row.sale_item)?.total))} - Bono {formatMoney(money(row.total_bonus_amount))}</span></div>) : <p className="text-sm text-slate-500">Sin bonos de productos en este periodo.</p>}</div></section></div></Modal>
+    <Modal open={detailEmployeeId !== null} title="Detalle de produccion" description={selected ? `${selected.name} - ${selected.branch}` : ""} onClose={() => setDetailEmployeeId(null)} confirmBeforeClose={false} size="xl"><div className="max-h-[70vh] space-y-5 overflow-y-auto pr-1">{selected ? <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Servicios", selected.services], ["Bruto servicios", formatMoney(selected.gross)], ["Aporte operativo", formatMoney(selected.contribution)], ["Base", formatMoney(selected.base)], ["Productos", selected.products], ["Bruto productos", formatMoney(selected.productGross)], ["Bonos", formatMoney(selected.bonuses)], ["Rewards", selected.rewards], ["Comision fija rewards", formatMoney(selected.rewardFixed)], ["Deuda vigente total", formatMoney(selected.debt)], ["Total estimado", selected.settlement ? formatMoney(money(selected.settlement.percentage_commission_total) + selected.rewardFixed + selected.bonuses) : "Pendiente de porcentaje"]].map(([label, value]) => <article key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-slate-900">{value}</p></article>)}</section> : null}<section><div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><p className="text-sm font-semibold text-slate-900">Deudas vigentes acumuladas</p><p className="text-xs text-slate-500">No dependen del período seleccionado.</p></div><div className="space-y-2">{selectedDebts.length ? selectedDebts.map((debt) => <article key={debt.id} className="flex items-center justify-between gap-3 rounded-lg border border-rose-100 bg-rose-50/50 px-3 py-2 text-sm"><span>{debt.description || debt.debt_type}</span><strong className="tabular-nums text-rose-700">{formatMoney(money(debt.outstanding_amount))}</strong></article>) : <p className="text-sm text-slate-500">Sin deuda vigente.</p>}</div></section><section><p className="mb-2 text-sm font-semibold text-slate-900">Servicios del periodo</p><div className="overflow-x-auto"><table className="min-w-[900px] w-full text-sm"><thead className="text-left text-slate-500"><tr><th>Fecha contable</th><th>Venta</th><th>Servicio</th><th>Origen</th><th className="text-right">Bruto</th><th className="text-right">Descuentos</th><th className="text-right">Cobrado</th><th className="text-right">Aporte</th><th className="text-right">Base</th><th className="text-right">Fija</th></tr></thead><tbody className="divide-y divide-slate-100">{selectedServices.map((row) => <tr key={row.id}><td className="py-2">{formatAccountingDate(row.accounting_date)}</td><td>VTA-{row.sale_id.slice(0, 8).toUpperCase()}</td><td>{relationLabel(row.service, "name")}</td><td>{sourceLabels[row.production_source]}</td><td className="text-right">{formatMoney(money(row.original_line_total))}</td><td className="text-right">{formatMoney(money(row.commercial_discount_amount) + money(row.reward_discount_amount) + money(row.courtesy_discount_amount))}</td><td className="text-right">{formatMoney(money(row.collected_amount))}</td><td className="text-right">{formatMoney(money(row.operational_contribution_amount))}</td><td className="text-right">{formatMoney(money(row.commissionable_amount))}</td><td className="text-right">{formatMoney(money(row.fixed_commission_amount))}</td></tr>)}</tbody></table></div></section><section><p className="mb-2 text-sm font-semibold text-slate-900">Productos y bonos</p><div className="space-y-2">{selectedProducts.length ? selectedProducts.map((row) => <div key={row.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm"><span>{relationLabel(row.product, "name")} x{money(row.quantity)}</span><span>Bruto {formatMoney(money(single(row.sale_item)?.total))} - Bono {formatMoney(money(row.total_bonus_amount))}</span></div>) : <p className="text-sm text-slate-500">Sin bonos de productos en este periodo.</p>}</div></section></div></Modal>
   </div>
   );
 }

@@ -41,8 +41,8 @@ type PosCartProps = {
   selectedInternalBenefit: PosInternalBenefitRule | null;
   selectedInternalBenefitRuleId: string;
   internalCredit: boolean;
-  internalAuthorizationReason: string;
   internalAuthorizationPin: string;
+  branchId: string;
   isLoadingRewards: boolean;
   paymentMethods: PosPaymentMethodRecord[];
   payments: PosPreparedPayment[];
@@ -59,7 +59,6 @@ type PosCartProps = {
   onRewardChange: (value: string) => void;
   onInternalBenefitChange: (value: string) => void;
   onInternalCreditChange: (value: boolean) => void;
-  onInternalAuthorizationReasonChange: (value: string) => void;
   onInternalAuthorizationPinChange: (value: string) => void;
   onDecreaseItem: (itemId: string) => void;
   onIncreaseItem: (itemId: string) => void;
@@ -85,8 +84,8 @@ export function PosCart({
   selectedInternalBenefit,
   selectedInternalBenefitRuleId,
   internalCredit,
-  internalAuthorizationReason,
   internalAuthorizationPin,
+  branchId,
   isLoadingRewards,
   paymentMethods,
   payments,
@@ -103,7 +102,6 @@ export function PosCart({
   onRewardChange,
   onInternalBenefitChange,
   onInternalCreditChange,
-  onInternalAuthorizationReasonChange,
   onInternalAuthorizationPinChange,
   onDecreaseItem,
   onIncreaseItem,
@@ -280,7 +278,7 @@ export function PosCart({
         onChange={onRewardChange}
         onClose={() => setIsRewardModalOpen(false)}
       />
-      {internalCustomerOptions?.employee ? <PosInternalOperationModal open={isInternalModalOpen} options={internalCustomerOptions} selectedRule={selectedInternalBenefit} selectedRuleId={selectedInternalBenefitRuleId} internalCredit={internalCredit} authorizationReason={internalAuthorizationReason} authorizationPin={internalAuthorizationPin} onlyProducts={items.length > 0 && items.every((item) => item.item_type === "product")} onRuleChange={onInternalBenefitChange} onCreditChange={onInternalCreditChange} onAuthorizationReasonChange={onInternalAuthorizationReasonChange} onAuthorizationPinChange={onInternalAuthorizationPinChange} onClose={() => setIsInternalModalOpen(false)} /> : null}
+      {internalCustomerOptions?.employee ? <PosInternalOperationModal open={isInternalModalOpen} options={internalCustomerOptions} selectedRuleId={selectedInternalBenefitRuleId} internalCredit={internalCredit} authorizationPin={internalAuthorizationPin} branchId={branchId} onlyProducts={items.length > 0 && items.every((item) => item.item_type === "product")} onRuleChange={onInternalBenefitChange} onCreditChange={onInternalCreditChange} onAuthorizationPinChange={onInternalAuthorizationPinChange} onClose={() => setIsInternalModalOpen(false)} /> : null}
     </aside>
   );
 }

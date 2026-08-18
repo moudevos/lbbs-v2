@@ -74,7 +74,6 @@ export function PosSessionWorkspace() {
     isLoading,
     isLoadingCatalog,
     isLoadingRewards,
-    internalAuthorizationReason,
     internalAuthorizationPin,
     internalBenefitDiscount,
     internalCredit,
@@ -112,7 +111,6 @@ export function PosSessionWorkspace() {
     setSelectedCustomer,
     setSelectedRewardEntitlementId,
     setSelectedInternalBenefitRuleId,
-    setInternalAuthorizationReason,
     setInternalAuthorizationPin,
     setInternalCredit,
     setSelectedReservationId,
@@ -532,7 +530,6 @@ export function PosSessionWorkspace() {
         reward_entitlement_id: selectedRewardEntitlementId || null,
         employee_benefit_rule_id: selectedInternalBenefitRuleId || null,
         internal_credit: internalCredit,
-        authorization_reason: internalAuthorizationReason || null,
         authorization_pin: internalAuthorizationPin || null,
         items: cartItems.map((item) => ({
           catalog_id: item.catalog_id,
@@ -807,8 +804,8 @@ export function PosSessionWorkspace() {
                 selectedInternalBenefit={selectedInternalBenefit}
                 selectedInternalBenefitRuleId={selectedInternalBenefitRuleId}
                 internalCredit={internalCredit}
-                internalAuthorizationReason={internalAuthorizationReason}
                 internalAuthorizationPin={internalAuthorizationPin}
+                branchId={selectedBranchId}
                 isLoadingRewards={isLoadingRewards}
                 paymentMethods={paymentMethods}
                 payments={payments}
@@ -827,7 +824,6 @@ export function PosSessionWorkspace() {
                 onRewardChange={(value) => void handleRewardChange(value)}
                 onInternalBenefitChange={(value) => { setSelectedInternalBenefitRuleId(value); if (value) { setSelectedRewardEntitlementId(""); setInternalCredit(false); } }}
                 onInternalCreditChange={(value) => { setInternalCredit(value); if (value) { setSelectedRewardEntitlementId(""); setSelectedInternalBenefitRuleId(""); } }}
-                onInternalAuthorizationReasonChange={setInternalAuthorizationReason}
                 onInternalAuthorizationPinChange={setInternalAuthorizationPin}
                 onDecreaseItem={(itemId) => {
                   void changeItemQuantity(itemId, -1);

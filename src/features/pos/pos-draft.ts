@@ -4,7 +4,7 @@ import type {
   PosPreparedPayment,
 } from "@/features/pos/pos-types";
 
-const draftVersion = 3;
+const draftVersion = 4;
 
 export type PosDraft = {
   version: number;
@@ -18,7 +18,6 @@ export type PosDraft = {
   rewardEntitlementId: string;
   internalBenefitRuleId: string;
   internalCredit: boolean;
-  internalAuthorizationReason: string;
   items: PosCartItem[];
   payments: PosPreparedPayment[];
   checkoutIdempotencyKey: string | null;
