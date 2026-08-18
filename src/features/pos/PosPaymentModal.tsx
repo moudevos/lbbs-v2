@@ -57,6 +57,25 @@ export function PosPaymentModal({
   onRequestClose,
 }: PosPaymentModalProps) {
   const [isAddingPayment, setIsAddingPayment] = useState(false);
+  const quickPaymentMethods = paymentMethods.filter(
+    (method) => method.is_active && method.payment_kind !== "internal_credit",
+  );
+
+  function handleQuickPayment(method: PosPaymentMethodRecord) {
+    if (pendingBalance <= 0) return;
+
+    const amount = Number(pendingBalance.toFixed(2));
+    onAddPayment({
+      id: crypto.randomUUID(),
+      payment_method_id: method.id,
+      payment_method_code: method.code,
+      payment_method_name: method.name,
+      amount,
+      tendered_amount: amount,
+      change_amount: 0,
+      allows_change: method.allows_change,
+    });
+  }
 
   return (
     <Modal
@@ -170,6 +189,28 @@ export function PosPaymentModal({
           </div>
         ) : (
           <>
+            <section className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="mb-2">
+                <p className="text-sm font-semibold text-slate-800">Cobro rápido</p>
+                <p className="text-xs text-slate-500">
+                  Registra todo el saldo pendiente con un solo método.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {quickPaymentMethods.map((method) => (
+                  <Button
+                    key={method.id}
+                    type="button"
+                    className="h-9 bg-emerald-50 px-3 text-xs text-emerald-800 shadow-none hover:bg-emerald-100"
+                    disabled={pendingBalance <= 0 || isClosingSale}
+                    onClick={() => handleQuickPayment(method)}
+                  >
+                    {method.name} · {formatMoney(pendingBalance)}
+                  </Button>
+                ))}
+              </div>
+            </section>
+
             {/* Lista de metodos ya agregados: siempre visible, un solo lugar */}
             <PosPaymentList
               payments={payments}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canAddProductQuantity,
+  getCartCourtesyTotal,
   getCartTotal,
   getRewardDiscountPreview,
   reconcilePosPayments,
@@ -70,7 +71,53 @@ describe("cálculos POS", () => {
     ]);
 
     expect(result.isValid).toBe(false);
-    expect(result.reasonCode).toBe("COURTESY_ONLY_SALE");
+    expect(result.reasonCode).toBe("COURTESY_WITHOUT_SERVICE");
+  });
+
+  it("mantiene el pago exigible al agregar un producto en cortesia", () => {
+    const courtesyProduct: PosCartItem = {
+      ...service,
+      id: "courtesy-product-1",
+      catalog_id: "catalog-product-1",
+      item_type: "product",
+      name: "Agua",
+      quantity: 1,
+      unit_price: 2,
+      is_courtesy: true,
+      courtesy_reason: "Cortesia de servicio",
+      is_stockable: true,
+      stock_quantity: 10,
+    };
+
+    const normalTotal = getCartTotal([{ ...service, unit_price: 35 }]);
+    const courtesyCart = [{ ...service, unit_price: 35 }, courtesyProduct];
+    const result = reconcilePosPayments(
+      getCartTotal(courtesyCart),
+      [payment("cash-courtesy", 35, 35, true)],
+    );
+
+    expect(normalTotal).toBe(35);
+    expect(getCartCourtesyTotal(courtesyCart)).toBe(2);
+    expect(getCartTotal(courtesyCart)).toBe(35);
+    expect(result.appliedTotal).toBe(35);
+    expect(result.pendingBalance).toBe(0);
+  });
+
+  it("limita a una cortesia por cada servicio de pago", () => {
+    const courtesyProduct = {
+      ...service,
+      id: "courtesy-product-limit",
+      catalog_id: "catalog-product-limit",
+      item_type: "product" as const,
+      quantity: 2,
+      unit_price: 2,
+      is_courtesy: true,
+    };
+
+    const result = validateSaleCommercialComposition([{ ...service, quantity: 1 }, courtesyProduct]);
+
+    expect(result.isValid).toBe(false);
+    expect(result.reasonCode).toBe("COURTESY_LIMIT_EXCEEDED");
   });
 
   it("limita un reward de voucher al total comercial", () => {

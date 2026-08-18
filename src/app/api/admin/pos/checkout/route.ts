@@ -57,6 +57,7 @@ type ProductRow = {
   base_sale_price: number | string;
   allow_custom_price: boolean;
   is_stockable: boolean;
+  is_courtesy_allowed: boolean;
   is_active: boolean;
 };
 
@@ -539,11 +540,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const hasChargeableItem = items.some((item) => !item.isCourtesy);
+  const courtesyQuantity = items
+    .filter((item) => item.isCourtesy)
+    .reduce((total, item) => total + item.quantity, 0);
+  const chargeableServiceQuantity = items
+    .filter((item) => item.itemType === "service" && !item.isCourtesy)
+    .reduce((total, item) => total + item.quantity, 0);
 
-  if (!hasChargeableItem) {
+  if (courtesyQuantity > 0 && chargeableServiceQuantity === 0) {
     return NextResponse.json(
-      { error: "La venta debe incluir al menos un servicio o producto normal ademas de las cortesias." },
+      { error: "Las cortesias requieren al menos un servicio de pago en la venta." },
+      { status: 400 },
+    );
+  }
+
+  if (courtesyQuantity > chargeableServiceQuantity) {
+    return NextResponse.json(
+      { error: "Solo puedes registrar una cortesia por cada servicio de pago." },
       { status: 400 },
     );
   }
@@ -759,7 +772,7 @@ export async function POST(request: Request) {
     productIds.length
       ? supabase
           .from("products")
-          .select("id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_active")
+          .select("id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active")
           .in("id", productIds)
       : Promise.resolve({ data: [], error: null }),
     payments.length
@@ -877,6 +890,13 @@ export async function POST(request: Request) {
       if (!product || !product.is_active) {
         return NextResponse.json(
           { error: "Uno de los productos ya no esta disponible." },
+          { status: 400 },
+        );
+      }
+
+      if (item.isCourtesy && !product.is_courtesy_allowed) {
+        return NextResponse.json(
+          { error: "Este producto no esta habilitado para cortesia." },
           { status: 400 },
         );
       }

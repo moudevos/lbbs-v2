@@ -8,9 +8,41 @@ import type {
 } from "@/features/pos/pos-types";
 
 export function validateSaleCommercialComposition(items: PosCartItem[]) {
-  const hasCommercialItem = items.some((item) => !item.is_courtesy);
   const hasCourtesyItems = items.some((item) => item.is_courtesy);
-  return { isValid: hasCommercialItem, hasCommercialItem, hasCourtesyItems, reasonCode: hasCommercialItem ? null : "COURTESY_ONLY_SALE", message: hasCommercialItem ? null : "No puedes continuar con una venta compuesta únicamente por cortesías. Agrega al menos un servicio o producto de pago." };
+  const courtesyQuantity = items
+    .filter((item) => item.is_courtesy)
+    .reduce((total, item) => total + item.quantity, 0);
+  const chargeableServiceQuantity = items
+    .filter((item) => item.item_type === "service" && !item.is_courtesy)
+    .reduce((total, item) => total + item.quantity, 0);
+
+  if (hasCourtesyItems && chargeableServiceQuantity === 0) {
+    return {
+      isValid: false,
+      hasCommercialItem: false,
+      hasCourtesyItems,
+      reasonCode: "COURTESY_WITHOUT_SERVICE",
+      message: "Las cortesías requieren al menos un servicio de pago en la venta.",
+    };
+  }
+
+  if (courtesyQuantity > chargeableServiceQuantity) {
+    return {
+      isValid: false,
+      hasCommercialItem: true,
+      hasCourtesyItems,
+      reasonCode: "COURTESY_LIMIT_EXCEEDED",
+      message: "Solo puedes registrar una cortesía por cada servicio de pago.",
+    };
+  }
+
+  return {
+    isValid: true,
+    hasCommercialItem: items.some((item) => !item.is_courtesy),
+    hasCourtesyItems,
+    reasonCode: null,
+    message: null,
+  };
 }
 
 export function reconcilePosPayments(

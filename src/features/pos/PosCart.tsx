@@ -15,7 +15,6 @@ import { PosRewardModal } from "@/features/pos/PosRewardModal";
 import { PosSummary } from "@/features/pos/PosSummary";
 import type {
   PosCartItem as PosCartItemRecord,
-  PosCourtesyReasonRecord,
   PosCustomerRecord,
   PosEmployeeRecord,
   PosInternalBenefitRule,
@@ -29,7 +28,6 @@ import { formatMoney, reconcilePosPayments } from "@/features/pos/pos-utils";
 type PosCartProps = {
   customer: PosCustomerRecord | null;
   customerVariousId: string | null;
-  courtesyReasons: PosCourtesyReasonRecord[];
   items: PosCartItemRecord[];
   barbers: PosEmployeeRecord[];
   selectedBarberId: string;
@@ -66,7 +64,6 @@ type PosCartProps = {
   onIncreaseItem: (itemId: string) => void;
   onRemoveItem: (itemId: string) => void;
   onToggleCourtesy: (itemId: string) => void;
-  onCourtesyReasonChange: (itemId: string, value: string) => void;
   onAddPayment: (payment: PosPreparedPayment) => void;
   onRemovePayment: (paymentId: string) => void;
 };
@@ -74,7 +71,6 @@ type PosCartProps = {
 export function PosCart({
   customer,
   customerVariousId,
-  courtesyReasons,
   items,
   barbers,
   selectedBarberId,
@@ -111,7 +107,6 @@ export function PosCart({
   onIncreaseItem,
   onRemoveItem,
   onToggleCourtesy,
-  onCourtesyReasonChange,
   onAddPayment,
   onRemovePayment,
 }: PosCartProps) {
@@ -161,8 +156,6 @@ export function PosCart({
                 onIncrease={() => onIncreaseItem(item.id)}
                 onRemove={() => onRemoveItem(item.id)}
                 onToggleCourtesy={() => onToggleCourtesy(item.id)}
-                onCourtesyReasonChange={(value) => onCourtesyReasonChange(item.id, value)}
-                courtesyReasons={courtesyReasons}
               />
             ))
           ) : (
