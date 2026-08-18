@@ -48,6 +48,10 @@ export function PosInternalOperationModal({
   const pendingAuthorizationRule = options.rules.find(
     (rule) => rule.id === pendingAuthorizationRuleId,
   ) ?? null;
+  const selectedRule = options.rules.find((rule) => rule.id === selectedRuleId) ?? null;
+  const canSendBenefitBalanceToCredit = Boolean(
+    options.canUseCredit && selectedRule && !selectedRule.is_internal_complimentary,
+  );
 
   async function confirmAuthorization() {
     if (!pendingAuthorizationRule) return;
@@ -97,7 +101,7 @@ export function PosInternalOperationModal({
     <Modal
       open={open}
       title="Operación interna"
-      description={`Cliente vinculado: ${employee.fullName}. Elige una sola modalidad para esta venta.`}
+      description={`Cliente vinculado: ${employee.fullName}. Puedes aplicar un beneficio y registrar su saldo restante como crédito.`}
       onClose={handleClose}
       size="lg"
     >
@@ -157,11 +161,11 @@ export function PosInternalOperationModal({
           );
         })}
 
-        {options.canUseCredit && onlyProducts ? (
+        {(options.canUseCredit && onlyProducts) || canSendBenefitBalanceToCredit ? (
           <button
             type="button"
             onClick={() => {
-              onRuleChange("");
+              if (!canSendBenefitBalanceToCredit) onRuleChange("");
               onCreditChange(true);
               setPendingAuthorizationRuleId("");
               handleClose();
@@ -171,9 +175,11 @@ export function PosInternalOperationModal({
               internalCredit ? "border-amber-300 bg-amber-50" : "border-slate-200 hover:border-amber-200",
             ].join(" ")}
           >
-            <p className="font-semibold text-slate-900">Crédito de empleado</p>
+            <p className="font-semibold text-slate-900">{canSendBenefitBalanceToCredit ? "Enviar saldo del beneficio a crédito" : "Crédito de empleado"}</p>
             <p className="mt-1 text-sm text-slate-600">
-              Solo productos. Crea una deuda para descontar en liquidación; no ingresa dinero a caja.
+              {canSendBenefitBalanceToCredit
+                ? "Aplica el beneficio y crea una deuda solo por el saldo final. No ingresa dinero a caja."
+                : "Solo productos. Crea una deuda para descontar en liquidación; no ingresa dinero a caja."}
             </p>
           </button>
         ) : null}

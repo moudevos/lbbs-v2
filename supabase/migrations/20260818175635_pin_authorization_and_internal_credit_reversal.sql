@@ -203,22 +203,29 @@ begin
     end if;
 
     if v_rule.is_internal_complimentary then
+      if v_internal_credit then
+        raise exception 'Un beneficio gratuito no puede enviarse a credito.';
+      end if;
       v_authorized_by := public.authorize_internal_complimentary_sale(v_authorization_pin, v_branch_id);
       v_operation_kind := 'internal_complimentary';
     else
-      v_operation_kind := 'employee_benefit';
+      v_operation_kind := case when v_internal_credit then 'employee_credit' else 'employee_benefit' end;
     end if;
-  elsif v_internal_credit then
+  end if;
+
+  if v_internal_credit then
     if not v_link.can_use_internal_credit then
       raise exception 'Este empleado no tiene credito interno habilitado.';
     end if;
-    if exists (
+    if v_rule_id is null and exists (
       select 1 from jsonb_array_elements(p_payload -> 'items') item
       where item ->> 'item_type' <> 'product'
     ) then
       raise exception 'El credito interno solo esta disponible para productos.';
     end if;
-    v_operation_kind := 'employee_credit';
+    if v_operation_kind = 'customer' then
+      v_operation_kind := 'employee_credit';
+    end if;
   end if;
 
   if v_operation_kind <> 'customer' and exists (
@@ -418,4 +425,3 @@ revoke all on function public.checkout_pos_sale(jsonb) from public, anon;
 grant execute on function public.checkout_pos_sale(jsonb) to authenticated, service_role;
 
 notify pgrst, 'reload schema';
-

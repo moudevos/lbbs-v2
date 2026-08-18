@@ -822,8 +822,8 @@ export function PosSessionWorkspace() {
                 onCustomerSearch={searchPosCustomers}
                 onBarberChange={setSelectedBarberId}
                 onRewardChange={(value) => void handleRewardChange(value)}
-                onInternalBenefitChange={(value) => { setSelectedInternalBenefitRuleId(value); if (value) { setSelectedRewardEntitlementId(""); setInternalCredit(false); } }}
-                onInternalCreditChange={(value) => { setInternalCredit(value); if (value) { setSelectedRewardEntitlementId(""); setSelectedInternalBenefitRuleId(""); } }}
+                onInternalBenefitChange={(value) => { setSelectedInternalBenefitRuleId(value); if (value) setSelectedRewardEntitlementId(""); }}
+                onInternalCreditChange={(value) => { setInternalCredit(value); if (value) setSelectedRewardEntitlementId(""); }}
                 onInternalAuthorizationPinChange={setInternalAuthorizationPin}
                 onDecreaseItem={(itemId) => {
                   void changeItemQuantity(itemId, -1);

@@ -1061,19 +1061,6 @@ export async function POST(request: Request) {
     change_amount: payment.changeAmount,
   }));
 
-  if (employeeBenefitRuleId) {
-    const { data: internalRule, error: internalRuleError } = await supabase.from("employee_benefit_rules").select("is_internal_complimentary").eq("id", employeeBenefitRuleId).maybeSingle();
-    if (internalRuleError) return NextResponse.json({ error: "No se pudo validar el beneficio interno." }, { status: 500 });
-    if (internalRule?.is_internal_complimentary) {
-      if (!authorizationPin) return NextResponse.json({ error: "Ingresa el PIN de autorización del owner." }, { status: 400 });
-      const { data: authorizedBy, error: pinError } = await supabase.rpc(
-        "authorize_internal_complimentary_sale",
-        { p_pin: authorizationPin, p_branch_id: branchId },
-      );
-      if (pinError || !authorizedBy) return NextResponse.json({ error: "El PIN de autorización no es válido." }, { status: 403 });
-    }
-  }
-
   try {
     const { data: atomicSaleId, error: atomicCheckoutError } = await supabase.rpc(
       "checkout_pos_sale",
