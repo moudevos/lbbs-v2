@@ -66,8 +66,9 @@ export async function GET(request: Request) {
 
   let debtsQuery = supabase
     .from("employee_debts")
-    .select("id, employee_id, branch_id, debt_type, outstanding_amount, status, description, created_at, employee:employees(full_name), branch:branches(name)")
+    .select("id, employee_id, branch_id, debt_type, outstanding_amount, status, description, created_at,employee:employees!employee_debts_employee_id_fkey(full_name),branch:branches(name)")
     .in("status", ["pending", "partial"]);
+
   if (branchId) debtsQuery = debtsQuery.eq("branch_id", branchId);
   if (employeeId) debtsQuery = debtsQuery.eq("employee_id", employeeId);
 
