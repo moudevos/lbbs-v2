@@ -3,6 +3,15 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 import { createClient } from "@/lib/supabase/server";
 
+function optionalMoney(value: unknown): number | null {
+  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
+    return null;
+  }
+
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : null;
+}
+
 export async function GET() {
   const auth = await requireAdminSession();
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -44,8 +53,15 @@ export async function POST(request: Request) {
   if (saved.error || !saved.data) return NextResponse.json({ error: saved.error?.message || "No se pudo guardar la regla." }, { status: 400 });
   const { error: deleteError } = await supabase.from("courtesy_rule_benefits").delete().eq("rule_id", saved.data.id);
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
-  const benefits = body.benefits.map((benefit: { productId: string; maxQuantity: number; maxUnitAmount?: number | null }) => ({
-    rule_id: saved.data.id, benefit_item_type: "product", product_id: benefit.productId, max_quantity: Number(benefit.maxQuantity), max_unit_amount: benefit.maxUnitAmount == null ? null : Number(benefit.maxUnitAmount), is_active: true,
+  const benefits = body.benefits.map((benefit: { productId: string; maxQuantity: number; maxUnitAmount?: unknown }) => ({
+    rule_id: saved.data.id,
+    benefit_item_type: "product",
+    product_id: benefit.productId,
+    max_quantity: Number(benefit.maxQuantity),
+    // Un campo vacío significa “sin tope”; Number(\"\") sería 0 y bloquearía
+    // cualquier producto cuyo precio sea mayor a cero.
+    max_unit_amount: optionalMoney(benefit.maxUnitAmount),
+    is_active: true,
   }));
   if (benefits.length > 0) {
     const { error: benefitsError } = await supabase.from("courtesy_rule_benefits").insert(benefits);
