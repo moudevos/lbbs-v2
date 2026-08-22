@@ -204,6 +204,17 @@ export async function GET(request: Request) {
     );
   }
 
+  const { data: courtesyRules, error: courtesyRulesError } = await supabase
+    .from("courtesy_rules")
+    .select("id,name,branch_id,priority,qualifying_service_id,qualifying_service_category_id,minimum_unit_amount,maximum_courtesy_items,maximum_courtesy_amount,allow_with_reward,starts_at,ends_at,is_active,benefits:courtesy_rule_benefits(id,benefit_item_type,service_id,product_id,service_category_id,product_category_id,max_quantity,max_unit_amount,is_active)")
+    .eq("is_active", true)
+    .order("priority", { ascending: false });
+
+  if (courtesyRulesError) {
+    console.error("[pos/bootstrap] No se pudieron cargar las reglas de cortesia", { message: courtesyRulesError.message, code: courtesyRulesError.code });
+    return NextResponse.json({ error: "No se pudieron cargar las reglas de cortesia." }, { status: 500 });
+  }
+
   const { data: customerVarious, error: customerError } = await supabase
     .from("customers")
     .select("id, full_name, phone, document_number, is_active")
@@ -253,6 +264,7 @@ export async function GET(request: Request) {
     customerVarious: customerVarious ?? null,
     paymentMethods: paymentMethods ?? [],
     courtesyReasons: courtesyReasons ?? [],
+    courtesyRules: courtesyRules ?? [],
     reservationPrefill,
   });
 }

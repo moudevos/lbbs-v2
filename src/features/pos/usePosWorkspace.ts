@@ -212,6 +212,7 @@ export function usePosWorkspace() {
   const branches = bootstrap?.branches ?? [];
   const paymentMethods = bootstrap?.paymentMethods ?? [];
   const courtesyReasons = bootstrap?.courtesyReasons ?? [];
+  const courtesyRules = bootstrap?.courtesyRules ?? [];
   const customerVarious = bootstrap?.customerVarious ?? null;
   const customerVariousId = bootstrap?.customerVarious?.id ?? null;
   const isBranchLocked =
@@ -669,6 +670,7 @@ export function usePosWorkspace() {
     categoryFilter,
     courtesyTotal,
     courtesyReasons,
+    courtesyRules,
     customerVarious,
     customerVariousId,
     discountTotal,

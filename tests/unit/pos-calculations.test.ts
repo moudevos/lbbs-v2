@@ -103,7 +103,7 @@ describe("cálculos POS", () => {
     expect(result.pendingBalance).toBe(0);
   });
 
-  it("limita a una cortesia por cada servicio de pago", () => {
+  it("deja el cupo de cortesías a la regla configurable del servidor", () => {
     const courtesyProduct = {
       ...service,
       id: "courtesy-product-limit",
@@ -116,8 +116,7 @@ describe("cálculos POS", () => {
 
     const result = validateSaleCommercialComposition([{ ...service, quantity: 1 }, courtesyProduct]);
 
-    expect(result.isValid).toBe(false);
-    expect(result.reasonCode).toBe("COURTESY_LIMIT_EXCEEDED");
+    expect(result.isValid).toBe(true);
   });
 
   it("limita un reward de voucher al total comercial", () => {

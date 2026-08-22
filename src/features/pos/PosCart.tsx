@@ -49,6 +49,9 @@ type PosCartProps = {
   subtotal: number;
   discountTotal: number;
   courtesyTotal: number;
+  courtesyRemainingCapacity: number;
+  courtesyEligibleProductIds: Set<string>;
+  courtesyProductCapacity: Map<string, number>;
   total: number;
   isClosingSale: boolean;
   canCheckout: boolean;
@@ -92,6 +95,9 @@ export function PosCart({
   subtotal,
   discountTotal,
   courtesyTotal,
+  courtesyRemainingCapacity,
+  courtesyEligibleProductIds,
+  courtesyProductCapacity,
   total,
   isClosingSale,
   canCheckout,
@@ -156,6 +162,7 @@ export function PosCart({
                 onIncrease={() => onIncreaseItem(item.id)}
                 onRemove={() => onRemoveItem(item.id)}
                 onToggleCourtesy={() => onToggleCourtesy(item.id)}
+                courtesyAvailable={item.is_courtesy || (courtesyRemainingCapacity >= item.quantity && (courtesyProductCapacity.get(item.catalog_id) ?? 0) >= item.quantity && courtesyEligibleProductIds.has(item.catalog_id))}
               />
             ))
           ) : (
@@ -224,6 +231,11 @@ export function PosCart({
                         : "Elige una regla, un crédito de productos o deja la venta como normal."}
                   </p>
                 </div>
+              ) : null}
+              {items.some((item) => item.item_type === "service" && !item.is_courtesy) ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Cortesías de productos disponibles: <strong>{courtesyRemainingCapacity}</strong>
+                </p>
               ) : null}
               {internalOptionsError ? (
                 <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">

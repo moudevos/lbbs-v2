@@ -9,9 +9,6 @@ import type {
 
 export function validateSaleCommercialComposition(items: PosCartItem[]) {
   const hasCourtesyItems = items.some((item) => item.is_courtesy);
-  const courtesyQuantity = items
-    .filter((item) => item.is_courtesy)
-    .reduce((total, item) => total + item.quantity, 0);
   const chargeableServiceQuantity = items
     .filter((item) => item.item_type === "service" && !item.is_courtesy)
     .reduce((total, item) => total + item.quantity, 0);
@@ -23,16 +20,6 @@ export function validateSaleCommercialComposition(items: PosCartItem[]) {
       hasCourtesyItems,
       reasonCode: "COURTESY_WITHOUT_SERVICE",
       message: "Las cortesías requieren al menos un servicio de pago en la venta.",
-    };
-  }
-
-  if (courtesyQuantity > chargeableServiceQuantity) {
-    return {
-      isValid: false,
-      hasCommercialItem: true,
-      hasCourtesyItems,
-      reasonCode: "COURTESY_LIMIT_EXCEEDED",
-      message: "Solo puedes registrar una cortesía por cada servicio de pago.",
     };
   }
 
@@ -124,6 +111,7 @@ export function buildServiceCartItem(service: PosServiceRecord): PosCartItem {
     item_type: "service",
     name: service.name,
     description: service.description,
+    category_id: service.category_id,
     category_name: service.category_name,
     quantity: 1,
     unit_price: Number(service.final_price),
@@ -149,6 +137,7 @@ export function buildProductCartItemWithPrice(
     item_type: "product",
     name: product.name,
     description: product.description,
+    category_id: product.category_id,
     category_name: product.category_name,
     quantity: 1,
     unit_price: unitPrice,
@@ -158,6 +147,7 @@ export function buildProductCartItemWithPrice(
     courtesy_reason: "",
     stock_quantity: Number(product.stock_quantity),
     is_stockable: product.is_stockable,
+    is_courtesy_allowed: product.is_courtesy_allowed,
   };
 }
 

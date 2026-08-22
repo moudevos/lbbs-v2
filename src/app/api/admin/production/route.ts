@@ -1,90 +1,181 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireAdminSession } from "@/lib/supabase/route-auth";
+import { requireAdminSession, requireTeamBranchSession } from "@/lib/supabase/route-auth";
 
 export async function GET(request: Request) {
-  const auth = await requireAdminSession();
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
+  const auth = await requireTeamBranchSession();
+  if (!auth.ok)
+    return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   let periodId = searchParams.get("periodId")?.trim() ?? "";
-  const branchId = searchParams.get("branchId")?.trim() ?? "";
+  const requestedBranchId = searchParams.get("branchId")?.trim() ?? "";
+  const branchId =
+    auth.role === "reception" ? (auth.branchId ?? "") : requestedBranchId;
+  if (auth.role === "reception" && !branchId) {
+    return NextResponse.json(
+      { error: "La cuenta de recepción no tiene una sede asignada." },
+      { status: 403 },
+    );
+  }
   const employeeId = searchParams.get("employeeId")?.trim() ?? "";
   const source = searchParams.get("source")?.trim() ?? "";
-  const { data: businessDate, error: businessDateError } = await supabase.rpc("pos_business_date");
+  const { data: businessDate, error: businessDateError } =
+    await supabase.rpc("pos_business_date");
   if (businessDateError || !businessDate) {
-    console.error("[production/get] Error al obtener fecha operativa", { message: businessDateError?.message });
-    return NextResponse.json({ error: "No se pudo determinar la fecha operativa." }, { status: 500 });
+    console.error("[production/get] Error al obtener fecha operativa", {
+      message: businessDateError?.message,
+    });
+    return NextResponse.json(
+      { error: "No se pudo determinar la fecha operativa." },
+      { status: 500 },
+    );
   }
 
   let { data: periods, error: periodsError } = await supabase
     .from("payroll_periods")
-    .select("id, period_year, period_month, period_half, start_date, end_date, status")
+    .select(
+      "id, period_year, period_month, period_half, start_date, end_date, status",
+    )
     .order("start_date", { ascending: false });
 
-  if (!periodsError && (periods?.length ?? 0) === 0) {
-    const { error: createPeriodError } = await supabase.rpc("get_or_create_payroll_period", {
-      p_date: businessDate,
-    });
+  if (
+    auth.role !== "reception" &&
+    !periodsError &&
+    (periods?.length ?? 0) === 0
+  ) {
+    const { error: createPeriodError } = await supabase.rpc(
+      "get_or_create_payroll_period",
+      {
+        p_date: businessDate,
+      },
+    );
     if (!createPeriodError) {
-      const refreshed = await supabase.from("payroll_periods").select("id, period_year, period_month, period_half, start_date, end_date, status").order("start_date", { ascending: false });
+      const refreshed = await supabase
+        .from("payroll_periods")
+        .select(
+          "id, period_year, period_month, period_half, start_date, end_date, status",
+        )
+        .order("start_date", { ascending: false });
       periods = refreshed.data;
       periodsError = refreshed.error;
     }
   }
 
   if (periodsError) {
-    console.error("[production/get] Error al listar periodos", { message: periodsError.message, code: periodsError.code });
-    return NextResponse.json({ error: "No se pudieron cargar los periodos." }, { status: 500 });
+    console.error("[production/get] Error al listar periodos", {
+      message: periodsError.message,
+      code: periodsError.code,
+    });
+    return NextResponse.json(
+      { error: "No se pudieron cargar los periodos." },
+      { status: 500 },
+    );
   }
 
   if (!periodId) {
     const current = (periods ?? []).find((period) => {
-      return period.start_date <= businessDate && period.end_date >= businessDate;
+      return (
+        period.start_date <= businessDate && period.end_date >= businessDate
+      );
     });
     periodId = current?.id ?? periods?.[0]?.id ?? "";
   }
 
   let productionQuery = supabase
     .from("employee_service_production")
-    .select("id, payroll_period_id, employee_id, branch_id, sale_id, production_date, accounting_date, production_source, quantity, original_unit_price, original_line_total, commercial_discount_amount, reward_discount_amount, courtesy_discount_amount, collected_amount, operational_contribution_amount, commissionable_amount, fixed_commission_amount, status, reversed_at, reversed_reason, employee:employees(full_name), branch:branches(name), service:services(name), sale:sales(status,cancelled_at,cancelled_reason)")
+    .select(
+      "id, payroll_period_id, employee_id, branch_id, sale_id, production_date, accounting_date, production_source, quantity, original_unit_price, original_line_total, commercial_discount_amount, reward_discount_amount, courtesy_discount_amount, collected_amount, operational_contribution_amount, commissionable_amount, fixed_commission_amount, status, reversed_at, reversed_reason, employee:employees(full_name), branch:branches(name), service:services(name), sale:sales(status,cancelled_at,cancelled_reason)",
+    )
     .eq("payroll_period_id", periodId)
     .order("accounting_date", { ascending: false })
     .order("production_date", { ascending: false });
   if (branchId) productionQuery = productionQuery.eq("branch_id", branchId);
-  if (employeeId) productionQuery = productionQuery.eq("employee_id", employeeId);
+  if (employeeId)
+    productionQuery = productionQuery.eq("employee_id", employeeId);
   if (source) productionQuery = productionQuery.eq("production_source", source);
 
   let bonusesQuery = supabase
     .from("employee_product_bonus_entries")
-    .select("id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, accounting_date, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total)")
+    .select(
+      "id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, accounting_date, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total)",
+    )
     .eq("payroll_period_id", periodId);
   if (branchId) bonusesQuery = bonusesQuery.eq("branch_id", branchId);
   if (employeeId) bonusesQuery = bonusesQuery.eq("employee_id", employeeId);
 
   let debtsQuery = supabase
     .from("employee_debts")
-    .select("id, employee_id, branch_id, debt_type, outstanding_amount, status, description, created_at,employee:employees!employee_debts_employee_id_fkey(full_name),branch:branches(name)")
+    .select(
+      "id, employee_id, branch_id, debt_type, outstanding_amount, status, description, created_at,employee:employees!employee_debts_employee_id_fkey(full_name),branch:branches(name)",
+    )
     .in("status", ["pending", "partial"]);
 
   if (branchId) debtsQuery = debtsQuery.eq("branch_id", branchId);
   if (employeeId) debtsQuery = debtsQuery.eq("employee_id", employeeId);
 
-  const [productionResult, bonusesResult, branchesResult, employeesResult, settlementsResult, debtsResult] = await Promise.all([
+  const [
+    productionResult,
+    bonusesResult,
+    branchesResult,
+    employeesResult,
+    settlementsResult,
+    debtsResult,
+  ] = await Promise.all([
     productionQuery,
     bonusesQuery,
-    supabase.from("branches").select("id, name").eq("is_active", true).order("name"),
-    supabase.from("employees").select("id, full_name, branch_id").eq("status", "active").order("full_name"),
-    supabase.from("employee_settlements").select("id, employee_id, commission_rate, percentage_commission_total, status").eq("payroll_period_id", periodId).neq("status", "cancelled"),
+    auth.role === "reception"
+      ? supabase
+          .from("branches")
+          .select("id, name")
+          .eq("is_active", true)
+          .eq("id", branchId)
+          .order("name")
+      : supabase
+          .from("branches")
+          .select("id, name")
+          .eq("is_active", true)
+          .order("name"),
+    auth.role === "reception"
+      ? supabase
+          .from("employees")
+          .select("id, full_name, branch_id")
+          .eq("status", "active")
+          .eq("branch_id", branchId)
+          .order("full_name")
+      : supabase
+          .from("employees")
+          .select("id, full_name, branch_id")
+          .eq("status", "active")
+          .order("full_name"),
+    supabase
+      .from("employee_settlements")
+      .select(
+        "id, employee_id, commission_rate, percentage_commission_total, status",
+      )
+      .eq("payroll_period_id", periodId)
+      .neq("status", "cancelled"),
     debtsQuery,
   ]);
 
-  const error = productionResult.error ?? bonusesResult.error ?? branchesResult.error ?? employeesResult.error ?? settlementsResult.error ?? debtsResult.error;
+  const error =
+    productionResult.error ??
+    bonusesResult.error ??
+    branchesResult.error ??
+    employeesResult.error ??
+    settlementsResult.error ??
+    debtsResult.error;
   if (error) {
-    console.error("[production/get] Error al cargar produccion", { message: error.message, code: error.code });
-    return NextResponse.json({ error: "No se pudo cargar la produccion." }, { status: 500 });
+    console.error("[production/get] Error al cargar produccion", {
+      message: error.message,
+      code: error.code,
+    });
+    return NextResponse.json(
+      { error: "No se pudo cargar la produccion." },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
@@ -92,17 +183,27 @@ export async function GET(request: Request) {
     bonuses: bonusesResult.data ?? [],
     debts: debtsResult.data ?? [],
     settlements: settlementsResult.data ?? [],
-    filters: { periods: periods ?? [], branches: branchesResult.data ?? [], employees: employeesResult.data ?? [] },
+    filters: {
+      periods: periods ?? [],
+      branches: branchesResult.data ?? [],
+      employees: employeesResult.data ?? [],
+    },
     selectedPeriodId: periodId,
     businessDate,
+    permissions: { canGenerate: auth.role !== "reception" },
   });
 }
 
 export async function POST(request: Request) {
   const auth = await requireAdminSession();
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
+  if (!auth.ok)
+    return NextResponse.json({ error: auth.message }, { status: auth.status });
   const payload = await request.json().catch(() => null);
-  if (!payload?.periodId) return NextResponse.json({ error: "Selecciona un periodo." }, { status: 400 });
+  if (!payload?.periodId)
+    return NextResponse.json(
+      { error: "Selecciona un periodo." },
+      { status: 400 },
+    );
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("generate_production_for_period", {
@@ -110,8 +211,14 @@ export async function POST(request: Request) {
     p_branch_id: payload.branchId || null,
   });
   if (error) {
-    console.error("[production/post] Error al generar produccion", { message: error.message, code: error.code });
-    return NextResponse.json({ error: "No se pudo generar la produccion del periodo." }, { status: 400 });
+    console.error("[production/post] Error al generar produccion", {
+      message: error.message,
+      code: error.code,
+    });
+    return NextResponse.json(
+      { error: "No se pudo generar la produccion del periodo." },
+      { status: 400 },
+    );
   }
   return NextResponse.json({ data });
 }

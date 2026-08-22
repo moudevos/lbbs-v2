@@ -4,9 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 
 async function hasPendingPasswordChange(userId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("employees").select("must_change_password").eq("user_id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("employees")
+    .select("must_change_password")
+    .eq("user_id", userId)
+    .maybeSingle();
   if (error) {
-    console.error("[auth/permisos] No se pudo validar el cambio obligatorio", { message: error.message, code: error.code });
+    console.error("[auth/permisos] No se pudo validar el cambio obligatorio", {
+      message: error.message,
+      code: error.code,
+    });
     return null;
   }
   return data?.must_change_password === true;
@@ -14,8 +21,18 @@ async function hasPendingPasswordChange(userId: string) {
 
 async function getPasswordChangeBlock(userId: string) {
   const pending = await hasPendingPasswordChange(userId);
-  if (pending === null) return { ok: false as const, status: 500, message: "No se pudo validar el estado de seguridad." };
-  if (pending) return { ok: false as const, status: 403, message: "Debes actualizar tu contraseña antes de continuar." };
+  if (pending === null)
+    return {
+      ok: false as const,
+      status: 500,
+      message: "No se pudo validar el estado de seguridad.",
+    };
+  if (pending)
+    return {
+      ok: false as const,
+      status: 403,
+      message: "Debes actualizar tu contraseña antes de continuar.",
+    };
   return null;
 }
 
@@ -57,7 +74,8 @@ export async function requireAdminSession(): Promise<AdminCheckResult> {
   const passwordBlock = await getPasswordChangeBlock(userData.user.id);
   if (passwordBlock) return passwordBlock;
 
-  const { data: role, error: roleError } = await supabase.rpc("current_user_role");
+  const { data: role, error: roleError } =
+    await supabase.rpc("current_user_role");
 
   if (roleError) {
     console.error("[auth/permisos] No se pudo leer el rol actual", {
@@ -124,7 +142,8 @@ export async function requireCustomerWriteSession(): Promise<CustomerWriteCheckR
   const passwordBlock = await getPasswordChangeBlock(userData.user.id);
   if (passwordBlock) return passwordBlock;
 
-  const { data: role, error: roleError } = await supabase.rpc("current_user_role");
+  const { data: role, error: roleError } =
+    await supabase.rpc("current_user_role");
 
   if (roleError) {
     console.error("[auth/clientes] No se pudo leer el rol actual", {
@@ -191,7 +210,8 @@ export async function requireReservationWriteSession(): Promise<ReservationWrite
   const passwordBlock = await getPasswordChangeBlock(userData.user.id);
   if (passwordBlock) return passwordBlock;
 
-  const { data: role, error: roleError } = await supabase.rpc("current_user_role");
+  const { data: role, error: roleError } =
+    await supabase.rpc("current_user_role");
 
   if (roleError) {
     console.error("[auth/reservas] No se pudo leer el rol actual", {
@@ -272,7 +292,8 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
   const passwordBlock = await getPasswordChangeBlock(userData.user.id);
   if (passwordBlock) return passwordBlock;
 
-  const { data: role, error: roleError } = await supabase.rpc("current_user_role");
+  const { data: role, error: roleError } =
+    await supabase.rpc("current_user_role");
 
   if (roleError) {
     console.error("[auth/stock] No se pudo leer el rol actual", {
@@ -294,7 +315,9 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
     };
   }
 
-  const { data: employeeId, error: employeeError } = await supabase.rpc("current_employee_id");
+  const { data: employeeId, error: employeeError } = await supabase.rpc(
+    "current_employee_id",
+  );
 
   if (employeeError) {
     console.error("[auth/stock] No se pudo leer el empleado actual", {
@@ -309,7 +332,11 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
   }
 
   const { data: employee, error: employeeLookupError } = employeeId
-    ? await supabase.from("employees").select("branch_id").eq("id", employeeId).maybeSingle()
+    ? await supabase
+        .from("employees")
+        .select("branch_id")
+        .eq("id", employeeId)
+        .maybeSingle()
     : { data: null, error: null };
 
   if (employeeLookupError) {
@@ -317,7 +344,11 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
       message: employeeLookupError.message,
       code: employeeLookupError.code,
     });
-    return { ok: false, status: 500, message: "No se pudo validar la sede del empleado actual." };
+    return {
+      ok: false,
+      status: 500,
+      message: "No se pudo validar la sede del empleado actual.",
+    };
   }
 
   return {
@@ -327,4 +358,10 @@ export async function requireStockMovementSession(): Promise<StockMovementCheckR
     employeeId: employeeId ?? null,
     branchId: employee?.branch_id ?? null,
   };
+}
+
+// Sesión operativa con el alcance de sede del empleado. Es válida para
+// consultas y altas acotadas de recepción, sin conceder privilegios de admin.
+export async function requireTeamBranchSession(): Promise<StockMovementCheckResult> {
+  return requireStockMovementSession();
 }

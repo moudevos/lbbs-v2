@@ -28,6 +28,7 @@ import {
   getRewardDiscountPreview,
   reconcilePosPayments,
 } from "@/features/pos/pos-utils";
+import { getCourtesyAllowance } from "@/features/pos/courtesy-validation";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -67,6 +68,7 @@ export function PosSessionWorkspace() {
     catalogSearch,
     categoryFilter,
     courtesyTotal,
+    courtesyRules,
     customerVarious,
     customerVariousId,
     discountTotal,
@@ -115,6 +117,45 @@ export function PosSessionWorkspace() {
     setInternalCredit,
     setSelectedReservationId,
   } = usePosWorkspace();
+
+  const courtesyAllowance = useMemo(() => getCourtesyAllowance({
+    branchId: selectedBranchId,
+    hasReward: Boolean(selectedRewardEntitlementId),
+    rules: courtesyRules,
+    items: cartItems.map((item) => ({
+      catalogId: item.catalog_id,
+      itemType: item.item_type,
+      quantity: item.quantity,
+      unitPrice: Math.max(item.unit_price - item.discount_amount / Math.max(item.quantity, 1), 0),
+      isCourtesy: item.is_courtesy,
+      courtesyReason: item.courtesy_reason || null,
+      categoryId: item.category_id ?? null,
+      isCourtesyAllowed: item.is_courtesy_allowed === true,
+    })),
+  }), [cartItems, courtesyRules, selectedBranchId, selectedRewardEntitlementId]);
+
+  const handleToggleCourtesy = (itemId: string) => {
+    const item = cartItems.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    if (item.is_courtesy) {
+      setCartItems((current) => current.map((candidate) => candidate.id === itemId
+        ? { ...candidate, is_courtesy: false, courtesy_reason: "" }
+        : candidate));
+      return;
+    }
+    if (item.item_type !== "product" || !courtesyAllowance.eligibleProductIds.has(item.catalog_id)) {
+      void Swal.fire({ icon: "info", title: "Cortesía no disponible", text: "Este producto no está incluido en una regla aplicable a los servicios de esta venta.", confirmButtonColor: "#0f766e" });
+      return;
+    }
+    const productCapacity = courtesyAllowance.productCapacity.get(item.catalog_id) ?? 0;
+    if (item.quantity > courtesyAllowance.remainingCapacity || item.quantity > productCapacity) {
+      void Swal.fire({ icon: "info", title: "Cupo de cortesía agotado", text: "La cantidad supera el cupo que permiten las reglas de cortesía activas.", confirmButtonColor: "#0f766e" });
+      return;
+    }
+    setCartItems((current) => current.map((candidate) => candidate.id === itemId
+      ? { ...candidate, is_courtesy: true, courtesy_reason: "Cortesía de servicio" }
+      : candidate));
+  };
 
   const [isClosingSale, setIsClosingSale] = useState(false);
   const [closedSale, setClosedSale] = useState<PosCheckoutResult | null>(null);
@@ -812,6 +853,9 @@ export function PosSessionWorkspace() {
                 subtotal={subtotal}
                 discountTotal={discountTotal}
                 courtesyTotal={courtesyTotal}
+                courtesyRemainingCapacity={courtesyAllowance.remainingCapacity}
+                courtesyEligibleProductIds={courtesyAllowance.eligibleProductIds}
+                courtesyProductCapacity={courtesyAllowance.productCapacity}
                 total={checkoutTotal}
                 isClosingSale={isClosingSale}
                 canCheckout={canCheckout}
@@ -834,19 +878,7 @@ export function PosSessionWorkspace() {
                 onRemoveItem={(itemId) =>
                   setCartItems((current) => current.filter((item) => item.id !== itemId))
                 }
-                onToggleCourtesy={(itemId) =>
-                  setCartItems((current) =>
-                    current.map((item) =>
-                      item.id === itemId
-                        ? {
-                          ...item,
-                          is_courtesy: !item.is_courtesy,
-                          courtesy_reason: "",
-                        }
-                        : item,
-                    ),
-                  )
-                }
+                onToggleCourtesy={handleToggleCourtesy}
                 onAddPayment={(payment) => setPayments((current) => [...current, payment])}
                 onRemovePayment={(paymentId) =>
                   setPayments((current) => current.filter((payment) => payment.id !== paymentId))

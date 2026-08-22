@@ -52,6 +52,7 @@ const items = [
   { href: "/control/configuracion?tab=cat:payment_methods", label: "Pagos", icon: faMoneyCheckDollar, module: "settings" },
   { href: "/control/configuracion?tab=cat:product_units", label: "Unidades", icon: faBoxOpen, module: "settings" },
   { href: "/control/configuracion?tab=cat:courtesy_reasons", label: "Cortesias", icon: faGift, module: "settings" },
+  { href: "/control/configuracion?tab=courtesy-rules", label: "Reglas de cortesias", icon: faGift, module: "settings" },
   { href: "/control/configuracion?tab=cat:stock_adjustment_reasons", label: "Stock", icon: faBoxOpen, module: "settings" },
   { href: "/control/configuracion?tab=comp:operational", label: "Aportes", icon: faHandHoldingDollar, module: "settings" },
   { href: "/control/configuracion?tab=comp:reward", label: "Com. rewards", icon: faGift, module: "settings" },

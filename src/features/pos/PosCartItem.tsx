@@ -12,6 +12,7 @@ type PosCartItemProps = {
   onIncrease: () => void;
   onRemove: () => void;
   onToggleCourtesy: () => void;
+  courtesyAvailable: boolean;
 };
 
 export function PosCartItem({
@@ -20,6 +21,7 @@ export function PosCartItem({
   onIncrease,
   onRemove,
   onToggleCourtesy,
+  courtesyAvailable,
 }: PosCartItemProps) {
 
   return (
@@ -87,8 +89,9 @@ export function PosCartItem({
               className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               checked={item.is_courtesy}
               onChange={onToggleCourtesy}
+              disabled={!item.is_courtesy && !courtesyAvailable}
             />
-            Cortesia
+            Cortesia {!item.is_courtesy && !courtesyAvailable ? "(no disponible)" : ""}
           </label>
         </div>
       ) : null}

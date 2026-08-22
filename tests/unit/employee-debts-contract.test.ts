@@ -9,7 +9,10 @@ describe("contrato del módulo de deudas de empleados", () => {
 
   it("protege la lectura y las mutaciones con sesión administrativa", async () => {
     const route = await source();
-    expect(route.match(/requireAdminSession\(\)/g)).toHaveLength(2);
+    expect(route.match(/requireTeamBranchSession\(\)/g)).toHaveLength(2);
+    expect(route).toContain('auth.role === "reception"');
+    expect(route).toContain('"Recepción no puede registrar pagos de deuda."');
+    expect(route).toContain("body.branchId !== auth.branchId");
   });
 
   it("resuelve de forma explícita el empleado deudor y no el creador", async () => {

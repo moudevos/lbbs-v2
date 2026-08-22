@@ -24,6 +24,7 @@ export type SettingsTabId =
   | "cat:payment_methods"
   | "cat:product_units"
   | "cat:courtesy_reasons"
+  | "courtesy-rules"
   | "cat:stock_adjustment_reasons"
   | "comp:operational"
   | "comp:reward"
@@ -47,6 +48,7 @@ export const settingsTabs: SettingsNavTab[] = [
   { id: "cat:payment_methods", label: "Pagos", description: "Define los medios de cobro disponibles en nuevas ventas de POS.", icon: faCreditCard },
   { id: "cat:product_units", label: "Unidades", description: "Define unidades de medida para registrar productos e inventario de forma consistente.", icon: faRulerCombined },
   { id: "cat:courtesy_reasons", label: "Cortesias", description: "Registra los motivos que el equipo debe indicar al entregar una cortesia en POS.", icon: faHandHoldingHeart },
+  { id: "courtesy-rules", label: "Reglas de cortesía", description: "Define productos y cantidades de cortesía permitidos por cada servicio pagado.", icon: faHandHoldingHeart },
   { id: "cat:stock_adjustment_reasons", label: "Stock", description: "Define motivos auditables para ajustes, mermas, reposiciones y transferencias de inventario.", icon: faBoxesStacked },
   { id: "comp:operational", label: "Aportes", description: "Configura el aporte operativo descontado de la produccion antes de calcular una liquidacion.", icon: faSackDollar },
   { id: "comp:reward", label: "Rewards", description: "Configura la comision fija del barbero por servicios cobrados con un reward. No crea rewards para clientes.", icon: faGift },

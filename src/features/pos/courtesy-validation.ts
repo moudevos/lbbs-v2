@@ -47,6 +47,14 @@ export type CourtesyValidationResult =
     }
   | { ok: false; message: string };
 
+export type CourtesyAllowance = {
+  totalCapacity: number;
+  usedCapacity: number;
+  remainingCapacity: number;
+  eligibleProductIds: Set<string>;
+  productCapacity: Map<string, number>;
+};
+
 function benefitMatches(item: CourtesyValidationItem, benefit: CourtesyRuleBenefit) {
   if (!benefit.is_active || benefit.benefit_item_type !== item.itemType) return false;
   if (item.itemType === "service") {
@@ -120,5 +128,81 @@ export function validateCourtesySelection(input: {
   return {
     ok: false,
     message: "Los productos en cortesia requieren una regla activa aplicable para esta sede.",
+  };
+}
+
+/**
+ * Preview only. PostgreSQL validates this again on completion, so a stale
+ * browser can never grant a courtesy by itself.
+ */
+export function getCourtesyAllowance(input: {
+  branchId: string;
+  hasReward: boolean;
+  items: CourtesyValidationItem[];
+  rules: CourtesyRule[];
+  now?: Date;
+}): CourtesyAllowance {
+  const now = (input.now ?? new Date()).getTime();
+  const rules = input.rules
+    .filter((rule) => rule.is_active && (!rule.branch_id || rule.branch_id === input.branchId))
+    .filter((rule) => !rule.starts_at || new Date(rule.starts_at).getTime() <= now)
+    .filter((rule) => !rule.ends_at || new Date(rule.ends_at).getTime() >= now)
+    .filter((rule) => !input.hasReward || rule.allow_with_reward)
+    .sort((left, right) => {
+      const leftSpecificity = Number(Boolean(left.qualifying_service_id)) * 2 + Number(Boolean(left.qualifying_service_category_id));
+      const rightSpecificity = Number(Boolean(right.qualifying_service_id)) * 2 + Number(Boolean(right.qualifying_service_category_id));
+      return rightSpecificity - leftSpecificity
+        || right.minimum_unit_amount - left.minimum_unit_amount
+        || right.priority - left.priority;
+    });
+
+  const matchedRules = input.items.flatMap((item) => {
+    if (item.isCourtesy || item.itemType !== "service") return [];
+    const effectiveUnitAmount = item.quantity > 0 ? Math.max(item.unitPrice, 0) : 0;
+    const rule = rules.find((candidate) =>
+      effectiveUnitAmount >= candidate.minimum_unit_amount
+      && (!candidate.qualifying_service_id || candidate.qualifying_service_id === item.catalogId)
+      && (!candidate.qualifying_service_category_id || candidate.qualifying_service_category_id === item.categoryId));
+    return rule ? [{ rule, quantity: item.quantity }] : [];
+  });
+
+  const totalCapacity = matchedRules.reduce(
+    (total, item) => total + item.rule.maximum_courtesy_items * item.quantity,
+    0,
+  );
+  const usedCapacity = input.items
+    .filter((item) => item.itemType === "product" && item.isCourtesy)
+    .reduce((total, item) => total + item.quantity, 0);
+  const eligibleProductIds = new Set<string>();
+  const productCapacity = new Map<string, number>();
+
+  for (const { rule, quantity } of matchedRules) {
+    const benefits = rule.benefits.filter((benefit) => benefit.is_active && benefit.benefit_item_type === "product");
+    if (benefits.length === 0) {
+      for (const product of input.items.filter((item) => item.itemType === "product" && item.isCourtesyAllowed)) {
+        eligibleProductIds.add(product.catalogId);
+        productCapacity.set(
+          product.catalogId,
+          (productCapacity.get(product.catalogId) ?? 0) + rule.maximum_courtesy_items * quantity,
+        );
+      }
+    }
+    for (const benefit of benefits) {
+      if (benefit.is_active && benefit.benefit_item_type === "product" && benefit.product_id) {
+        eligibleProductIds.add(benefit.product_id);
+        productCapacity.set(
+          benefit.product_id,
+          (productCapacity.get(benefit.product_id) ?? 0) + benefit.max_quantity * quantity,
+        );
+      }
+    }
+  }
+
+  return {
+    totalCapacity,
+    usedCapacity,
+    remainingCapacity: Math.max(totalCapacity - usedCapacity, 0),
+    eligibleProductIds,
+    productCapacity,
   };
 }

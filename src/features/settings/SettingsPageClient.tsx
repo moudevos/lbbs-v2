@@ -11,6 +11,7 @@ import { CompensationRulesPanel, type CompensationKind } from "@/features/settin
 import { RewardsConfigurationSummary } from "@/features/settings/RewardsConfigurationSummary";
 import { WhatsAppTemplatesPanel } from "@/features/settings/WhatsAppTemplatesPanel";
 import { InternalBenefitsPanel } from "@/features/settings/InternalBenefitsPanel";
+import { CourtesyRulesPanel } from "@/features/settings/CourtesyRulesPanel";
 import {
   createEmptySettingForm,
   fetchSettings,
@@ -291,6 +292,8 @@ export function SettingsPageClient() {
         {activeTab === "whatsapp" ? <WhatsAppTemplatesPanel /> : null}
 
         {activeTab === "internal-benefits" ? <InternalBenefitsPanel /> : null}
+
+        {activeTab === "courtesy-rules" ? <CourtesyRulesPanel /> : null}
       </div>
 
       {activeConfig ? (

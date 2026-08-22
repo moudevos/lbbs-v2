@@ -550,13 +550,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (courtesyQuantity > chargeableServiceQuantity) {
-    return NextResponse.json(
-      { error: "Solo puedes registrar una cortesia por cada servicio de pago." },
-      { status: 400 },
-    );
-  }
-
   const checkoutSignature = buildCheckoutSignature({
     branchId,
     customerId,
@@ -885,13 +878,6 @@ export async function POST(request: Request) {
       if (!product || !product.is_active) {
         return NextResponse.json(
           { error: "Uno de los productos ya no esta disponible." },
-          { status: 400 },
-        );
-      }
-
-      if (item.isCourtesy && !product.is_courtesy_allowed) {
-        return NextResponse.json(
-          { error: "Este producto no esta habilitado para cortesia." },
           { status: 400 },
         );
       }

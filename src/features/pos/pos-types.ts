@@ -87,6 +87,35 @@ export type PosProductRecord = {
   is_active: boolean;
 };
 
+export type PosCourtesyRuleBenefit = {
+  id: string;
+  benefit_item_type: "service" | "product";
+  service_id: string | null;
+  product_id: string | null;
+  service_category_id: string | null;
+  product_category_id: string | null;
+  max_quantity: number;
+  max_unit_amount: number | null;
+  is_active: boolean;
+};
+
+export type PosCourtesyRule = {
+  id: string;
+  name: string;
+  branch_id: string | null;
+  priority: number;
+  qualifying_service_id: string | null;
+  qualifying_service_category_id: string | null;
+  minimum_unit_amount: number;
+  maximum_courtesy_items: number;
+  maximum_courtesy_amount: number | null;
+  allow_with_reward: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean;
+  benefits: PosCourtesyRuleBenefit[];
+};
+
 export type PosCatalogTab = "all" | "services" | "products";
 
 export type PosCartItem = {
@@ -95,6 +124,7 @@ export type PosCartItem = {
   item_type: "service" | "product";
   name: string;
   description: string | null;
+  category_id?: string | null;
   category_name: string | null;
   quantity: number;
   unit_price: number;
@@ -105,6 +135,7 @@ export type PosCartItem = {
   duration_minutes?: number;
   stock_quantity?: number;
   is_stockable?: boolean;
+  is_courtesy_allowed?: boolean;
   reservation_suggestion?: boolean;
 };
 
@@ -458,6 +489,7 @@ export type PosBootstrapPayload = {
   customerVarious: PosCustomerRecord | null;
   paymentMethods: PosPaymentMethodRecord[];
   courtesyReasons: PosCourtesyReasonRecord[];
+  courtesyRules: PosCourtesyRule[];
   reservationPrefill?: {
     id: string;
     customer: PosCustomerRecord;

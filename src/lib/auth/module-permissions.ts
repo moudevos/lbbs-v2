@@ -78,14 +78,11 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "products",
     "contacts",
     "reservations",
+    "production",
+    "employee_debts",
   ],
-  barber: [
-    "control",
-    "reservations",
-  ],
-  viewer: [
-    "control",
-  ],
+  barber: ["control", "reservations"],
+  viewer: ["control"],
 };
 
 export const moduleRouteMap: Record<AppModule, string> = {
