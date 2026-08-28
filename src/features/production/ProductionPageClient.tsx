@@ -131,6 +131,7 @@ export function ProductionPageClient() {
   >("active");
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [canGenerate, setCanGenerate] = useState(true);
   const [detailEmployeeId, setDetailEmployeeId] = useState<string | null>(null);
 
@@ -367,6 +368,42 @@ export function ProductionPageClient() {
     }
   }
 
+  async function exportProduction() {
+    if (!periodId) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams({
+        periodId,
+        branchId,
+        employeeId,
+        source,
+        status: productionStatus,
+      });
+      const response = await fetch(`/api/admin/production/export?${params}`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "No se pudo exportar la producción.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? "produccion.xlsx";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo exportar la producción.";
+      console.error("[production/ui] Error al exportar", { message });
+      await Swal.fire({ icon: "error", title: "No se pudo exportar", text: message, confirmButtonColor: "#0f766e" });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   const metricCards = [
     ["Servicios realizados", String(summary.services)],
     ["Bruto de servicios", formatMoney(summary.serviceGross)],
@@ -451,16 +488,16 @@ export function ProductionPageClient() {
             </Select>
           </div>
 
-          {canGenerate ? (
-            <Button
-              type="button"
-              className="shrink-0"
-              disabled={!periodId || isGenerating}
-              onClick={() => void generateProduction()}
-            >
-              {isGenerating ? "Generando..." : "Generar produccion"}
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" className="bg-slate-800 hover:bg-slate-900" disabled={!periodId || isExporting} onClick={() => void exportProduction()}>
+              {isExporting ? "Exportando..." : "Exportar Excel"}
             </Button>
-          ) : null}
+            {canGenerate ? (
+              <Button type="button" disabled={!periodId || isGenerating} onClick={() => void generateProduction()}>
+                {isGenerating ? "Generando..." : "Generar produccion"}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </section>
 
