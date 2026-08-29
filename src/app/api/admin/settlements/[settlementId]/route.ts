@@ -9,10 +9,10 @@ export async function GET(_request: Request, context: { params: Promise<{ settle
   const { settlementId } = await context.params;
   const supabase = await createClient();
   const [settlement, services, bonuses, deductions, adjustments] = await Promise.all([
-    supabase.from("employee_settlements").select("*").eq("id", settlementId).maybeSingle(),
-    supabase.from("employee_settlement_service_lines").select("*").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
+    supabase.from("employee_settlements").select("*, employee:employees!employee_settlements_employee_id_fkey(full_name,document_number,position), branch:branches(name), period:payroll_periods(start_date,end_date,period_half), payment_method:payment_methods(name), reviewed:employees!employee_settlements_reviewed_by_fkey(full_name), approved:employees!employee_settlements_approved_by_fkey(full_name), paid:employees!employee_settlements_paid_by_fkey(full_name)").eq("id", settlementId).maybeSingle(),
+    supabase.from("employee_settlement_service_lines").select("*, production:employee_service_production(original_line_total,operational_contribution_amount)").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
     supabase.from("employee_settlement_bonus_lines").select("*").eq("settlement_id", settlementId),
-    supabase.from("employee_settlement_deductions").select("*, debt:employee_debts(description,outstanding_amount)").eq("settlement_id", settlementId),
+    supabase.from("employee_settlement_deductions").select("*, debt:employee_debts(description,outstanding_amount,debt_type)").eq("settlement_id", settlementId),
     supabase.from("employee_settlement_adjustments").select("*").eq("settlement_id", settlementId),
   ]);
   if (settlement.error) {
@@ -37,7 +37,7 @@ export async function POST(request: Request, context: { params: Promise<{ settle
   const { settlementId } = await context.params;
   const payload = await request.json().catch(() => null);
   const supabase = await createClient();
-  const rpc = payload?.action === "review"
+  const rpc = (payload?.action === "review" || payload?.action === "confirm")
     ? supabase.rpc("review_employee_settlement", { p_settlement_id: settlementId, p_adjustments: payload.adjustments ?? [] })
     : payload?.action === "pay"
     ? supabase.rpc("pay_employee_settlement", { p_settlement_id: settlementId, p_payment_method_id: payload.paymentMethodId, p_amount: Number(payload.amount), p_reference: payload.reference || null, p_evidence_path: payload.evidencePath || null, p_notes: payload.notes || null, p_pos_session_id: payload.posSessionId || null })
@@ -45,7 +45,7 @@ export async function POST(request: Request, context: { params: Promise<{ settle
   const { data, error } = await rpc;
   if (error) {
     console.error("[settlements/action] Error en liquidacion", { settlementId, action: payload?.action, message: error.message, code: error.code });
-    if (payload?.action === "review" && error.code === "PGRST202") {
+    if ((payload?.action === "review" || payload?.action === "confirm") && error.code === "PGRST202") {
       return NextResponse.json(
         {
           error: "La revision de liquidaciones no esta disponible en este entorno.",

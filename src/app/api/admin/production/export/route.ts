@@ -153,8 +153,9 @@ export async function GET(request: Request) {
 
   let productionQuery = supabase
     .from("employee_service_production")
-    .select("employee_id,branch_id,sale_id,accounting_date,production_source,quantity,original_line_total,commercial_discount_amount,reward_discount_amount,courtesy_discount_amount,collected_amount,operational_contribution_amount,commissionable_amount,fixed_commission_amount,status,employee:employees(full_name),branch:branches(name),service:services(name)")
+    .select("employee_id,branch_id,sale_id,accounting_date,production_source,quantity,original_line_total,commercial_discount_amount,reward_discount_amount,courtesy_discount_amount,collected_amount,operational_contribution_amount,commissionable_amount,fixed_commission_amount,status,employee:employees(full_name),branch:branches(name),service:services(name),sale:sales!inner(pos_session:pos_sessions!inner(status))")
     .eq("payroll_period_id", periodId)
+    .eq("sale.pos_session.status", "closed")
     .order("accounting_date", { ascending: true });
   if (branchId) productionQuery = productionQuery.eq("branch_id", branchId);
   if (employeeId) productionQuery = productionQuery.eq("employee_id", employeeId);
@@ -163,9 +164,10 @@ export async function GET(request: Request) {
 
   let bonusesQuery = supabase
     .from("employee_product_bonus_entries")
-    .select("employee_id,branch_id,sale_id,accounting_date,quantity,unit_bonus_amount,total_bonus_amount,status,employee:employees(full_name),branch:branches(name),product:products(name),sale_item:sale_items(description_snapshot,total)")
+    .select("employee_id,branch_id,sale_id,accounting_date,quantity,unit_bonus_amount,total_bonus_amount,status,employee:employees(full_name),branch:branches(name),product:products(name),sale_item:sale_items(description_snapshot,total),sale:sales!inner(pos_session:pos_sessions!inner(status))")
     .eq("payroll_period_id", periodId)
     .order("accounting_date", { ascending: true });
+  bonusesQuery = bonusesQuery.eq("sale.pos_session.status", "closed");
   if (branchId) bonusesQuery = bonusesQuery.eq("branch_id", branchId);
   if (employeeId) bonusesQuery = bonusesQuery.eq("employee_id", employeeId);
   if (status === "active") bonusesQuery = bonusesQuery.in("status", ["active", "pending_review"]);
@@ -312,7 +314,7 @@ export async function GET(request: Request) {
       cell.note = column === 4
         ? "Editable. Porcentaje aplicado a la base comisionable."
         : column === 10
-          ? "Editable. Monto que se descontará de la deuda en esta liquidación."
+          ? "Editable. Monto que se /* descontar */á de la deuda en esta liquidación."
           : "Editable. Descuento adicional sobre el bruto a cobrar.";
     }
   }

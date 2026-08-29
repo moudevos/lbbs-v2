@@ -87,9 +87,10 @@ export async function GET(request: Request) {
   let productionQuery = supabase
     .from("employee_service_production")
     .select(
-      "id, payroll_period_id, employee_id, branch_id, sale_id, production_date, accounting_date, production_source, quantity, original_unit_price, original_line_total, commercial_discount_amount, reward_discount_amount, courtesy_discount_amount, collected_amount, operational_contribution_amount, commissionable_amount, fixed_commission_amount, status, reversed_at, reversed_reason, employee:employees(full_name), branch:branches(name), service:services(name), sale:sales(status,cancelled_at,cancelled_reason)",
+      "id, payroll_period_id, employee_id, branch_id, sale_id, production_date, accounting_date, production_source, quantity, original_unit_price, original_line_total, commercial_discount_amount, reward_discount_amount, courtesy_discount_amount, collected_amount, operational_contribution_amount, commissionable_amount, fixed_commission_amount, status, reversed_at, reversed_reason, employee:employees(full_name), branch:branches(name), service:services(name), sale:sales!inner(status,cancelled_at,cancelled_reason,pos_session:pos_sessions!inner(status))",
     )
     .eq("payroll_period_id", periodId)
+    .eq("sale.pos_session.status", "closed")
     .order("accounting_date", { ascending: false })
     .order("production_date", { ascending: false });
   if (branchId) productionQuery = productionQuery.eq("branch_id", branchId);
@@ -100,9 +101,10 @@ export async function GET(request: Request) {
   let bonusesQuery = supabase
     .from("employee_product_bonus_entries")
     .select(
-      "id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, accounting_date, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total)",
+      "id, payroll_period_id, employee_id, branch_id, sale_id, sale_item_id, accounting_date, quantity, unit_bonus_amount, total_bonus_amount, status, employee:employees(full_name), branch:branches(name), product:products(name), service:services(name), sale_item:sale_items(description_snapshot, total), sale:sales!inner(pos_session:pos_sessions!inner(status))",
     )
     .eq("payroll_period_id", periodId);
+  bonusesQuery = bonusesQuery.eq("sale.pos_session.status", "closed");
   if (branchId) bonusesQuery = bonusesQuery.eq("branch_id", branchId);
   if (employeeId) bonusesQuery = bonusesQuery.eq("employee_id", employeeId);
 
