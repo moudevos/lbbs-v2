@@ -29,6 +29,8 @@ const moduleTitles: Record<string, string> = {
   "/control/deudas-empleados": "Deudas de empleados",
   "/control/dispositivos": "Dispositivos",
   "/control/hotspots": "Hotspots",
+  "/control/finanzas": "Finanzas",
+  "/control/analisis-financiero": "Análisis financiero",
 };
 
 export function Header({ onOpenMobileSidebar }: HeaderProps) {
@@ -48,8 +50,12 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
         </button>
 
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.2em] text-stone-400">Modulo activo</p>
-          <h1 className="truncate text-base font-semibold text-stone-900">{moduleTitle}</h1>
+          <p className="text-xs uppercase tracking-[0.2em] text-stone-400">
+            Modulo activo
+          </p>
+          <h1 className="truncate text-base font-semibold text-stone-900">
+            {moduleTitle}
+          </h1>
         </div>
       </div>
 

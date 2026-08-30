@@ -28,7 +28,11 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { SidebarItem } from "@/components/layout/SidebarItem";
-import { canAccessModule, type AppModule, type AppRole } from "@/lib/auth/module-permissions";
+import {
+  canAccessModule,
+  type AppModule,
+  type AppRole,
+} from "@/lib/auth/module-permissions";
 import { cn } from "@/lib/utils/cn";
 
 type SidebarProps = {
@@ -41,39 +45,205 @@ type SidebarProps = {
 
 const items = [
   { href: "/control", label: "Control", icon: faHouse, module: "control" },
-  { href: "/control/sedes", label: "Sedes", icon: faBuilding, module: "branches" },
-  { href: "/control/equipo", label: "Equipo", icon: faPeopleGroup, module: "employees" },
-  { href: "/control/caja", label: "Caja", icon: faCashRegister, module: "cash" },
+  {
+    href: "/control/sedes",
+    label: "Sedes",
+    icon: faBuilding,
+    module: "branches",
+  },
+  {
+    href: "/control/equipo",
+    label: "Equipo",
+    icon: faPeopleGroup,
+    module: "employees",
+  },
+  {
+    href: "/control/caja",
+    label: "Caja",
+    icon: faCashRegister,
+    module: "cash",
+  },
   { href: "/control/pos", label: "POS", icon: faCashRegister, module: "pos" },
-  { href: "/control/rewards", label: "Rewards", icon: faGift, module: "rewards" },
-  { href: "/control/ventas", label: "Ventas", icon: faFileInvoiceDollar, module: "sales" },
-  { href: "/control/configuracion?tab=cat:service_categories", label: "Servicios", icon: faScissors, module: "settings" },
-  { href: "/control/configuracion?tab=cat:product_categories", label: "Productos", icon: faBoxOpen, module: "settings" },
-  { href: "/control/configuracion?tab=cat:payment_methods", label: "Pagos", icon: faMoneyCheckDollar, module: "settings" },
-  { href: "/control/configuracion?tab=cat:product_units", label: "Unidades", icon: faBoxOpen, module: "settings" },
-  { href: "/control/configuracion?tab=cat:courtesy_reasons", label: "Cortesias", icon: faGift, module: "settings" },
-  { href: "/control/configuracion?tab=courtesy-rules", label: "Reglas de cortesias", icon: faGift, module: "settings" },
-  { href: "/control/configuracion?tab=cat:stock_adjustment_reasons", label: "Stock", icon: faBoxOpen, module: "settings" },
-  { href: "/control/configuracion?tab=comp:operational", label: "Aportes", icon: faHandHoldingDollar, module: "settings" },
-  { href: "/control/configuracion?tab=comp:reward", label: "Com. rewards", icon: faGift, module: "settings" },
-  { href: "/control/configuracion?tab=comp:courtesy", label: "Com. cortesias", icon: faGift, module: "settings" },
-  { href: "/control/configuracion?tab=comp:product_bonus", label: "Bonos", icon: faChartLine, module: "settings" },
-  { href: "/control/configuracion?tab=comp:supply_markup", label: "Recargos", icon: faCalculator, module: "settings" },
-  { href: "/control/configuracion?tab=rewards", label: "Fidelizacion", icon: faGift, module: "settings" },
-  { href: "/control/configuracion?tab=whatsapp", label: "Plantillas", icon: faComments, module: "settings" },
-  { href: "/control/configuracion?tab=internal-benefits", label: "Beneficios internos", icon: faUsers, module: "settings" },
-  { href: "/control/servicios", label: "Servicios", icon: faScissors, module: "services" },
-  { href: "/control/productos", label: "Productos", icon: faBoxOpen, module: "products" },
-  { href: "/control/clientes", label: "Clientes", icon: faUsers, module: "customers" },
-  { href: "/control/contactos", label: "Contactos", icon: faComments, module: "contacts" },
-  { href: "/control/reservas", label: "Reservas", icon: faCalendarDays, module: "reservations" },
-  { href: "/control/produccion", label: "Produccion", icon: faChartLine, module: "production" },
-  { href: "/control/liquidaciones", label: "Liquidaciones", icon: faMoneyCheckDollar, module: "settlements" },
-  { href: "/control/simulaciones-pago", label: "Simulaciones", icon: faCalculator, module: "payment_simulations" },
-  { href: "/control/finanzas", label: "Finanzas", icon: faMoneyCheckDollar, module: "finance" },
-  { href: "/control/deudas-empleados", label: "Deudas de empleados", icon: faHandHoldingDollar, module: "employee_debts" },
-  { href: "/control/dispositivos", label: "Dispositivos", icon: faMobileScreenButton, module: "devices" },
-  { href: "/control/hotspots", label: "Hotspots", icon: faWifi, module: "hotspots" },
+  {
+    href: "/control/rewards",
+    label: "Rewards",
+    icon: faGift,
+    module: "rewards",
+  },
+  {
+    href: "/control/ventas",
+    label: "Ventas",
+    icon: faFileInvoiceDollar,
+    module: "sales",
+  },
+  {
+    href: "/control/configuracion?tab=cat:service_categories",
+    label: "Servicios",
+    icon: faScissors,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=cat:product_categories",
+    label: "Productos",
+    icon: faBoxOpen,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=cat:payment_methods",
+    label: "Pagos",
+    icon: faMoneyCheckDollar,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=cat:product_units",
+    label: "Unidades",
+    icon: faBoxOpen,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=cat:courtesy_reasons",
+    label: "Cortesias",
+    icon: faGift,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=courtesy-rules",
+    label: "Reglas de cortesias",
+    icon: faGift,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=cat:stock_adjustment_reasons",
+    label: "Stock",
+    icon: faBoxOpen,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=comp:operational",
+    label: "Aportes",
+    icon: faHandHoldingDollar,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=comp:reward",
+    label: "Com. rewards",
+    icon: faGift,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=comp:courtesy",
+    label: "Com. cortesias",
+    icon: faGift,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=comp:product_bonus",
+    label: "Bonos",
+    icon: faChartLine,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=comp:supply_markup",
+    label: "Recargos",
+    icon: faCalculator,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=rewards",
+    label: "Fidelizacion",
+    icon: faGift,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=whatsapp",
+    label: "Plantillas",
+    icon: faComments,
+    module: "settings",
+  },
+  {
+    href: "/control/configuracion?tab=internal-benefits",
+    label: "Beneficios internos",
+    icon: faUsers,
+    module: "settings",
+  },
+  {
+    href: "/control/servicios",
+    label: "Servicios",
+    icon: faScissors,
+    module: "services",
+  },
+  {
+    href: "/control/productos",
+    label: "Productos",
+    icon: faBoxOpen,
+    module: "products",
+  },
+  {
+    href: "/control/clientes",
+    label: "Clientes",
+    icon: faUsers,
+    module: "customers",
+  },
+  {
+    href: "/control/contactos",
+    label: "Contactos",
+    icon: faComments,
+    module: "contacts",
+  },
+  {
+    href: "/control/reservas",
+    label: "Reservas",
+    icon: faCalendarDays,
+    module: "reservations",
+  },
+  {
+    href: "/control/produccion",
+    label: "Produccion",
+    icon: faChartLine,
+    module: "production",
+  },
+  {
+    href: "/control/liquidaciones",
+    label: "Liquidaciones",
+    icon: faMoneyCheckDollar,
+    module: "settlements",
+  },
+  {
+    href: "/control/simulaciones-pago",
+    label: "Simulaciones",
+    icon: faCalculator,
+    module: "payment_simulations",
+  },
+  {
+    href: "/control/finanzas",
+    label: "Finanzas",
+    icon: faMoneyCheckDollar,
+    module: "finance",
+  },
+  {
+    href: "/control/analisis-financiero",
+    label: "Análisis financiero",
+    icon: faChartLine,
+    module: "financial_analysis",
+  },
+  {
+    href: "/control/deudas-empleados",
+    label: "Deudas de empleados",
+    icon: faHandHoldingDollar,
+    module: "employee_debts",
+  },
+  {
+    href: "/control/dispositivos",
+    label: "Dispositivos",
+    icon: faMobileScreenButton,
+    module: "devices",
+  },
+  {
+    href: "/control/hotspots",
+    label: "Hotspots",
+    icon: faWifi,
+    module: "hotspots",
+  },
 ] satisfies Array<{
   href: string;
   label: string;
@@ -89,15 +259,39 @@ type SidebarGroup = {
 
 const groups: SidebarGroup[] = [
   { id: "principal", label: "Principal", modules: ["control"] },
-  { id: "operacion", label: "Operacion", modules: ["pos", "sales", "cash", "reservations"] },
-  { id: "clientes", label: "Clientes", modules: ["customers", "contacts", "rewards"] },
+  {
+    id: "operacion",
+    label: "Operacion",
+    modules: ["pos", "sales", "cash", "reservations"],
+  },
+  {
+    id: "clientes",
+    label: "Clientes",
+    modules: ["customers", "contacts", "rewards"],
+  },
   { id: "catalogo", label: "Catalogo", modules: ["services", "products"] },
-  { id: "personal", label: "Personal", modules: ["production", "settlements", "payment_simulations", "employee_debts"] },
+  {
+    id: "personal",
+    label: "Personal",
+    modules: [
+      "production",
+      "settlements",
+      "payment_simulations",
+      "employee_debts",
+    ],
+  },
   { id: "configuracion", label: "Configuracion", modules: ["settings"] },
   {
     id: "administracion",
     label: "Administracion",
-    modules: ["branches", "employees", "finance", "devices", "hotspots"],
+    modules: [
+      "branches",
+      "employees",
+      "finance",
+      "financial_analysis",
+      "devices",
+      "hotspots",
+    ],
   },
 ];
 
@@ -149,12 +343,17 @@ export function Sidebar({
       groups
         .map((group) => ({
           ...group,
-          items: visibleItems.filter((item) => group.modules.includes(item.module)),
+          items: visibleItems.filter((item) =>
+            group.modules.includes(item.module),
+          ),
         }))
         .filter((group) => group.items.length > 0),
     [visibleItems],
   );
-  const activeGroupId = visibleGroups.find((group) => group.items.some((item) => isRouteActive(pathname, search, item.href)))?.id ?? null;
+  const activeGroupId =
+    visibleGroups.find((group) =>
+      group.items.some((item) => isRouteActive(pathname, search, item.href)),
+    )?.id ?? null;
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -218,8 +417,12 @@ export function Sidebar({
               </div>
               {!isCollapsed ? (
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">LA BAJADITA</p>
-                  <p className="truncate text-xs text-slate-400">Panel de control</p>
+                  <p className="truncate text-sm font-semibold text-white">
+                    LA BAJADITA
+                  </p>
+                  <p className="truncate text-xs text-slate-400">
+                    Panel de control
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -248,12 +451,17 @@ export function Sidebar({
                   icon={item.icon}
                   active={isRouteActive(pathname, search, item.href)}
                   collapsed
-                  pending={pendingHref === item.href && !isRouteActive(pathname, search, item.href)}
+                  pending={
+                    pendingHref === item.href &&
+                    !isRouteActive(pathname, search, item.href)
+                  }
                   onNavigate={() => setPendingHref(item.href)}
                 />
               ))
             : visibleGroups.map((group) => {
-                const hasActiveItem = group.items.some((item) => isRouteActive(pathname, search, item.href));
+                const hasActiveItem = group.items.some((item) =>
+                  isRouteActive(pathname, search, item.href),
+                );
                 const isOpen = hasActiveItem || openGroupId === group.id;
 
                 return (
@@ -266,7 +474,10 @@ export function Sidebar({
                       <span>{group.label}</span>
                       <FontAwesomeIcon
                         icon={isOpen ? faChevronLeft : faChevronRight}
-                        className={cn("h-3 w-3 transition-transform", isOpen ? "-rotate-90" : "rotate-0")}
+                        className={cn(
+                          "h-3 w-3 transition-transform",
+                          isOpen ? "-rotate-90" : "rotate-0",
+                        )}
                       />
                     </button>
 
@@ -280,7 +491,10 @@ export function Sidebar({
                             icon={item.icon}
                             active={isRouteActive(pathname, search, item.href)}
                             collapsed={false}
-                            pending={pendingHref === item.href && !isRouteActive(pathname, search, item.href)}
+                            pending={
+                              pendingHref === item.href &&
+                              !isRouteActive(pathname, search, item.href)
+                            }
                             onNavigate={() => setPendingHref(item.href)}
                           />
                         ))}
@@ -313,8 +527,12 @@ export function Sidebar({
                 />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">LA BAJADITA</p>
-                <p className="truncate text-xs text-slate-400">Panel de control</p>
+                <p className="truncate text-sm font-semibold text-white">
+                  LA BAJADITA
+                </p>
+                <p className="truncate text-xs text-slate-400">
+                  Panel de control
+                </p>
               </div>
             </div>
 
@@ -331,7 +549,9 @@ export function Sidebar({
         <DotGlow />
         <nav className="flex-1 space-y-3 overflow-y-auto p-3">
           {visibleGroups.map((group) => {
-            const hasActiveItem = group.items.some((item) => isRouteActive(pathname, search, item.href));
+            const hasActiveItem = group.items.some((item) =>
+              isRouteActive(pathname, search, item.href),
+            );
             const isOpen = hasActiveItem || openGroupId === group.id;
 
             return (
@@ -344,7 +564,10 @@ export function Sidebar({
                   <span>{group.label}</span>
                   <FontAwesomeIcon
                     icon={isOpen ? faChevronLeft : faChevronRight}
-                    className={cn("h-3 w-3 transition-transform", isOpen ? "-rotate-90" : "rotate-0")}
+                    className={cn(
+                      "h-3 w-3 transition-transform",
+                      isOpen ? "-rotate-90" : "rotate-0",
+                    )}
                   />
                 </button>
 
@@ -358,8 +581,14 @@ export function Sidebar({
                         icon={item.icon}
                         active={isRouteActive(pathname, search, item.href)}
                         collapsed={false}
-                        pending={pendingHref === item.href && !isRouteActive(pathname, search, item.href)}
-                        onNavigate={() => { setPendingHref(item.href); onCloseMobile(); }}
+                        pending={
+                          pendingHref === item.href &&
+                          !isRouteActive(pathname, search, item.href)
+                        }
+                        onNavigate={() => {
+                          setPendingHref(item.href);
+                          onCloseMobile();
+                        }}
                       />
                     ))}
                   </div>

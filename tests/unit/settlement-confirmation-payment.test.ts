@@ -70,4 +70,12 @@ describe("flujo final de liquidaciones", () => {
     expect(route).toContain("availableForDebt");
     expect(route).toContain("deudas vigentes más antiguas");
   });
+
+  it("no bloquea el checkout mientras la sesión POS esté abierta", async () => {
+    const sql = await readFile(path.resolve(root, "src/sql/145_defer_sale_production_until_pos_closure.sql"), "utf8");
+
+    expect(sql).toContain("session.status = 'closed'");
+    expect(sql).toContain("new.status = 'cancelled'");
+    expect(sql).toContain("sales_production_sync_trigger");
+  });
 });

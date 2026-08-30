@@ -11,8 +11,9 @@ const cashCategories = [
 ] as const;
 
 const financeCategories = [
-  { name: "Otros ingresos", code: "other_income", direction: "income", sort_order: 100, is_active: true },
-  { name: "Gastos operativos", code: "operating_expense", direction: "expense", sort_order: 100, is_active: true },
+  { name: "Otros ingresos", code: "other_income", direction: "income", financial_group: "operating_income", affects_profit: true, sort_order: 100, is_active: true },
+  { name: "Gastos operativos", code: "operating_expense", direction: "expense", financial_group: "operating_expense", affects_profit: true, sort_order: 100, is_active: true },
+  { name: "Otro egreso", code: "other_expense", direction: "expense", financial_group: "operating_expense", affects_profit: true, sort_order: 101, is_active: true },
 ] as const;
 
 async function ensureRows(
