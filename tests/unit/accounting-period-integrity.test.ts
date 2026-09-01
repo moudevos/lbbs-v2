@@ -54,4 +54,35 @@ describe("fecha contable y periodos", () => {
       expect(source).not.toContain("new Date().toISOString().slice(0, 10)");
     }
   });
+
+  it("el historial de ventas filtra por la fecha contable de la sesión, no por un límite UTC", async () => {
+    const route = await readFile(path.resolve(root, "src/app/api/admin/sales/route.ts"), "utf8");
+
+    expect(route).toContain('gte("accounting_date", dateFrom)');
+    expect(route).toContain('lte("accounting_date", dateTo)');
+    expect(route).toContain('order("accounting_date", { ascending: false })');
+    expect(route).not.toContain('gte("created_at", startOfDay');
+    expect(route).not.toContain('lte("created_at", endOfDay');
+  });
+
+  it("producción y liquidaciones permanecen vinculadas al período y fecha operativa contables", async () => {
+    const [production, settlements] = await Promise.all([
+      readFile(path.resolve(root, "src/app/api/admin/production/route.ts"), "utf8"),
+      readFile(path.resolve(root, "src/app/api/admin/settlements/route.ts"), "utf8"),
+    ]);
+
+    expect(production).toContain('.eq("payroll_period_id", periodId)');
+    expect(production).toContain('.eq("sale.pos_session.status", "closed")');
+    expect(settlements).toContain('rpc("pos_business_date")');
+    expect(settlements).toContain('rpc("get_or_create_payroll_period"');
+  });
+
+  it("calcula el aporte operativo normal por unidad de servicio aunque el carrito consolide cantidades", async () => {
+    const sql = await readFile(path.resolve(root, "src/sql/152_operational_contribution_per_service_unit.sql"), "utf8");
+
+    expect(sql).toContain("v_unit_collected := case when v_item.quantity > 0 then round(v_collected / v_item.quantity, 2) else 0 end");
+    expect(sql).toContain("v_item.quantity * public.calculate_operational_contribution(v_unit_collected, v_sale.accounting_date)");
+    expect(sql).not.toContain("public.calculate_operational_contribution(v_collected, v_sale.accounting_date)");
+    expect(sql).toContain("when v_source in ('reward', 'courtesy') then 0");
+  });
 });

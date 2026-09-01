@@ -41,6 +41,7 @@ function formatDateTime(value: string | null) {
   return new Intl.DateTimeFormat("es-PE", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Lima",
   }).format(new Date(value));
 }
 
@@ -173,7 +174,7 @@ export function SalesPanel() {
             <div>
               <p className="text-sm font-semibold text-slate-900">Historial de ventas</p>
               <p className="mt-1 text-sm text-slate-600">
-                Filtra ventas cerradas, borradores y anuladas del POS.
+                Los filtros de fecha usan la jornada operativa de Lima.
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
@@ -320,7 +321,7 @@ export function SalesPanel() {
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-2.5 font-semibold">Nº venta</th>
-                  <th className="px-3 py-2.5 font-semibold">Fecha/hora</th>
+                  <th className="px-3 py-2.5 font-semibold">Fecha/hora (Lima)</th>
                   <th className="px-3 py-2.5 font-semibold">Cliente</th>
                   <th className="px-3 py-2.5 font-semibold">Sede</th>
                   <th className="px-3 py-2.5 text-right font-semibold">Total</th>

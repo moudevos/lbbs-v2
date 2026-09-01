@@ -19,6 +19,7 @@ type SaleRow = {
   paid_total: number | string;
   change_amount: number | string;
   courtesy_total: number | string;
+  accounting_date: string;
   created_at: string;
   closed_at: string | null;
   customer?: { full_name: string | null }[] | { full_name: string | null } | null;
@@ -50,14 +51,6 @@ function unwrapRelation<T>(value: T[] | T | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
 
-function startOfDay(value: string) {
-  return `${value}T00:00:00.000Z`;
-}
-
-function endOfDay(value: string) {
-  return `${value}T23:59:59.999Z`;
-}
-
 function formatSessionLabel(sessionId: string) {
   return `SES-${sessionId.slice(0, 8).toUpperCase()}`;
 }
@@ -86,17 +79,18 @@ export async function GET(request: Request) {
     let salesQuery = supabase
       .from("sales")
       .select(
-        "id, pos_session_id, branch_id, barber_id, status, total, paid_total, change_amount, courtesy_total, created_at, closed_at, customer:customers(full_name), branch:branches(name), barber:employees!sales_barber_id_fkey(full_name)",
+        "id, pos_session_id, branch_id, barber_id, status, total, paid_total, change_amount, courtesy_total, accounting_date, created_at, closed_at, customer:customers(full_name), branch:branches(name), barber:employees!sales_barber_id_fkey(full_name)",
       )
+      .order("accounting_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(200);
 
     if (dateFrom) {
-      salesQuery = salesQuery.gte("created_at", startOfDay(dateFrom));
+      salesQuery = salesQuery.gte("accounting_date", dateFrom);
     }
 
     if (dateTo) {
-      salesQuery = salesQuery.lte("created_at", endOfDay(dateTo));
+      salesQuery = salesQuery.lte("accounting_date", dateTo);
     }
 
     if (branchId) {
