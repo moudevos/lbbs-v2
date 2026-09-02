@@ -76,6 +76,25 @@ export async function GET(request: Request) {
   const courtesy = trimOrNull(searchParams.get("courtesy"));
 
   try {
+    // RLS restringe las ventas y sesiones POS por sede. Repetimos el alcance
+    // en los catálogos de filtros para que un admin asignado no vea opciones
+    // de otras sedes ni pueda intentar consultarlas desde la URL.
+    const adminBranchResult =
+      auth.role === "admin"
+        ? await supabase
+            .from("employees")
+            .select("branch_id")
+            .eq("user_id", auth.userId)
+            .maybeSingle()
+        : { data: null, error: null };
+
+    if (adminBranchResult.error) {
+      throw new Error("No se pudo validar la sede asignada del administrador.");
+    }
+
+    const assignedAdminBranchId = adminBranchResult.data?.branch_id ?? null;
+    const effectiveBranchId = assignedAdminBranchId ?? branchId;
+
     let salesQuery = supabase
       .from("sales")
       .select(
@@ -93,8 +112,8 @@ export async function GET(request: Request) {
       salesQuery = salesQuery.lte("accounting_date", dateTo);
     }
 
-    if (branchId) {
-      salesQuery = salesQuery.eq("branch_id", branchId);
+    if (effectiveBranchId) {
+      salesQuery = salesQuery.eq("branch_id", effectiveBranchId);
     }
 
     if (status) {
@@ -109,26 +128,36 @@ export async function GET(request: Request) {
       salesQuery = salesQuery.eq("pos_session_id", posSessionId);
     }
 
+    let branchesQuery = supabase.from("branches").select("id, name").order("name", { ascending: true });
+    let barbersQuery = supabase
+      .from("employees")
+      .select("id, full_name")
+      .eq("role", "barber")
+      .eq("status", "active")
+      .order("full_name", { ascending: true });
+    let sessionsQuery = supabase
+      .from("pos_sessions")
+      .select("id, opened_at, branch:branches(name)")
+      .order("opened_at", { ascending: false })
+      .limit(60);
+
+    if (assignedAdminBranchId) {
+      branchesQuery = branchesQuery.eq("id", assignedAdminBranchId);
+      barbersQuery = barbersQuery.eq("branch_id", assignedAdminBranchId);
+      sessionsQuery = sessionsQuery.eq("branch_id", assignedAdminBranchId);
+    }
+
     const [salesResult, branchesResult, barbersResult, paymentMethodsResult, sessionsResult] =
       await Promise.all([
         salesQuery,
-        supabase.from("branches").select("id, name").order("name", { ascending: true }),
-        supabase
-          .from("employees")
-          .select("id, full_name")
-          .eq("role", "barber")
-          .eq("status", "active")
-          .order("full_name", { ascending: true }),
+        branchesQuery,
+        barbersQuery,
         supabase
           .from("payment_methods")
           .select("id, name")
           .eq("is_active", true)
           .order("sort_order", { ascending: true }),
-        supabase
-          .from("pos_sessions")
-          .select("id, opened_at, branch:branches(name)")
-          .order("opened_at", { ascending: false })
-          .limit(60),
+        sessionsQuery,
       ]);
 
     if (

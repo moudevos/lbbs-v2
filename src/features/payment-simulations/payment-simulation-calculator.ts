@@ -13,7 +13,9 @@ export function calculatePaymentSimulation(input: PaymentSimulationInput) {
     ? Math.max(0, input.mandatoryDiscountRate)
     : 0;
   const beforeDiscount = Math.max(0, gross - previousDeductions);
-  const mandatoryDiscount = beforeDiscount * rate / 100;
+  // El descuento obligatorio pertenece a la producción generada, no al
+  // saldo que queda luego de descontar deudas u otros conceptos.
+  const mandatoryDiscount = gross * rate / 100;
 
   return {
     beforeDiscount,

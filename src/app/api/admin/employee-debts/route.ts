@@ -108,7 +108,11 @@ export async function GET(request: Request) {
       branches: branches.data ?? [],
       paymentMethods: paymentMethods.data ?? [],
     },
-    permissions: { canRecordPayments: auth.role !== "reception" },
+    permissions: {
+      canRecordPayments: auth.role !== "reception",
+      canCreatePenalty: auth.role !== "reception",
+      canWaiveDebts: auth.role !== "reception",
+    },
   });
 }
 
@@ -168,6 +172,21 @@ export async function POST(request: Request) {
       p_notes: body.notes || null,
       p_payment_method_id: body.paymentMethodId || null,
       p_payment_reference: body.reference || null,
+    });
+  } else if (body?.action === "waive") {
+    if (auth.role === "reception")
+      return NextResponse.json(
+        { error: "Recepción no puede dejar deudas sin efecto." },
+        { status: 403 },
+      );
+    if (!body.debtId || !String(body.reason ?? "").trim())
+      return NextResponse.json(
+        { error: "Selecciona una deuda e indica el motivo obligatorio." },
+        { status: 400 },
+      );
+    result = await supabase.rpc("waive_employee_debt", {
+      p_debt_id: body.debtId,
+      p_reason: String(body.reason).trim(),
     });
   } else
     return NextResponse.json({ error: "Acción no válida." }, { status: 400 });

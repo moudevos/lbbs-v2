@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { calculatePaymentSimulation } from "@/features/payment-simulations/payment-simulation-calculator";
 
 describe("simulacion temporal de pagos", () => {
-  it("aplica deducciones antes del porcentaje obligatorio", () => {
+  it("calcula el porcentaje obligatorio sobre toda la producción antes de deducciones", () => {
     expect(calculatePaymentSimulation({ gross: 1_000, previousDeductions: 10, mandatoryDiscountRate: 1 })).toEqual({
       beforeDiscount: 990,
-      mandatoryDiscount: 9.9,
-      estimatedNet: 980.1,
+      mandatoryDiscount: 10,
+      estimatedNet: 980,
     });
   });
 

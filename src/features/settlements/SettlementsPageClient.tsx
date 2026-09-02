@@ -29,6 +29,7 @@ const debtLabels: Record<string, string> = {
   advance: "Adelantos",
   supply: "Insumos",
   internal_credit: "Crédito interno",
+  penalty: "Penalidades",
   other: "Otros descuentos",
 };
 

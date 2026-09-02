@@ -50,7 +50,7 @@ type Data = {
     branches: Array<{ id: string; name: string }>;
     paymentMethods: Array<{ id: string; name: string }>;
   };
-  permissions?: { canRecordPayments?: boolean };
+  permissions?: { canRecordPayments?: boolean; canCreatePenalty?: boolean; canWaiveDebts?: boolean };
 };
 const rel = (value: Rel, key: "name" | "full_name" | "settlement_number") =>
   (Array.isArray(value) ? value[0] : value)?.[key] ?? "—";
@@ -59,6 +59,7 @@ const typeLabel: Record<string, string> = {
   advance: "Adelanto",
   supply: "Insumo",
   internal_credit: "Crédito POS",
+  penalty: "Penalidad",
   other: "Otro",
 };
 const stateLabel: Record<string, string> = {
@@ -85,7 +86,7 @@ export function EmployeeDebtsPageClient() {
   const [branchId, setBranchId] = useState("");
   const [status, setStatus] = useState("open");
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState<"" | "create" | "payment" | "history">("");
+  const [mode, setMode] = useState<"" | "create" | "payment" | "waive" | "history">("");
   const [debt, setDebt] = useState<Debt | null>(null);
   const [form, setForm] = useState<Record<string, string>>({
     debtType: "loan",
@@ -139,6 +140,8 @@ export function EmployeeDebtsPageClient() {
   const history =
     data?.movements.filter((item) => item.debt_id === debt?.id) ?? [];
   const canRecordPayments = data?.permissions?.canRecordPayments !== false;
+  const canCreatePenalty = data?.permissions?.canCreatePenalty !== false;
+  const canWaiveDebts = data?.permissions?.canWaiveDebts !== false;
   const set = (key: string, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
   const create = () => {
@@ -159,11 +162,19 @@ export function EmployeeDebtsPageClient() {
     setForm({ amount: String(item.outstanding_amount) });
     setMode("payment");
   };
+  const waive = (item: Debt) => {
+    if (!canWaiveDebts) return;
+    setDebt(item);
+    setForm({ reason: "" });
+    setMode("waive");
+  };
   async function submit() {
     const payload =
       mode === "create"
         ? { action: "create", ...form }
-        : { action: "payment", debtId: debt?.id, ...form };
+        : mode === "waive"
+          ? { action: "waive", debtId: debt?.id, ...form }
+          : { action: "payment", debtId: debt?.id, ...form };
     const r = await fetch("/api/admin/employee-debts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -183,7 +194,7 @@ export function EmployeeDebtsPageClient() {
     await load();
     await Swal.fire({
       icon: "success",
-      title: mode === "payment" ? "Pago registrado" : "Deuda registrada",
+      title: mode === "payment" ? "Pago registrado" : mode === "waive" ? "Deuda dejada sin efecto" : "Deuda registrada",
       timer: 1200,
       showConfirmButton: false,
     });
@@ -342,6 +353,11 @@ export function EmployeeDebtsPageClient() {
                             Cobrar
                           </Button>
                         ) : null}
+                        {canWaiveDebts && ["pending", "partial"].includes(item.status) ? (
+                          <Button type="button" className="h-8 bg-rose-100 px-2 text-xs text-rose-700 hover:bg-rose-200" onClick={() => waive(item)}>
+                            Dejar sin efecto
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -420,6 +436,7 @@ export function EmployeeDebtsPageClient() {
               <option value="loan">Préstamo</option>
               <option value="advance">Adelanto</option>
               <option value="supply">Insumo pendiente</option>
+              {canCreatePenalty ? <option value="penalty">Penalidad</option> : null}
               <option value="other">Otro cargo</option>
             </Select>
           </label>
@@ -437,6 +454,16 @@ export function EmployeeDebtsPageClient() {
             onChange={(e) => set("description", e.target.value)}
           />
         </div>
+      </Modal>
+      <Modal
+        open={mode === "waive"}
+        title="Dejar deuda sin efecto"
+        description={debt ? `No elimina el historial: anula el saldo pendiente de ${formatMoney(Number(debt.outstanding_amount))} y deja una auditoría.` : undefined}
+        onClose={() => setMode("")}
+        size="md"
+        footer={<div className="flex justify-end gap-2"><Button type="button" className="bg-white text-slate-700" onClick={() => setMode("")}>Cancelar</Button><Button type="button" className="bg-rose-600 hover:bg-rose-700" onClick={() => void submit()}>Confirmar anulación</Button></div>}
+      >
+        <Textarea placeholder="Motivo obligatorio" value={form.reason ?? ""} onChange={(e) => set("reason", e.target.value)} />
       </Modal>
       <Modal
         open={mode === "payment"}
