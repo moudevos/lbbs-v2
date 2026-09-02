@@ -25,6 +25,9 @@ describe("deudas auditadas y conciliación por sede", () => {
     expect(route).toContain("operational_contribution_amount");
     expect(route).toContain("branchReconciliations");
     expect(client).toContain("Conciliación diaria por sede");
-    expect(client).toContain("Cierre real");
+    expect(client).toContain("Total real de venta");
+    expect(client).toContain("Total real de cobro");
+    expect(client).toContain("Costo de cortesías");
+    expect(route).toContain("employeeDebtCharges");
   });
 });

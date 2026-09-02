@@ -29,6 +29,8 @@ export async function GET(request: Request) {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
   const dateFrom = isDate(params.get("dateFrom")) ? params.get("dateFrom")! : today;
   const dateTo = isDate(params.get("dateTo")) ? params.get("dateTo")! : dateFrom;
+  const timestampStart = new Date(`${dateFrom}T00:00:00-05:00`).toISOString();
+  const timestampEnd = new Date(`${dateTo}T23:59:59.999-05:00`).toISOString();
   let salesQuery = supabase.from("sales").select("id, branch_id, pos_session_id, status, subtotal, total, paid_total, discount_total, courtesy_total, accounting_date, pos_session:pos_sessions(status), branch:branches(name)").gte("accounting_date", dateFrom).lte("accounting_date", dateTo);
   let itemsQuery = supabase.from("sale_items").select("item_type, quantity, unit_price, total, sale:sales!inner(branch_id, status, accounting_date)").eq("sale.status", "completed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
   let paymentsQuery = supabase.from("sale_payments").select("amount, payment_method:payment_methods(code,name,sort_order,payment_kind), sale:sales!inner(branch_id, status, accounting_date, pos_session:pos_sessions(status))").eq("sale.status", "completed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
@@ -48,15 +50,19 @@ export async function GET(request: Request) {
   let branchesQuery = supabase.from("branches").select("id,name").eq("is_active", true).order("name");
   let dailySessionsQuery = supabase.from("pos_sessions").select("id,branch_id,status,business_date,branch:branches(name)").gte("business_date", dateFrom).lte("business_date", dateTo);
   let productionQuery = supabase.from("employee_service_production").select("branch_id,operational_contribution_amount,sale:sales!inner(status,accounting_date,pos_session:pos_sessions!inner(status))").eq("status", "active").eq("sale.status", "completed").eq("sale.pos_session.status", "closed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
-  let rewardsQuery = supabase.from("reward_redemptions").select("discount_amount,sale:sales!inner(branch_id,status,accounting_date)").eq("status", "applied").eq("sale.status", "completed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
+  let rewardsQuery = supabase.from("reward_redemptions").select("discount_amount,sale:sales!inner(branch_id,status,accounting_date,pos_session:pos_sessions!inner(status))").eq("status", "applied").eq("sale.status", "completed").eq("sale.pos_session.status", "closed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
+  let courtesyCostsQuery = supabase.from("sale_items").select("quantity,cost_snapshot,product:products(cost_price),sale:sales!inner(branch_id,status,accounting_date,pos_session:pos_sessions!inner(status))").eq("is_courtesy", true).eq("item_type", "product").eq("sale.status", "completed").eq("sale.pos_session.status", "closed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
+  let debtChargesQuery = supabase.from("employee_debt_movements").select("amount,debt:employee_debts!inner(branch_id)").eq("movement_type", "charge").gte("created_at", timestampStart).lte("created_at", timestampEnd);
   if (branchId) {
     branchesQuery = branchesQuery.eq("id", branchId);
     dailySessionsQuery = dailySessionsQuery.eq("branch_id", branchId);
     productionQuery = productionQuery.eq("branch_id", branchId);
     rewardsQuery = rewardsQuery.eq("sale.branch_id", branchId);
+    courtesyCostsQuery = courtesyCostsQuery.eq("sale.branch_id", branchId);
+    debtChargesQuery = debtChargesQuery.eq("debt.branch_id", branchId);
   }
-  const [branchesResult, dailySessionsResult, productionResult, rewardsResult] = await Promise.all([branchesQuery, dailySessionsQuery, productionQuery, rewardsQuery]);
-  const reconciliationError = branchesResult.error ?? dailySessionsResult.error ?? productionResult.error ?? rewardsResult.error;
+  const [branchesResult, dailySessionsResult, productionResult, rewardsResult, courtesyCostsResult, debtChargesResult] = await Promise.all([branchesQuery, dailySessionsQuery, productionQuery, rewardsQuery, courtesyCostsQuery, debtChargesQuery]);
+  const reconciliationError = branchesResult.error ?? dailySessionsResult.error ?? productionResult.error ?? rewardsResult.error ?? courtesyCostsResult.error ?? debtChargesResult.error;
   if (reconciliationError) {
     console.error("[control/kpis] Error al cargar conciliación", { message: reconciliationError.message, code: reconciliationError.code, branchId });
     return NextResponse.json({ error: "No se pudo cargar la conciliación diaria." }, { status: 500 });
@@ -88,11 +94,12 @@ export async function GET(request: Request) {
     return accumulator;
   }, { employeeCredit: 0, complimentaryRetail: 0, complimentaryDiscount: 0, benefitRetail: 0, benefitDiscount: 0 });
   const financial = role === "owner" || role === "admin" || role === "reception";
-  const reconciliation = new Map<string, { id: string; branchName: string; statuses: string[]; grossSales: number; serviceGross: number; otherGross: number; rewardsCount: number; rewardsAmount: number; operationalContribution: number; closingTotal: number }>();
-  for (const branch of branchesResult.data ?? []) reconciliation.set(branch.id, { id: branch.id, branchName: branch.name, statuses: [], grossSales: 0, serviceGross: 0, otherGross: 0, rewardsCount: 0, rewardsAmount: 0, operationalContribution: 0, closingTotal: 0 });
+  const reconciliation = new Map<string, { id: string; branchName: string; statuses: string[]; grossSales: number; serviceGross: number; otherGross: number; rewardsCount: number; rewardsAmount: number; courtesyCost: number; employeeDebtCharges: number; operationalContribution: number; realSales: number; actualCollected: number }>();
+  for (const branch of branchesResult.data ?? []) reconciliation.set(branch.id, { id: branch.id, branchName: branch.name, statuses: [], grossSales: 0, serviceGross: 0, otherGross: 0, rewardsCount: 0, rewardsAmount: 0, courtesyCost: 0, employeeDebtCharges: 0, operationalContribution: 0, realSales: 0, actualCollected: 0 });
   for (const sale of completed) {
     const item = reconciliation.get(sale.branch_id); if (!item) continue;
     item.grossSales += number(sale.subtotal);
+    item.realSales += number(sale.total);
   }
   for (const saleItem of itemsResult.data ?? []) {
     const sale = Array.isArray(saleItem.sale) ? saleItem.sale[0] : saleItem.sale;
@@ -105,7 +112,7 @@ export async function GET(request: Request) {
     const method = Array.isArray(payment.payment_method) ? payment.payment_method[0] : payment.payment_method;
     const item = reconciliation.get(sale?.branch_id ?? "");
     const session = Array.isArray(sale?.pos_session) ? sale?.pos_session[0] : sale?.pos_session;
-    if (item && method?.payment_kind !== "internal_credit" && session?.status === "closed") item.closingTotal += number(payment.amount);
+    if (item && method?.payment_kind !== "internal_credit" && session?.status === "closed") item.actualCollected += number(payment.amount);
   }
   for (const production of productionResult.data ?? []) {
     const item = reconciliation.get(production.branch_id); if (item) item.operationalContribution += number(production.operational_contribution_amount);
@@ -113,6 +120,17 @@ export async function GET(request: Request) {
   for (const reward of rewardsResult.data ?? []) {
     const sale = Array.isArray(reward.sale) ? reward.sale[0] : reward.sale;
     const item = reconciliation.get(sale?.branch_id ?? ""); if (item) { item.rewardsCount += 1; item.rewardsAmount += number(reward.discount_amount); }
+  }
+  for (const courtesy of courtesyCostsResult.data ?? []) {
+    const sale = Array.isArray(courtesy.sale) ? courtesy.sale[0] : courtesy.sale;
+    const product = Array.isArray(courtesy.product) ? courtesy.product[0] : courtesy.product;
+    const item = reconciliation.get(sale?.branch_id ?? "");
+    if (item) item.courtesyCost += number(courtesy.quantity) * number(courtesy.cost_snapshot ?? product?.cost_price);
+  }
+  for (const movement of debtChargesResult.data ?? []) {
+    const debt = Array.isArray(movement.debt) ? movement.debt[0] : movement.debt;
+    const item = reconciliation.get(debt?.branch_id ?? "");
+    if (item) item.employeeDebtCharges += number(movement.amount);
   }
   for (const session of dailySessionsResult.data ?? []) {
     const item = reconciliation.get(session.branch_id); if (item) item.statuses.push(session.status);
