@@ -569,7 +569,8 @@ export function PosSessionWorkspace() {
         barber_id: selectedBarberId || null,
         reservation_id: activeReservationId,
         reward_entitlement_id: selectedRewardEntitlementId || null,
-        employee_benefit_rule_id: selectedInternalBenefitRuleId || null,
+        employee_benefit_rule_id: internalCustomerOptions?.beneficiaryType === "employee" ? selectedInternalBenefitRuleId || null : null,
+        socio_benefit_rule_id: internalCustomerOptions?.beneficiaryType === "socio" ? selectedInternalBenefitRuleId || null : null,
         internal_credit: internalCredit,
         authorization_pin: internalAuthorizationPin || null,
         items: cartItems.map((item) => ({

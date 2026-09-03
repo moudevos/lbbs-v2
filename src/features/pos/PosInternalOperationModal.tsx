@@ -39,11 +39,12 @@ export function PosInternalOperationModal({
   onClose,
 }: Props) {
   const employee = options.employee;
+  const isSocio = options.beneficiaryType === "socio";
   const [pendingAuthorizationRuleId, setPendingAuthorizationRuleId] = useState("");
   const [authorizationError, setAuthorizationError] = useState("");
   const [isVerifyingAuthorization, setIsVerifyingAuthorization] = useState(false);
 
-  if (!employee) return null;
+  if (!employee && !isSocio) return null;
 
   const pendingAuthorizationRule = options.rules.find(
     (rule) => rule.id === pendingAuthorizationRuleId,
@@ -101,7 +102,7 @@ export function PosInternalOperationModal({
     <Modal
       open={open}
       title="Operación interna"
-      description={`Cliente vinculado: ${employee.fullName}. Puedes aplicar un beneficio y registrar su saldo restante como crédito.`}
+      description={isSocio ? "Socio LBBS activo. Elige uno de sus beneficios disponibles." : `Cliente vinculado: ${employee?.fullName}. Puedes aplicar un beneficio y registrar su saldo restante como crédito.`}
       onClose={handleClose}
       size="lg"
     >
@@ -121,7 +122,7 @@ export function PosInternalOperationModal({
               : "border-slate-200 hover:border-violet-200",
           ].join(" ")}
         >
-          <p className="font-semibold text-slate-900">Venta normal interna</p>
+          <p className="font-semibold text-slate-900">Venta normal{isSocio ? " de socio" : " interna"}</p>
           <p className="mt-1 text-sm text-slate-600">No aplica reward, beneficio ni crédito.</p>
         </button>
 
@@ -141,14 +142,16 @@ export function PosInternalOperationModal({
                 <div>
                   <p className="font-semibold text-slate-900">{rule.name}</p>
                   <p className="mt-1 text-sm text-slate-600">
-                    {rule.benefit_type === "free"
+                    {isSocio ? "Beneficio Socio · " : ""}{rule.benefit_type === "free"
                       ? "Gratis"
                       : rule.benefit_type === "fixed_price"
                         ? `Precio fijo: ${formatMoney(Number(rule.benefit_value))}`
                         : `Descuento: ${rule.benefit_value}%`}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {rule.production_mode === "percentage"
+                    {isSocio
+                      ? `Producción reconocida: ${formatMoney(Number(rule.recognized_production_amount ?? 0))} por servicio · aporte: ${formatMoney(Number(rule.operational_contribution))} · base: ${formatMoney(Math.max(Number(rule.recognized_production_amount ?? 0) - Number(rule.operational_contribution), 0))} por servicio.`
+                      : rule.production_mode === "percentage"
                       ? "Se liquidará por porcentaje."
                       : rule.production_mode === "none"
                         ? "No genera liquidación."
@@ -161,7 +164,7 @@ export function PosInternalOperationModal({
           );
         })}
 
-        {(options.canUseCredit && onlyProducts) || canSendBenefitBalanceToCredit ? (
+        {!isSocio && ((options.canUseCredit && onlyProducts) || canSendBenefitBalanceToCredit) ? (
           <button
             type="button"
             onClick={() => {

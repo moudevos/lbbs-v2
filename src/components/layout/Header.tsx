@@ -24,6 +24,7 @@ const moduleTitles: Record<string, string> = {
   "/control/servicios": "Servicios",
   "/control/productos": "Productos",
   "/control/clientes": "Clientes",
+  "/control/clientes/vinculaciones": "Vinculaciones",
   "/control/reservas": "Reservas",
   "/control/mi-cuenta": "Mi cuenta",
   "/control/deudas-empleados": "Deudas de empleados",

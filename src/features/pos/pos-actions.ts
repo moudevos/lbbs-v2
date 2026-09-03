@@ -45,7 +45,11 @@ export async function fetchPosInternalCustomerOptions(customerId: string, branch
   const response = await fetch(`/api/admin/pos/internal-options?${params.toString()}`, { cache: "no-store" });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "No se pudieron cargar las opciones internas.");
-  return payload.data as PosInternalCustomerOptions;
+  const options = payload.data as PosInternalCustomerOptions;
+  if (options.beneficiaryType === "socio") {
+    return { ...options, rules: options.rules.filter((rule) => rule.beneficiary_scope === "socio") };
+  }
+  return options;
 }
 
 export async function verifyPosInternalAuthorizationPin(pin: string, branchId: string) {

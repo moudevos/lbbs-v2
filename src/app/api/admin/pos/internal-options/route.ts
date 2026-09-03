@@ -26,5 +26,9 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ data });
+  const options = data as { beneficiaryType?: string | null; rules?: Array<{ beneficiary_scope?: string }> };
+  if (options.beneficiaryType === "socio") {
+    options.rules = (options.rules ?? []).filter((rule) => rule.beneficiary_scope === "socio");
+  }
+  return NextResponse.json({ data: options });
 }

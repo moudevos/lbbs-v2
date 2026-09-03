@@ -145,7 +145,7 @@ type IdempotencyRewardRedemptionRow = {
 
 type IdempotencyInternalOperationRow = {
   benefit_rule_id: string | null;
-  operation_kind: "employee_benefit" | "employee_credit" | "internal_complimentary";
+  operation_kind: "employee_benefit" | "employee_credit" | "internal_complimentary" | "socio_benefit";
   authorization_reason: string | null;
 };
 
@@ -156,6 +156,7 @@ type CheckoutSignatureInput = {
   reservationId: string | null;
   rewardEntitlementId: string | null;
   employeeBenefitRuleId: string | null;
+  socioBenefitRuleId: string | null;
   internalCredit: boolean;
   notes: string | null;
   items: Array<{
@@ -212,6 +213,7 @@ function buildCheckoutSignature(input: CheckoutSignatureInput) {
     reservationId: input.reservationId,
     rewardEntitlementId: input.rewardEntitlementId,
     employeeBenefitRuleId: input.employeeBenefitRuleId,
+    socioBenefitRuleId: input.socioBenefitRuleId,
     internalCredit: input.internalCredit,
     notes: input.notes,
     items,
@@ -352,7 +354,8 @@ async function findCompletedIdempotentSale(
         barberId: sale.barber_id,
         reservationId: sale.reservation_id,
         rewardEntitlementId: rewardRows[0]?.entitlement_id ?? null,
-        employeeBenefitRuleId: internalOperation?.benefit_rule_id ?? null,
+        employeeBenefitRuleId: internalOperation?.operation_kind === "socio_benefit" ? null : internalOperation?.benefit_rule_id ?? null,
+        socioBenefitRuleId: internalOperation?.operation_kind === "socio_benefit" ? internalOperation?.benefit_rule_id ?? null : null,
         internalCredit: internalOperation?.operation_kind === "employee_credit",
         notes: sale.notes,
         items: ((itemsResult.data ?? []) as IdempotencySaleItemRow[]).map((item) => ({
@@ -497,6 +500,7 @@ export async function POST(request: Request) {
   const reservationId = trimOrNull(payload?.reservation_id);
   const rewardEntitlementId = trimOrNull(payload?.reward_entitlement_id);
   const employeeBenefitRuleId = trimOrNull(payload?.employee_benefit_rule_id);
+  const socioBenefitRuleId = trimOrNull(payload?.socio_benefit_rule_id);
   const internalCredit = payload?.internal_credit === true;
   const authorizationPin = trimOrNull(payload?.authorization_pin);
   const idempotencyKey = normalizeIdempotencyKey(payload?.idempotency_key);
@@ -557,6 +561,7 @@ export async function POST(request: Request) {
     reservationId,
     rewardEntitlementId,
     employeeBenefitRuleId,
+    socioBenefitRuleId,
     internalCredit,
     notes,
     items,
@@ -1049,7 +1054,7 @@ export async function POST(request: Request) {
 
   try {
     const { data: atomicSaleId, error: atomicCheckoutError } = await supabase.rpc(
-      "checkout_pos_sale",
+      socioBenefitRuleId ? "checkout_socio_benefit_sale" : "checkout_pos_sale",
       {
         p_payload: {
           pos_session_id: posSessionId,
@@ -1059,6 +1064,7 @@ export async function POST(request: Request) {
           reservation_id: reservationId,
           reward_entitlement_id: rewardEntitlementId,
           employee_benefit_rule_id: employeeBenefitRuleId,
+          socio_benefit_rule_id: socioBenefitRuleId,
           internal_credit: internalCredit,
           authorization_pin: authorizationPin,
           idempotency_key: idempotencyKey,

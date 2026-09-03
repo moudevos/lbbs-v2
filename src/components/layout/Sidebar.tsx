@@ -185,6 +185,12 @@ const items = [
     module: "customers",
   },
   {
+    href: "/control/clientes/vinculaciones",
+    label: "Vinculaciones",
+    icon: faUsers,
+    module: "customers",
+  },
+  {
     href: "/control/contactos",
     label: "Contactos",
     icon: faComments,

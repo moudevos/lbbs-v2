@@ -203,12 +203,16 @@ export type PosInternalBenefitRule = {
   production_mode?: "fixed" | "percentage" | "none";
   fixed_barber_payout: number | string;
   operational_contribution: number | string;
+  recognized_production_amount?: number | string;
+  beneficiary_scope?: "employee" | "socio" | "both";
   requires_owner_authorization: boolean;
   is_internal_complimentary: boolean;
 };
 
 export type PosInternalCustomerOptions = {
   employee: { id: string; fullName: string; role: string } | null;
+  socio: { id: string; customerId: string; code: string | null } | null;
+  beneficiaryType: "employee" | "socio" | null;
   canUseCredit: boolean;
   rules: PosInternalBenefitRule[];
 };
@@ -222,6 +226,7 @@ export type PosCheckoutPayload = {
   reservation_id?: string | null;
   reward_entitlement_id?: string | null;
   employee_benefit_rule_id?: string | null;
+  socio_benefit_rule_id?: string | null;
   internal_credit?: boolean;
   authorization_pin?: string | null;
   notes?: string | null;

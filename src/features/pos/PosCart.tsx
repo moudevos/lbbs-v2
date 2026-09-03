@@ -125,7 +125,9 @@ export function PosCart({
   const pendingBalance = reconciliation.pendingBalance;
   const changeAmount = reconciliation.changeAmount;
 
-  const canShowReward = Boolean(customer) && customer?.id !== customerVariousId && !internalCustomerOptions?.employee;
+  const isSocio = internalCustomerOptions?.beneficiaryType === "socio";
+  const hasInternalBeneficiary = Boolean(internalCustomerOptions?.employee || internalCustomerOptions?.socio);
+  const canShowReward = Boolean(customer) && customer?.id !== customerVariousId && !hasInternalBeneficiary;
   const selectedRewardName = availableRewards.find(
     (reward) => reward.id === selectedRewardEntitlementId,
   )?.reward_benefits?.name;
@@ -217,14 +219,18 @@ export function PosCart({
                 </div>
               ) : null}
 
-              {internalCustomerOptions?.employee ? (
+              {hasInternalBeneficiary ? (
                 <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
                   <button type="button" onClick={() => setIsInternalModalOpen(true)} className="flex h-10 w-full items-center justify-between rounded-md border border-violet-200 bg-white px-3 text-left hover:border-violet-300">
                     <span className="flex items-center gap-2"><FontAwesomeIcon icon={faUserShield} className="text-violet-700" /><span className="text-sm font-semibold text-violet-900">{selectedInternalBenefit ? `${selectedInternalBenefit.name}${internalCredit ? " · saldo a crédito" : ""}` : (internalCredit ? "Crédito de empleado" : "Elegir operación interna")}</span></span><FontAwesomeIcon icon={faPenToSquare} className="text-violet-600" />
                   </button>
-                  <p className="text-xs font-semibold text-violet-900">Operación interna · {internalCustomerOptions.employee.fullName}</p>
+                  <p className="text-xs font-semibold text-violet-900">{isSocio ? "Socio LBBS · beneficios exclusivos" : `Operación interna · ${internalCustomerOptions?.employee?.fullName ?? "Empleado"}`}</p>
                   <p className="text-xs text-violet-800">
-                    {selectedInternalBenefit
+                    {isSocio
+                      ? selectedInternalBenefit
+                        ? `Beneficio de socio aplicado: descuento ${formatMoney(internalBenefitDiscount)}.`
+                        : "Elige una regla exclusiva de socio. Rewards y crédito de empleado no aplican."
+                      : selectedInternalBenefit
                       ? `${internalCredit ? "Saldo final a crédito. " : ""}Descuento aplicado: ${formatMoney(internalBenefitDiscount)}`
                       : internalCredit
                         ? "Compra de productos a crédito: no ingresa dinero a caja."
@@ -290,7 +296,7 @@ export function PosCart({
         onChange={onRewardChange}
         onClose={() => setIsRewardModalOpen(false)}
       />
-      {internalCustomerOptions?.employee ? <PosInternalOperationModal open={isInternalModalOpen} options={internalCustomerOptions} selectedRuleId={selectedInternalBenefitRuleId} internalCredit={internalCredit} authorizationPin={internalAuthorizationPin} branchId={branchId} onlyProducts={items.length > 0 && items.every((item) => item.item_type === "product")} onRuleChange={onInternalBenefitChange} onCreditChange={onInternalCreditChange} onAuthorizationPinChange={onInternalAuthorizationPinChange} onClose={() => setIsInternalModalOpen(false)} /> : null}
+      {hasInternalBeneficiary ? <PosInternalOperationModal open={isInternalModalOpen} options={internalCustomerOptions!} selectedRuleId={selectedInternalBenefitRuleId} internalCredit={internalCredit} authorizationPin={internalAuthorizationPin} branchId={branchId} onlyProducts={items.length > 0 && items.every((item) => item.item_type === "product")} onRuleChange={onInternalBenefitChange} onCreditChange={onInternalCreditChange} onAuthorizationPinChange={onInternalAuthorizationPinChange} onClose={() => setIsInternalModalOpen(false)} /> : null}
     </aside>
   );
 }
