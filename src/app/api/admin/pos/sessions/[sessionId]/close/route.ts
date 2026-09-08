@@ -12,6 +12,23 @@ function money(value: unknown) {
   return parsed === null ? 0 : Number(parsed.toFixed(2));
 }
 
+function mapOperationalBreakdown(raw: unknown) {
+  const value = raw && typeof raw === "object" ? raw as JsonRecord : {};
+  const categories = Array.isArray(value.product_categories) ? value.product_categories as JsonRecord[] : [];
+  return {
+    serviceGrossTotal: money(value.service_gross_total),
+    serviceNetTotal: money(value.service_net_total),
+    operationalContributionTotal: money(value.operational_contribution_total),
+    commissionableBaseTotal: money(value.commissionable_base_total),
+    isEstimated: Boolean(value.is_estimated),
+    productCategories: categories.map((item) => ({
+      categoryName: String(item.category_name ?? "Sin categoría"),
+      grossTotal: money(item.gross_total),
+      netTotal: money(item.net_total),
+    })),
+  };
+}
+
 function mapSummary(raw: JsonRecord): PosSessionCloseSummary {
   const closures = Array.isArray(raw.closures) ? raw.closures as JsonRecord[] : [];
   const closureByMethod = new Map(
@@ -87,6 +104,7 @@ function mapSummary(raw: JsonRecord): PosSessionCloseSummary {
       createdAt: String(item.created_at),
       closedAt: item.closed_at ? String(item.closed_at) : null,
     })),
+    operationalBreakdown: mapOperationalBreakdown(raw.operational_breakdown),
     closingNotes: raw.closing_notes ? String(raw.closing_notes) : null,
     closedAt: raw.closed_at ? String(raw.closed_at) : null,
     closedByName: raw.closed_by_name ? String(raw.closed_by_name) : null,

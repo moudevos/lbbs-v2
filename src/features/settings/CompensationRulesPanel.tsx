@@ -16,6 +16,7 @@ export type CompensationKind =
 
 type Rule = Record<string, unknown> & { id: string; name: string; is_active: boolean; priority: number };
 type Option = { id: string; name: string };
+type OperationalExclusion = { id: string; serviceId: string; serviceName: string; effectiveFrom: string };
 
 const kindLabels: Record<CompensationKind, string> = {
   operational: "Aportes operativos",
@@ -80,13 +81,26 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exclusions, setExclusions] = useState<OperationalExclusion[]>([]);
+  const [excludedServiceId, setExcludedServiceId] = useState("");
+  const [isSavingExclusion, setIsSavingExclusion] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/compensation-rules/${kind}`, { cache: "no-store" });
+      const [response, exclusionsResponse] = await Promise.all([
+        fetch(`/api/admin/compensation-rules/${kind}`, { cache: "no-store" }),
+        kind === "operational"
+          ? fetch("/api/admin/operational-contribution-exclusions", { cache: "no-store" })
+          : Promise.resolve(null),
+      ]);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error);
+      if (exclusionsResponse) {
+        const exclusionsPayload = await exclusionsResponse.json();
+        if (!exclusionsResponse.ok) throw new Error(exclusionsPayload.error);
+        setExclusions(exclusionsPayload.data ?? []);
+      }
       setRules(payload.data ?? []);
       setOptions(payload.options);
     } catch (error) {
@@ -188,6 +202,54 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
     await load();
   }
 
+  async function addExclusion() {
+    if (!excludedServiceId || isSavingExclusion) return;
+    setIsSavingExclusion(true);
+    try {
+      const response = await fetch("/api/admin/operational-contribution-exclusions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId: excludedServiceId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      setExcludedServiceId("");
+      await load();
+    } catch (error) {
+      await Swal.fire({ icon: "error", title: "No se pudo excluir", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
+    } finally {
+      setIsSavingExclusion(false);
+    }
+  }
+
+  async function deactivateExclusion(exclusion: OperationalExclusion) {
+    const confirmation = await Swal.fire({
+      icon: "question",
+      title: "Volver a aplicar aporte",
+      text: `Las ventas futuras de ${exclusion.serviceName} volverán a usar la regla de aporte. El historial no cambia.`,
+      showCancelButton: true,
+      confirmButtonText: "Confirmar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#0f766e",
+    });
+    if (!confirmation.isConfirmed) return;
+    setIsSavingExclusion(true);
+    try {
+      const response = await fetch("/api/admin/operational-contribution-exclusions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: exclusion.id }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      await load();
+    } catch (error) {
+      await Swal.fire({ icon: "error", title: "No se pudo actualizar", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
+    } finally {
+      setIsSavingExclusion(false);
+    }
+  }
+
   const scopeOptions =
     kind === "reward" || kind === "courtesy"
       ? form.scope_type === "service"
@@ -259,6 +321,34 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
           </tbody>
         </table>
       </div>
+
+      {kind === "operational" ? (
+        <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Servicios excluidos del aporte</p>
+            <p className="mt-1 text-xs text-slate-600">No descuentan aporte en ventas registradas desde esta activación. Las ventas anteriores y su producción permanecen intactas.</p>
+          </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Select value={excludedServiceId} onChange={(event) => setExcludedServiceId(event.target.value)} className="sm:max-w-md">
+              <option value="">Seleccionar servicio para excluir</option>
+              {options.services.filter((service) => !exclusions.some((exclusion) => exclusion.serviceId === service.id)).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+            </Select>
+            <Button type="button" disabled={!excludedServiceId || isSavingExclusion} onClick={() => void addExclusion()}>
+              Excluir del aporte
+            </Button>
+          </div>
+          {exclusions.length ? (
+            <div className="mt-4 divide-y divide-amber-200 rounded-lg border border-amber-200 bg-white">
+              {exclusions.map((exclusion) => (
+                <div key={exclusion.id} className="flex flex-col gap-2 px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span className="font-medium text-slate-800">{exclusion.serviceName}</span>
+                  <Button type="button" className="h-8 bg-white px-3 text-xs text-slate-700 hover:bg-slate-100" disabled={isSavingExclusion} onClick={() => void deactivateExclusion(exclusion)}>Volver a aplicar aporte</Button>
+                </div>
+              ))}
+            </div>
+          ) : <p className="mt-3 text-xs text-slate-500">Todos los servicios activos usan las reglas de aporte vigentes.</p>}
+        </section>
+      ) : null}
 
       <Modal
         open={open}

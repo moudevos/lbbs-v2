@@ -128,6 +128,34 @@ export function PosSessionCloseModal({
             </div>
           </section>
 
+          <section className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Ventas por categoría y producción</p>
+                <p className="mt-1 text-xs text-slate-600">Separa las ventas de servicios de los productos y muestra el aporte que se descuenta antes de la comisión.</p>
+              </div>
+              {summary.operationalBreakdown.isEstimated ? <span className="text-xs font-medium text-sky-800">Estimado antes del cierre</span> : <span className="text-xs font-medium text-emerald-700">Producción registrada</span>}
+            </div>
+            <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              <dt className="text-slate-600">Servicios brutos</dt><dd className="text-right font-semibold text-slate-900">{formatMoney(summary.operationalBreakdown.serviceGrossTotal)}</dd>
+              <dt className="text-slate-600">Aportes de producción</dt><dd className="text-right font-semibold text-amber-800">-{formatMoney(summary.operationalBreakdown.operationalContributionTotal)}</dd>
+              <dt className="border-t border-sky-200 pt-2 font-semibold text-slate-800">Base comisionable de barberos</dt><dd className="border-t border-sky-200 pt-2 text-right font-bold text-slate-900">{formatMoney(summary.operationalBreakdown.commissionableBaseTotal)}</dd>
+            </dl>
+            <div className="mt-4 border-t border-sky-200 pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Productos y otras categorías</p>
+              {summary.operationalBreakdown.productCategories.length ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {summary.operationalBreakdown.productCategories.map((category) => (
+                    <div key={category.categoryName} className="flex items-center justify-between gap-3 rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate text-slate-700">{category.categoryName}</span>
+                      <strong className="shrink-0 text-slate-900">{formatMoney(category.grossTotal)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="mt-2 text-sm text-slate-500">No hubo productos vendidos en esta sesión.</p>}
+            </div>
+          </section>
+
           <section className="rounded-xl border border-slate-200 p-4">
             <p className="text-sm font-semibold text-slate-900">Movimientos operativos</p>
             {summary.movements.length === 0 ? (

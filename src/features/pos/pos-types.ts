@@ -316,9 +316,23 @@ export type PosSessionCloseSummary = {
   movements: PosSessionMovement[];
   rewards: PosSessionRewardDetail[];
   sales: PosSessionSaleDetail[];
+  operationalBreakdown: PosSessionOperationalBreakdown;
   closingNotes: string | null;
   closedAt: string | null;
   closedByName: string | null;
+};
+
+export type PosSessionOperationalBreakdown = {
+  serviceGrossTotal: number;
+  serviceNetTotal: number;
+  operationalContributionTotal: number;
+  commissionableBaseTotal: number;
+  isEstimated: boolean;
+  productCategories: Array<{
+    categoryName: string;
+    grossTotal: number;
+    netTotal: number;
+  }>;
 };
 
 export type PosSessionPaymentSummary = {
