@@ -21,7 +21,8 @@ export type AppModule =
   | "payment_simulations"
   | "devices"
   | "hotspots"
-  | "employee_debts";
+  | "employee_debts"
+  | "employee_supplies";
 
 const roleModules: Record<AppRole, AppModule[]> = {
   owner: [
@@ -46,6 +47,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "devices",
     "hotspots",
     "employee_debts",
+    "employee_supplies",
   ],
   admin: [
     "control",
@@ -69,6 +71,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "devices",
     "hotspots",
     "employee_debts",
+    "employee_supplies",
   ],
   reception: [
     "control",
@@ -83,6 +86,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "reservations",
     "production",
     "employee_debts",
+    "employee_supplies",
   ],
   barber: ["control", "reservations"],
   viewer: ["control"],
@@ -110,6 +114,7 @@ export const moduleRouteMap: Record<AppModule, string> = {
   devices: "/control/dispositivos",
   hotspots: "/control/hotspots",
   employee_debts: "/control/deudas-empleados",
+  employee_supplies: "/control/insumos-personal",
 };
 
 export function canAccessModule(role: AppRole, module: AppModule) {

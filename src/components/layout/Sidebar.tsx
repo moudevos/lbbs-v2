@@ -239,6 +239,12 @@ const items = [
     module: "employee_debts",
   },
   {
+    href: "/control/insumos-personal",
+    label: "Insumos del personal",
+    icon: faBoxOpen,
+    module: "employee_supplies",
+  },
+  {
     href: "/control/dispositivos",
     label: "Dispositivos",
     icon: faMobileScreenButton,
@@ -284,6 +290,7 @@ const groups: SidebarGroup[] = [
       "settlements",
       "payment_simulations",
       "employee_debts",
+      "employee_supplies",
     ],
   },
   { id: "configuracion", label: "Configuracion", modules: ["settings"] },
