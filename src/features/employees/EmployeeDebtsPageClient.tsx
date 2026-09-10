@@ -66,7 +66,7 @@ const stateLabel: Record<string, string> = {
   pending: "Pendiente",
   partial: "Parcial",
   paid: "Pagada",
-  written_off: "Castigada",
+  written_off: "Sin efecto",
   cancelled: "Anulada",
 };
 const movementLabel: Record<string, string> = {
@@ -75,7 +75,7 @@ const movementLabel: Record<string, string> = {
   settlement_deduction: "Descuento en liquidación",
   manual_payment: "Pago manual",
   adjustment: "Ajuste",
-  write_off: "Castigo",
+  write_off: "Sin efecto",
   cancellation: "Anulación",
 };
 
@@ -269,7 +269,7 @@ export function EmployeeDebtsPageClient() {
             <option value="open">Pendientes y parciales</option>
             <option value="all">Todos los estados</option>
             <option value="paid">Pagadas</option>
-            <option value="written_off">Castigadas</option>
+            <option value="written_off">Sin efecto</option>
             <option value="cancelled">Anuladas</option>
           </Select>
         </div>
