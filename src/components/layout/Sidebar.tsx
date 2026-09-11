@@ -64,6 +64,7 @@ const items = [
     module: "cash",
   },
   { href: "/control/pos", label: "POS", icon: faCashRegister, module: "pos" },
+  { href: "/control/ventas-dominicales", label: "Ventas dominicales", icon: faCalendarDays, module: "sunday_sales" },
   {
     href: "/control/rewards",
     label: "Rewards",
@@ -274,7 +275,7 @@ const groups: SidebarGroup[] = [
   {
     id: "operacion",
     label: "Operacion",
-    modules: ["pos", "sales", "cash", "reservations"],
+    modules: ["pos", "sunday_sales", "sales", "cash", "reservations"],
   },
   {
     id: "clientes",

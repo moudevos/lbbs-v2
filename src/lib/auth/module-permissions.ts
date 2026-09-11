@@ -6,6 +6,7 @@ export type AppModule =
   | "employees"
   | "cash"
   | "pos"
+  | "sunday_sales"
   | "rewards"
   | "sales"
   | "settings"
@@ -31,6 +32,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "employees",
     "cash",
     "pos",
+    "sunday_sales",
     "rewards",
     "sales",
     "settings",
@@ -55,6 +57,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "employees",
     "cash",
     "pos",
+    "sunday_sales",
     "rewards",
     "sales",
     "settings",
@@ -77,6 +80,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "control",
     "cash",
     "pos",
+    "sunday_sales",
     "rewards",
     "sales",
     "services",
@@ -98,6 +102,7 @@ export const moduleRouteMap: Record<AppModule, string> = {
   employees: "/control/equipo",
   cash: "/control/caja",
   pos: "/control/pos",
+  sunday_sales: "/control/ventas-dominicales",
   rewards: "/control/rewards",
   sales: "/control/ventas",
   settings: "/control/configuracion",
