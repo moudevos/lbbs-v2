@@ -78,6 +78,12 @@ const items = [
     module: "sales",
   },
   {
+    href: "/control/control-ventas",
+    label: "Control de ventas",
+    icon: faChartLine,
+    module: "sales_control",
+  },
+  {
     href: "/control/configuracion?tab=cat:service_categories",
     label: "Servicios",
     icon: faScissors,
@@ -275,7 +281,7 @@ const groups: SidebarGroup[] = [
   {
     id: "operacion",
     label: "Operacion",
-    modules: ["pos", "sunday_sales", "sales", "cash", "reservations"],
+    modules: ["pos", "sunday_sales", "sales", "sales_control", "cash", "reservations"],
   },
   {
     id: "clientes",
