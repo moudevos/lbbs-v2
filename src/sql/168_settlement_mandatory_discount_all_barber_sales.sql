@@ -15,9 +15,10 @@ set sales_gross_snapshot = round(
   2
 )
 from public.employee_product_bonus_entries bonus
-join public.sale_items item on item.id = bonus.sale_item_id
-join public.employee_settlements settlement on settlement.id = line.settlement_id
-where bonus.id = line.product_bonus_entry_id
+join public.sale_items item on item.id = bonus.sale_item_id,
+public.employee_settlements settlement
+where settlement.id = line.settlement_id
+  and bonus.id = line.product_bonus_entry_id
   and settlement.status in ('draft', 'review', 'approved');
 
 create or replace function public.get_employee_mandatory_sales_base(
