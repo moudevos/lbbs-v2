@@ -423,6 +423,9 @@ export function ProductionPageClient() {
 
   return (
     <div className="space-y-4">
+      <section className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+        Esta vista muestra únicamente producción de ventas completadas en sesiones POS cerradas. Los registros sin liquidación siguen visibles aquí como producción pendiente de liquidar.
+      </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <p className="shrink-0 text-sm font-semibold text-slate-900">

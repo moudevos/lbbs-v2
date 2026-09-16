@@ -19,6 +19,7 @@ type Option = Record<string, unknown> & { id: string };
 type ReviewDetail = { detail: Record<string, unknown>; services: Array<Record<string, unknown>>; bonuses: Array<Record<string, unknown>>; deductions: Array<Record<string, unknown>>; adjustments: Array<Record<string, unknown>> };
 type ReviewAdjustment = { adjustment_type: "bonus" | "deduction"; description: string; amount: string };
 type DebtGroup = { debtType: string; debts: Option[]; total: number };
+type ActiveSettlement = { key: string; status: Status; settlementNumber: string };
 
 const relation = (value: unknown, key: string) => {
   const item = Array.isArray(value) ? value[0] : value;
@@ -40,7 +41,7 @@ export function SettlementsPageClient() {
   const [debts, setDebts] = useState<Option[]>([]);
   const [methods, setMethods] = useState<Option[]>([]);
   const [currentPeriodIds, setCurrentPeriodIds] = useState<string[]>([]);
-  const [activeSettlementKeys, setActiveSettlementKeys] = useState<string[]>([]);
+  const [activeSettlements, setActiveSettlements] = useState<ActiveSettlement[]>([]);
   const [businessDate, setBusinessDate] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -71,7 +72,7 @@ export function SettlementsPageClient() {
       setDebts(payload.debts ?? []);
       setMethods((payload.paymentMethods ?? []).filter((method: Option) => String(method.payment_kind) !== "internal_credit"));
       setCurrentPeriodIds(payload.currentPeriodIds ?? []);
-      setActiveSettlementKeys(payload.activeSettlementKeys ?? []);
+      setActiveSettlements(payload.activeSettlements ?? []);
       setBusinessDate(String(payload.businessDate ?? ""));
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudieron cargar las liquidaciones.";
@@ -93,7 +94,26 @@ export function SettlementsPageClient() {
     groups[debtType] = group;
     return groups;
   }, {})), [employeeDebts]);
-  const availableEmployees = useMemo(() => employees.filter((employee) => !periodId || !activeSettlementKeys.includes(`${periodId}:${employee.id}`)), [employees, periodId, activeSettlementKeys]);
+  const selectedActiveSettlement = useMemo(
+    () => activeSettlements.find((settlement) => settlement.key === `${periodId}:${employeeId}`),
+    [activeSettlements, employeeId, periodId],
+  );
+  // Se muestran todos para que el operador reciba la alerta contextual antes
+  // de intentar reemplazar una liquidación activa.
+  const availableEmployees = employees;
+
+  useEffect(() => {
+    if (!formOpen || !selectedActiveSettlement) return;
+    const isPaid = selectedActiveSettlement.status === "paid";
+    void Swal.fire({
+      icon: "warning",
+      title: isPaid ? "Liquidación ya pagada" : "Liquidación activa",
+      text: isPaid
+        ? `La liquidación ${selectedActiveSettlement.settlementNumber} ya fue pagada en este período y no puede recalcularse.`
+        : `La liquidación ${selectedActiveSettlement.settlementNumber} está activa. Anúlala antes de volver a recalcular.`,
+      confirmButtonColor: "#0f766e",
+    });
+  }, [formOpen, selectedActiveSettlement]);
 
   function resetForm() {
     setPeriodId(currentPeriodIds[0] ?? "");
@@ -118,6 +138,18 @@ export function SettlementsPageClient() {
 
   async function prepare() {
     if (!periodId || !employeeId || !rate) return;
+    if (selectedActiveSettlement) {
+      const isPaid = selectedActiveSettlement.status === "paid";
+      await Swal.fire({
+        icon: "warning",
+        title: isPaid ? "Liquidación ya pagada" : "Liquidación activa",
+        text: isPaid
+          ? `La liquidación ${selectedActiveSettlement.settlementNumber} ya fue pagada en este período y no puede recalcularse.`
+          : `La liquidación ${selectedActiveSettlement.settlementNumber} está activa. Anúlala antes de volver a recalcular.`,
+        confirmButtonColor: "#0f766e",
+      });
+      return;
+    }
     const numericRate = Number(rate);
     if (numericRate > 60) {
       const confirmation = await Swal.fire({ icon: "warning", title: "Porcentaje mayor a 60 %", text: "Este porcentaje requiere autorización y quedará auditado.", showCancelButton: true, confirmButtonText: "Continuar", cancelButtonText: "Cancelar", confirmButtonColor: "#0f766e" });
