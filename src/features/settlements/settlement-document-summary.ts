@@ -41,7 +41,7 @@ export function buildSettlementDocumentSummary(detail: Row, services: Row[], ded
   const expenses: SettlementAmountLine[] = [
     ...Object.entries(debtByType).map(([debtType, amount]) => ({ label: debtLabels[debtType] ?? debtLabels.other, amount })),
     { label: "Otros descuentos", amount: numeric(detail.other_deduction_total) },
-    { label: "Descuento obligatorio", detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} %`, amount: numeric(detail.mandatory_discount_amount) },
+    { label: "Descuento obligatorio", detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre ventas brutas atribuidas: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`, amount: numeric(detail.mandatory_discount_amount) },
   ].filter((line) => line.amount > 0);
   return { serviceCount, servicesGross, productionDiscount, productionBase, incomes, expenses, totalIncome: incomes.reduce((total, line) => total + line.amount, 0), totalExpenses: expenses.reduce((total, line) => total + line.amount, 0) };
 }
