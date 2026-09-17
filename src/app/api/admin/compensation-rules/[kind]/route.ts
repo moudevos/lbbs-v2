@@ -17,7 +17,19 @@ const isKind = (value: string): value is RuleKind => value in tables;
 function buildValues(kind: RuleKind, payload: Record<string, unknown>, employeeId: string | null, businessDate: string) {
   const base = { name: String(payload.name ?? "").trim(), priority: Number(payload.priority ?? 0), is_active: payload.is_active !== false, effective_from: payload.effective_from || businessDate, effective_to: payload.effective_to || null, created_by: employeeId };
   if (kind === "operational") return { ...base, minimum_amount: Number(payload.minimum_amount ?? 0), maximum_amount: payload.maximum_amount === "" || payload.maximum_amount == null ? null : Number(payload.maximum_amount), calculation_type: payload.calculation_type, calculation_value: Number(payload.value) };
-  if (kind === "reward" || kind === "courtesy") return { ...base, service_id: payload.scope_type === "service" ? payload.scope_id || null : null, service_category_id: payload.scope_type === "category" ? payload.scope_id || null : null, fixed_commission_amount: Number(payload.value) };
+  if (kind === "reward") {
+    const commissionMode = payload.calculation_type === "percentage" ? "percentage" : "fixed";
+    return {
+      ...base,
+      service_id: payload.scope_type === "service" ? payload.scope_id || null : null,
+      service_category_id: payload.scope_type === "category" ? payload.scope_id || null : null,
+      commission_mode: commissionMode,
+      commission_basis_amount: Number(payload.value),
+      // Se mantiene por compatibilidad con reglas y reportes anteriores.
+      fixed_commission_amount: Number(payload.value),
+    };
+  }
+  if (kind === "courtesy") return { ...base, service_id: payload.scope_type === "service" ? payload.scope_id || null : null, service_category_id: payload.scope_type === "category" ? payload.scope_id || null : null, fixed_commission_amount: Number(payload.value) };
   if (kind === "product_bonus") return {
     ...base,
     product_id: payload.scope_type === "product" ? payload.scope_id || null : null,

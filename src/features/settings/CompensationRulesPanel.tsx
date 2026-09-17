@@ -30,7 +30,7 @@ const kindDescriptions: Record<CompensationKind, string> = {
   operational:
     "Define el aporte operativo que se descuenta de cada servicio antes de calcular la base de una liquidacion.",
   reward:
-    "Define la comision fija del barbero cuando un servicio se realiza usando un reward ya ganado por el cliente.",
+    "Define cómo se liquida al barbero un servicio canjeado con Rewards: monto fijo o una base sometida a su porcentaje.",
   courtesy:
     "Define la comision fija del barbero cuando un servicio se entrega como cortesia validada en POS.",
   product_bonus:
@@ -143,8 +143,8 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
                 ? "category"
                 : "global",
       scope_id: serviceId || productId || serviceCategoryId || productCategoryId,
-      calculation_type: String(rule.calculation_type ?? rule.markup_type ?? "fixed"),
-      value: String(rule.calculation_value ?? rule.fixed_commission_amount ?? rule.bonus_value ?? rule.markup_value ?? ""),
+      calculation_type: String(kind === "reward" ? rule.commission_mode ?? "fixed" : rule.calculation_type ?? rule.markup_type ?? "fixed"),
+      value: String(kind === "reward" ? rule.commission_basis_amount ?? rule.fixed_commission_amount ?? "" : rule.calculation_value ?? rule.fixed_commission_amount ?? rule.bonus_value ?? rule.markup_value ?? ""),
       minimum_amount: String(rule.minimum_amount ?? 0),
       maximum_amount: String(rule.maximum_amount ?? ""),
       priority: String(rule.priority ?? 0),
@@ -425,9 +425,9 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
             </>
           ) : null}
 
-          {kind === "operational" || kind === "supply_markup" ? (
+          {kind === "operational" || kind === "supply_markup" || kind === "reward" ? (
             <label className="space-y-1 text-sm">
-              Calculo
+              {kind === "reward" ? "Forma de liquidar reward" : "Calculo"}
               <Select value={form.calculation_type} onChange={(e) => setForm({ ...form, calculation_type: e.target.value })}>
                 <option value="fixed">Monto fijo</option>
                 <option value="percentage">Porcentaje</option>
@@ -436,8 +436,9 @@ export function CompensationRulesPanel({ kind }: CompensationRulesPanelProps) {
           ) : null}
 
           <label className="space-y-1 text-sm">
-            Valor
+            {kind === "reward" && form.calculation_type === "percentage" ? "Base del reward (S/)" : "Valor"}
             <Input type="number" min="0" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
+            {kind === "reward" ? <span className="block text-xs text-slate-500">{form.calculation_type === "percentage" ? "Se descuenta el aporte operativo y sobre el saldo se aplica el porcentaje de comisión del empleado." : "Este monto se paga completo al barbero, sin aplicar porcentaje."}</span> : null}
           </label>
           <label className="space-y-1 text-sm">
             Prioridad

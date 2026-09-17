@@ -10,9 +10,9 @@ export async function GET(_request: Request, context: { params: Promise<{ settle
   const supabase = await createClient();
   const [settlement, services, bonuses, deductions, adjustments] = await Promise.all([
     supabase.from("employee_settlements").select("*, employee:employees!employee_settlements_employee_id_fkey(full_name,document_number,position), branch:branches(name), period:payroll_periods(start_date,end_date,period_half), payment_method:payment_methods(name), reviewed:employees!employee_settlements_reviewed_by_fkey(full_name), approved:employees!employee_settlements_approved_by_fkey(full_name), paid:employees!employee_settlements_paid_by_fkey(full_name)").eq("id", settlementId).maybeSingle(),
-    supabase.from("employee_settlement_service_lines").select("*, production:employee_service_production(original_line_total,operational_contribution_amount)").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
+    supabase.from("employee_settlement_service_lines").select("*, production:employee_service_production(original_line_total,operational_contribution_amount,production_source,reward_commission_mode,reward_commission_basis_amount)").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
     supabase.from("employee_settlement_bonus_lines").select("*").eq("settlement_id", settlementId),
-    supabase.from("employee_settlement_deductions").select("*, debt:employee_debts(description,outstanding_amount,debt_type)").eq("settlement_id", settlementId),
+    supabase.from("employee_settlement_deductions").select("*, debt:employee_debts(description,outstanding_amount,debt_type,created_at)").eq("settlement_id", settlementId),
     supabase.from("employee_settlement_adjustments").select("*").eq("settlement_id", settlementId),
   ]);
   if (settlement.error) {
