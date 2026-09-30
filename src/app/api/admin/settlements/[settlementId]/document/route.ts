@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createElement } from "react";
 
 import { EmployeeSettlementPdf } from "@/features/settlements/EmployeeSettlementPdf";
+import { enrichEmployeeDebtDisplay } from "@/lib/employee-debts/debt-display";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 
@@ -27,11 +28,16 @@ export async function GET(_request: Request, context: { params: Promise<{ settle
   }
   if (!settlement.data) return NextResponse.json({ error: "La liquidacion no existe." }, { status: 404 });
 
+  const enrichedDeductions = await enrichEmployeeDebtDisplay(
+    supabase,
+    (deductions.data ?? []) as Array<Record<string, unknown>>,
+  );
+
   const pdf = await renderToBuffer(createElement(EmployeeSettlementPdf, {
     detail: settlement.data,
     services: services.data ?? [],
     bonuses: bonuses.data ?? [],
-    deductions: deductions.data ?? [],
+    deductions: enrichedDeductions,
   }) as unknown as Parameters<typeof renderToBuffer>[0]);
   const prefix = settlement.data.status === "paid" ? "comprobante-pago" : "liquidacion";
   const filename = `${prefix}-${String(settlement.data.settlement_number).replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;

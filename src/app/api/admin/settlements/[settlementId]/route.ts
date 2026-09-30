@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { enrichEmployeeDebtDisplay } from "@/lib/employee-debts/debt-display";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 
@@ -28,7 +29,11 @@ export async function GET(_request: Request, context: { params: Promise<{ settle
   if (adjustments.error) {
     console.warn("[settlements/detail] Ajustes no disponibles", { settlementId, message: adjustments.error.message, code: adjustments.error.code });
   }
-  return NextResponse.json({ data: settlement.data, services: services.data ?? [], bonuses: bonuses.data ?? [], deductions: deductions.data ?? [], adjustments: adjustments.data ?? [] });
+  const enrichedDeductions = await enrichEmployeeDebtDisplay(
+    supabase,
+    (deductions.data ?? []) as Array<Record<string, unknown>>,
+  );
+  return NextResponse.json({ data: settlement.data, services: services.data ?? [], bonuses: bonuses.data ?? [], deductions: enrichedDeductions, adjustments: adjustments.data ?? [] });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ settlementId: string }> }) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enrichEmployeeDebtDisplay } from "@/lib/employee-debts/debt-display";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession, requirePosWriteSession } from "@/lib/supabase/route-auth";
 
@@ -17,7 +18,8 @@ export async function GET(_request:Request,context:{params:Promise<{employeeId:s
     supabase.from("employees").select("id,full_name").eq("status","active").order("full_name"),
     supabase.from("payment_methods").select("id,code,name").eq("is_active",true).order("sort_order"),
   ]);const error=employee.error??benefits.error??debts.error??movements.error??supplies.error??production.error??settlements.error??services.error??products.error??providers.error??methods.error;if(error){console.error("[employee-finance/get] Error",{employeeId,message:error.message,code:error.code});return NextResponse.json({error:"No se pudo cargar el perfil financiero."},{status:500});}
-  return NextResponse.json({employee:employee.data,benefits:benefits.data??[],debts:debts.data??[],movements:movements.data??[],supplies:supplies.data??[],production:production.data??[],settlements:settlements.data??[],options:{services:services.data??[],products:products.data??[],providers:providers.data??[],paymentMethods:methods.data??[]}});
+  const enrichedDebts = await enrichEmployeeDebtDisplay(supabase, (debts.data ?? []) as Array<Record<string, unknown>>);
+  return NextResponse.json({employee:employee.data,benefits:benefits.data??[],debts:enrichedDebts,movements:movements.data??[],supplies:supplies.data??[],production:production.data??[],settlements:settlements.data??[],options:{services:services.data??[],products:products.data??[],providers:providers.data??[],paymentMethods:methods.data??[]}});
 }
 
 export async function POST(request:Request,context:{params:Promise<{employeeId:string}>}){

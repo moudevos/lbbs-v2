@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { enrichEmployeeDebtDisplay } from "@/lib/employee-debts/debt-display";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 
@@ -47,8 +48,13 @@ export async function GET() {
     })
     .map((period) => period.id);
 
+  const enrichedDebts = await enrichEmployeeDebtDisplay(
+    supabase,
+    (debts.data ?? []) as Array<Record<string, unknown>>,
+  );
+
   return NextResponse.json({
-    data: settlements.data ?? [], periods: periods.data ?? [], employees: employees.data ?? [], debts: debts.data ?? [],
+    data: settlements.data ?? [], periods: periods.data ?? [], employees: employees.data ?? [], debts: enrichedDebts,
     paymentMethods: methods.data ?? [], businessDate: businessDateValue, currentPeriodIds, activeSettlements,
   });
 }

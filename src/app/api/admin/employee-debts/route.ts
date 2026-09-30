@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enrichEmployeeDebtDisplay } from "@/lib/employee-debts/debt-display";
 import { createClient } from "@/lib/supabase/server";
 import { requireTeamBranchSession } from "@/lib/supabase/route-auth";
 
@@ -100,8 +101,12 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+  const enrichedDebts = await enrichEmployeeDebtDisplay(
+    supabase,
+    (debts.data ?? []) as Array<Record<string, unknown>>,
+  );
   return NextResponse.json({
-    debts: debts.data ?? [],
+    debts: enrichedDebts,
     movements: movements.data ?? [],
     filters: {
       employees: employees.data ?? [],

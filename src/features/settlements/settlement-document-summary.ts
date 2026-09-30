@@ -11,7 +11,7 @@ const relation = (value: unknown) => {
   return item && typeof item === "object" ? (item as Row) : null;
 };
 const debtLabels: Record<string, string> = {
-  loan: "Adelantos y/o préstamos", advance: "Adelantos y/o préstamos", internal_credit: "Consumo personal", supply: "Entrega de productos", penalty: "Penalidad", other: "Otros descuentos",
+  loan: "Préstamo", advance: "Adelanto", internal_credit: "Consumo POS", supply: "Insumo", penalty: "Penalidad", other: "Otro cargo",
 };
 
 export function buildSettlementDocumentSummary(detail: Row, services: Row[], deductions: Row[]) {
@@ -32,11 +32,20 @@ export function buildSettlementDocumentSummary(detail: Row, services: Row[], ded
   const debtLines = deductions.map((deduction) => {
     const debt = relation(deduction.debt);
     const debtType = String(deduction.debt_type_snapshot ?? debt?.debt_type ?? "other");
-    const description = String(deduction.debt_description_snapshot ?? debt?.description ?? "Sin detalle");
+    const description = String(deduction.display_description ?? deduction.debt_description_snapshot ?? debt?.description ?? "Sin detalle");
     const createdAt = String(deduction.debt_created_at_snapshot ?? debt?.created_at ?? "");
     const before = numeric(deduction.balance_before);
     const after = numeric(deduction.balance_after);
-    return { label: debtLabels[debtType] ?? debtLabels.other, amount: numeric(deduction.amount), detail: `${description}${createdAt ? ` · ${createdAt.slice(0, 10)}` : ""}${before ? ` · saldo ${before.toFixed(2)} → ${after.toFixed(2)}` : ""}` };
+    const extraItems = numeric(deduction.display_extra_item_count);
+    const saleReference = String(deduction.display_sale_reference ?? "");
+    const detailParts = [
+      description,
+      extraItems > 0 ? `+ ${extraItems} item${extraItems === 1 ? "" : "s"} más` : "",
+      saleReference,
+      createdAt ? createdAt.slice(0, 10) : "",
+      before ? `saldo ${before.toFixed(2)} → ${after.toFixed(2)}` : "",
+    ].filter(Boolean);
+    return { label: String(deduction.display_type_label ?? debtLabels[debtType] ?? debtLabels.other), amount: numeric(deduction.amount), detail: detailParts.join(" · ") };
   });
   const incomes: SettlementAmountLine[] = [
     { label: "Total producción", detail: `Base × ${commissionRate.toFixed(2)} %`, amount: numeric(detail.percentage_commission_total) },

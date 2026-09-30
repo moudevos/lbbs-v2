@@ -23,6 +23,10 @@ type Debt = {
   status: string;
   description: string;
   created_at: string;
+  display_type_label?: string;
+  display_description?: string;
+  display_sale_reference?: string | null;
+  display_extra_item_count?: number;
   employee: Rel;
   branch: Rel;
 };
@@ -58,7 +62,7 @@ const typeLabel: Record<string, string> = {
   loan: "Préstamo",
   advance: "Adelanto",
   supply: "Insumo",
-  internal_credit: "Crédito POS",
+  internal_credit: "Consumo POS",
   penalty: "Penalidad",
   other: "Otro",
 };
@@ -123,7 +127,7 @@ export function EmployeeDebtsPageClient() {
     return (data?.debts ?? []).filter(
       (item) =>
         !term ||
-        `${rel(item.employee, "full_name")} ${item.description} ${item.debt_type}`
+        `${rel(item.employee, "full_name")} ${item.display_type_label ?? ""} ${item.display_description ?? item.description} ${item.display_sale_reference ?? ""} ${item.debt_type}`
           .toLowerCase()
           .includes(term),
     );
@@ -315,10 +319,12 @@ export function EmployeeDebtsPageClient() {
                       </p>
                     </td>
                     <td className="px-5 py-3">
-                      {typeLabel[item.debt_type] ?? item.debt_type}
+                      {item.display_type_label ?? typeLabel[item.debt_type] ?? item.debt_type}
                     </td>
                     <td className="max-w-xs px-5 py-3 text-slate-600">
-                      {item.description}
+                      <p>{item.display_description ?? item.description}</p>
+                      {Number(item.display_extra_item_count ?? 0) > 0 ? <p className="text-xs text-slate-500">+ {Number(item.display_extra_item_count)} item{Number(item.display_extra_item_count) === 1 ? "" : "s"} más</p> : null}
+                      {item.display_sale_reference ? <p className="text-xs font-medium text-slate-500">{item.display_sale_reference}</p> : null}
                     </td>
                     <td className="px-5 py-3 text-right">
                       {formatMoney(Number(item.original_amount))}
@@ -527,7 +533,7 @@ export function EmployeeDebtsPageClient() {
         title="Historial de deuda"
         description={
           debt
-            ? `${debt.description} · saldo actual ${formatMoney(Number(debt.outstanding_amount))}`
+            ? `${debt.display_type_label ?? typeLabel[debt.debt_type] ?? debt.debt_type} · ${debt.display_description ?? debt.description}${debt.display_sale_reference ? ` · ${debt.display_sale_reference}` : ""} · saldo actual ${formatMoney(Number(debt.outstanding_amount))}`
             : undefined
         }
         onClose={() => setMode("")}
