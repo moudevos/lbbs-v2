@@ -29,9 +29,9 @@ const debtLabels: Record<string, string> = {
   loan: "Préstamos",
   advance: "Adelantos",
   supply: "Insumos",
-  internal_credit: "Crédito interno",
+  internal_credit: "Consumos POS",
   penalty: "Penalidades",
-  other: "Otros descuentos",
+  other: "Otros cargos",
 };
 
 export function SettlementsPageClient() {
