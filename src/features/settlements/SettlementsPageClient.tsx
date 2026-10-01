@@ -60,6 +60,9 @@ export function SettlementsPageClient() {
   const [categoryDebtAmounts, setCategoryDebtAmounts] = useState<Record<string, string>>({});
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [commissionPreviewBase, setCommissionPreviewBase] = useState<number | null>(null);
+  const [fixedCommissionPreviewTotal, setFixedCommissionPreviewTotal] = useState(0);
+  const [productBonusPreviewTotal, setProductBonusPreviewTotal] = useState(0);
+  const [mandatoryDiscountPreviewBase, setMandatoryDiscountPreviewBase] = useState(0);
   const [isCommissionPreviewLoading, setIsCommissionPreviewLoading] = useState(false);
 
   async function loadData() {
@@ -89,12 +92,18 @@ export function SettlementsPageClient() {
   useEffect(() => {
     if (!formOpen || !periodId || !employeeId) {
       setCommissionPreviewBase(null);
+      setFixedCommissionPreviewTotal(0);
+      setProductBonusPreviewTotal(0);
+      setMandatoryDiscountPreviewBase(0);
       setIsCommissionPreviewLoading(false);
       return;
     }
 
     const controller = new AbortController();
     setCommissionPreviewBase(null);
+    setFixedCommissionPreviewTotal(0);
+    setProductBonusPreviewTotal(0);
+    setMandatoryDiscountPreviewBase(0);
     setIsCommissionPreviewLoading(true);
 
     const params = new URLSearchParams({ periodId, employeeId });
@@ -108,10 +117,51 @@ export function SettlementsPageClient() {
         const productionRows = Array.isArray(payload.data)
           ? payload.data as Array<Record<string, unknown>>
           : [];
-        const base = productionRows
-          .filter((row) => String(row.status ?? "") === "active")
-          .reduce((total, row) => total + Number(row.commissionable_amount ?? 0), 0);
+        const bonusRows = Array.isArray(payload.bonuses)
+          ? payload.bonuses as Array<Record<string, unknown>>
+          : [];
+        const activeProduction = productionRows.filter(
+          (row) => String(row.status ?? "") === "active",
+        );
+        const base = activeProduction.reduce(
+          (total, row) => total + Number(row.commissionable_amount ?? 0),
+          0,
+        );
+        const fixedCommissionTotal = activeProduction.reduce(
+          (total, row) => total + Number(row.fixed_commission_amount ?? 0),
+          0,
+        );
+        const serviceMandatoryBase = activeProduction
+          .filter((row) =>
+            ["normal", "commercial_discount", "reward"].includes(
+              String(row.production_source ?? ""),
+            ),
+          )
+          .reduce(
+            (total, row) => total + Number(row.original_line_total ?? 0),
+            0,
+          );
+        const activeBonuses = bonusRows.filter((row) =>
+          ["active", "pending_review"].includes(String(row.status ?? "")),
+        );
+        const productBonusTotal = activeBonuses.reduce(
+          (total, row) => total + Number(row.total_bonus_amount ?? 0),
+          0,
+        );
+        const productMandatoryBase = activeBonuses.reduce((total, row) => {
+          const product = Array.isArray(row.product) ? row.product[0] : row.product;
+          if (!product || typeof product !== "object") return total;
+          const saleItem = Array.isArray(row.sale_item) ? row.sale_item[0] : row.sale_item;
+          if (!saleItem || typeof saleItem !== "object") return total;
+          return total + Number((saleItem as Record<string, unknown>).total ?? 0);
+        }, 0);
+
         setCommissionPreviewBase(Number(base.toFixed(2)));
+        setFixedCommissionPreviewTotal(Number(fixedCommissionTotal.toFixed(2)));
+        setProductBonusPreviewTotal(Number(productBonusTotal.toFixed(2)));
+        setMandatoryDiscountPreviewBase(
+          Number((serviceMandatoryBase + productMandatoryBase).toFixed(2)),
+        );
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -134,6 +184,46 @@ export function SettlementsPageClient() {
       ? null
       : Number((commissionPreviewBase * previewRate / 100).toFixed(2));
   const employeeDebts = useMemo(() => debts.filter((debt) => String(debt.employee_id) === employeeId), [debts, employeeId]);
+  const totalEmployeeDebt = employeeDebts.reduce(
+    (total, debt) => total + Number(debt.outstanding_amount ?? 0),
+    0,
+  );
+  const selectedDebtDeduction = Object.values(debtAmounts).reduce(
+    (total, amount) => total + (Number(amount) || 0),
+    0,
+  );
+  const mandatoryDiscountPreviewRate = 1;
+  const mandatoryDiscountPreviewAmount = Number(
+    (mandatoryDiscountPreviewBase * mandatoryDiscountPreviewRate / 100).toFixed(2),
+  );
+  const estimatedGrossPay =
+    estimatedCommission === null
+      ? null
+      : Number(
+          (
+            estimatedCommission +
+            fixedCommissionPreviewTotal +
+            productBonusPreviewTotal
+          ).toFixed(2),
+        );
+  const estimatedAutomaticDebtDeduction =
+    estimatedGrossPay === null
+      ? 0
+      : Math.min(
+          totalEmployeeDebt,
+          Math.max(estimatedGrossPay - mandatoryDiscountPreviewAmount, 0),
+        );
+  const estimatedDebtDeduction =
+    selectedDebtDeduction > 0
+      ? selectedDebtDeduction
+      : estimatedAutomaticDebtDeduction;
+  const estimatedTotalDiscounts = Number(
+    (mandatoryDiscountPreviewAmount + estimatedDebtDeduction).toFixed(2),
+  );
+  const estimatedNetPay =
+    estimatedGrossPay === null
+      ? null
+      : Number(Math.max(estimatedGrossPay - estimatedTotalDiscounts, 0).toFixed(2));
   const debtGroups = useMemo(() => Object.values(employeeDebts.reduce<Record<string, DebtGroup>>((groups, debt) => {
     const debtType = String(debt.debt_type ?? "other");
     const group = groups[debtType] ?? { debtType, debts: [], total: 0 };
@@ -268,7 +358,7 @@ export function SettlementsPageClient() {
   return <div className="space-y-4">
     <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-slate-900">Liquidaciones quincenales</p><p className="mt-1 text-sm text-slate-600">Borrador, confirmación, aprobación, pago y comprobante descargable.</p></div><Button type="button" onClick={resetForm}>Nueva liquidación</Button></section>
     <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><table className="min-w-[940px] w-full text-sm"><thead className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2.5">Número</th><th className="px-3 py-2.5">Empleado</th><th className="px-3 py-2.5">Periodo</th><th className="px-3 py-2.5">Estado</th><th className="px-3 py-2.5 text-center">%</th><th className="px-3 py-2.5 text-center">Bruto</th><th className="px-3 py-2.5 text-center">Deudas</th><th className="px-3 py-2.5 text-center">Neto</th><th className="px-3 py-2.5 text-right">Acciones</th></tr></thead><tbody className="divide-y divide-slate-100">{isLoading ? <tr><td colSpan={9} className="py-8 text-center text-slate-500">Cargando liquidaciones...</td></tr> : rows.map((row) => { const style: Record<Status, string> = { draft: "bg-slate-100 text-slate-600", review: "bg-amber-50 text-amber-700", approved: "bg-sky-50 text-sky-700", paid: "bg-emerald-50 text-emerald-700", cancelled: "bg-rose-50 text-rose-700" }; const canCancel = ["draft", "review", "approved"].includes(row.status); return <tr key={row.id} className="transition hover:bg-slate-50"><td className="px-3 py-2.5 font-medium">{row.settlement_number}</td><td className="px-3 py-2.5">{relation(row.employee, "full_name")}</td><td className="px-3 py-2.5 text-xs text-slate-500">{relation(row.period, "start_date")} al {relation(row.period, "end_date")}</td><td className="px-3 py-2.5"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style[row.status]}`}>{settlementStatusLabels[row.status]}</span></td><td className="px-3 py-2.5 text-center">{Number(row.commission_rate).toFixed(2)} %</td><td className="px-3 py-2.5 text-center">{formatMoney(Number(row.gross_pay_amount))}</td><td className="px-3 py-2.5 text-center">{formatMoney(Number(row.debt_deduction_total))}</td><td className="px-3 py-2.5 text-center font-semibold">{formatMoney(Number(row.net_pay_amount))}</td><td className="px-3 py-2.5"><div className="flex flex-wrap justify-end gap-1.5">{row.status === "draft" ? <Button type="button" className="h-8 px-2.5 text-xs" onClick={() => void openReview(row)}>Confirmar</Button> : null}{row.status === "review" ? <Button type="button" className="h-8 px-2.5 text-xs" onClick={() => void action(row, "approve")}>Aprobar</Button> : null}{row.status === "approved" ? <Button type="button" className="h-8 px-2.5 text-xs" onClick={() => { setPaymentRow(row); setPaymentMethodId(""); }}>Pagar</Button> : null}<Button type="button" className="h-8 border border-slate-200 bg-white px-2.5 text-xs text-slate-700" onClick={() => void openDocument(row)}>{row.status === "paid" ? "Comprobante" : "Documento"}</Button>{canCancel ? <Button type="button" className="h-8 bg-rose-100 px-2.5 text-xs text-rose-700 hover:bg-rose-200" onClick={() => void action(row, "cancel")}>Anular</Button> : null}</div></td></tr>; })}</tbody></table></section>
-    <Modal open={formOpen} title="Preparar liquidación" description="El porcentaje, producción y descuentos quedan como snapshot de esta quincena." onClose={() => setFormOpen(false)} isDirty={Boolean(periodId || employeeId || rate)} size="lg" footer={<div className="flex justify-end gap-2"><Button type="button" className="bg-white text-slate-700" onClick={() => setFormOpen(false)}>Cancelar</Button><Button type="button" disabled={isSaving || !periodId || !employeeId || !rate} onClick={() => void prepare()}>{isSaving ? "Guardando..." : "Guardar borrador"}</Button></div>}><div className="space-y-4"><div className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-sky-900"><strong>Plazo vigente:</strong> fecha operativa {businessDate || "-"}. Se muestra el periodo actual y, durante dos días posteriores al cierre, el periodo quincenal recién terminado.</div><div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Periodo<Select value={periodId} onChange={(e) => { setPeriodId(e.target.value); setEmployeeId(""); }}><option value="">Seleccionar periodo</option>{periods.map((p) => <option key={p.id} value={p.id}>{currentPeriodIds.includes(p.id) ? "Vigente - " : "Histórico - "}{String(p.start_date)} al {String(p.end_date)}</option>)}</Select></label><label className="space-y-1 text-sm">Empleado<Select value={employeeId} onChange={(e) => { setEmployeeId(e.target.value); setDebtAmounts({}); }}><option value="">Seleccionar empleado</option>{availableEmployees.map((e) => <option key={e.id} value={e.id}>{String(e.full_name)}</option>)}</Select>{periodId && !availableEmployees.length ? <p className="text-xs text-amber-700">Todos los empleados ya tienen una liquidación activa para este periodo.</p> : null}</label><label className="space-y-1 text-sm">Porcentaje de comisión<Input type="number" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="50" /></label></div>{employeeId && periodId ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-semibold text-emerald-950">Estimación de comisión</p><p className="mt-1 text-xs text-emerald-800">Calculada sobre la producción comisionable activa del período. El borrador guardará el cálculo definitivo.</p><div className="mt-3 grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-emerald-700">Base comisionable</p><p className="mt-1 text-base font-semibold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : commissionPreviewBase === null ? "No disponible" : formatMoney(commissionPreviewBase)}</p></div><div><p className="text-xs text-emerald-700">Porcentaje</p><p className="mt-1 text-base font-semibold text-emerald-950">{Number.isFinite(previewRate) && rate ? `${previewRate.toFixed(2)} %` : "-"}</p></div><div><p className="text-xs text-emerald-700">Comisión aproximada</p><p className="mt-1 text-lg font-bold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : estimatedCommission === null ? "-" : formatMoney(estimatedCommission)}</p></div></div></section> : null}{Number(rate) > 60 ? <label className="block space-y-1 text-sm">Observación de autorización<Textarea value={highRateNote} onChange={(e) => setHighRateNote(e.target.value)} placeholder="Motivo y autorización del porcentaje excepcional" /></label> : null}{debtGroups.length ? <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium">Deuda total de {String(selectedEmployee?.full_name ?? "empleado")}</p><p className="mt-1 text-xs text-slate-500">Agrupada por categoría. Al indicar un descuento, se distribuye automáticamente desde la deuda más antigua de esa categoría.</p><div className="mt-3 space-y-2">{debtGroups.map((group) => <div key={group.debtType} className="grid grid-cols-[1fr_130px] items-start gap-3 rounded-lg bg-white p-3 text-sm"><div><strong>{debtLabels[group.debtType] ?? group.debtType}</strong><p className="mt-0.5 text-xs text-slate-500">Saldo total: {formatMoney(group.total)}</p><div className="mt-2 space-y-2">{group.debts.map((debt) => <div key={debt.id} className="rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2"><p className="font-medium text-slate-800">{String(debt.display_type_label ?? debtLabels[String(debt.debt_type)] ?? debt.debt_type ?? "Deuda")}</p><p className="text-xs text-slate-600">{String(debt.display_description ?? debt.description ?? "Sin detalle")}</p>{debt.display_extra_item_count ? <p className="text-xs text-slate-500">+ {Number(debt.display_extra_item_count)} item{Number(debt.display_extra_item_count) === 1 ? "" : "s"} más</p> : null}{debt.display_sale_reference ? <p className="text-xs font-medium text-slate-500">{String(debt.display_sale_reference)}</p> : null}<p className="mt-1 text-xs text-slate-500">Saldo: {formatMoney(Number(debt.outstanding_amount ?? 0))}</p></div>)}</div></div><Input type="number" min="0" max={group.total} step="0.01" value={categoryDeduction(group) || ""} onChange={(e) => setCategoryDeduction(group, e.target.value)} placeholder="Descontar" /></div>)}</div></section> : employeeId ? <p className="text-sm text-slate-500">El empleado no tiene deudas vigentes.</p> : null}<label className="block space-y-1 text-sm">Notas<Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></label></div></Modal>
+    <Modal open={formOpen} title="Preparar liquidación" description="El porcentaje, producción y descuentos quedan como snapshot de esta quincena." onClose={() => setFormOpen(false)} isDirty={Boolean(periodId || employeeId || rate)} size="lg" footer={<div className="flex justify-end gap-2"><Button type="button" className="bg-white text-slate-700" onClick={() => setFormOpen(false)}>Cancelar</Button><Button type="button" disabled={isSaving || !periodId || !employeeId || !rate} onClick={() => void prepare()}>{isSaving ? "Guardando..." : "Guardar borrador"}</Button></div>}><div className="space-y-4"><div className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-sky-900"><strong>Plazo vigente:</strong> fecha operativa {businessDate || "-"}. Se muestra el periodo actual y, durante dos días posteriores al cierre, el periodo quincenal recién terminado.</div><div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Periodo<Select value={periodId} onChange={(e) => { setPeriodId(e.target.value); setEmployeeId(""); }}><option value="">Seleccionar periodo</option>{periods.map((p) => <option key={p.id} value={p.id}>{currentPeriodIds.includes(p.id) ? "Vigente - " : "Histórico - "}{String(p.start_date)} al {String(p.end_date)}</option>)}</Select></label><label className="space-y-1 text-sm">Empleado<Select value={employeeId} onChange={(e) => { setEmployeeId(e.target.value); setDebtAmounts({}); }}><option value="">Seleccionar empleado</option>{availableEmployees.map((e) => <option key={e.id} value={e.id}>{String(e.full_name)}</option>)}</Select>{periodId && !availableEmployees.length ? <p className="text-xs text-amber-700">Todos los empleados ya tienen una liquidación activa para este periodo.</p> : null}</label><label className="space-y-1 text-sm">Porcentaje de comisión<Input type="number" min="0" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="50" /></label></div>{employeeId && periodId ? <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-semibold text-emerald-950">Estimación antes de guardar</p><p className="mt-1 text-xs text-emerald-800">Vista previa con la producción activa del período, deudas vigentes y deducciones seleccionadas. El borrador guardará el cálculo definitivo del backend.</p><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div><p className="text-xs text-emerald-700">Base comisionable</p><p className="mt-1 text-base font-semibold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : commissionPreviewBase === null ? "No disponible" : formatMoney(commissionPreviewBase)}</p></div><div><p className="text-xs text-emerald-700">Porcentaje comisión</p><p className="mt-1 text-base font-semibold text-emerald-950">{Number.isFinite(previewRate) && rate ? `${previewRate.toFixed(2)} %` : "-"}</p></div><div><p className="text-xs text-emerald-700">Comisión aproximada</p><p className="mt-1 text-base font-semibold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : estimatedCommission === null ? "-" : formatMoney(estimatedCommission)}</p></div><div><p className="text-xs text-emerald-700">Bruto aproximado</p><p className="mt-1 text-base font-semibold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : estimatedGrossPay === null ? "-" : formatMoney(estimatedGrossPay)}</p></div><div><p className="text-xs text-emerald-700">Deuda vigente total</p><p className="mt-1 text-base font-semibold text-emerald-950">{formatMoney(totalEmployeeDebt)}</p></div><div><p className="text-xs text-emerald-700">{selectedDebtDeduction > 0 ? "Deducciones seleccionadas" : "Deducción prevista (automática)"}</p><p className="mt-1 text-base font-semibold text-emerald-950">{formatMoney(estimatedDebtDeduction)}</p></div><div><p className="text-xs text-emerald-700">Base descuento obligatorio</p><p className="mt-1 text-base font-semibold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : formatMoney(mandatoryDiscountPreviewBase)}</p></div><div><p className="text-xs text-emerald-700">Descuento obligatorio aprox. ({mandatoryDiscountPreviewRate.toFixed(2)} %)</p><p className="mt-1 text-base font-semibold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : formatMoney(mandatoryDiscountPreviewAmount)}</p></div><div><p className="text-xs text-amber-700">Total descuentos aprox.</p><p className="mt-1 text-base font-bold text-amber-950">{isCommissionPreviewLoading ? "Calculando..." : formatMoney(estimatedTotalDiscounts)}</p></div><div><p className="text-xs text-emerald-700">Neto aproximado</p><p className="mt-1 text-lg font-bold text-emerald-950">{isCommissionPreviewLoading ? "Calculando..." : estimatedNetPay === null ? "-" : formatMoney(estimatedNetPay)}</p></div></div></section> : null}{Number(rate) > 60 ? <label className="block space-y-1 text-sm">Observación de autorización<Textarea value={highRateNote} onChange={(e) => setHighRateNote(e.target.value)} placeholder="Motivo y autorización del porcentaje excepcional" /></label> : null}{debtGroups.length ? <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-medium">Deuda total de {String(selectedEmployee?.full_name ?? "empleado")}</p><p className="mt-1 text-xs text-slate-500">Agrupada por categoría. Al indicar un descuento, se distribuye automáticamente desde la deuda más antigua de esa categoría.</p><div className="mt-3 space-y-2">{debtGroups.map((group) => <div key={group.debtType} className="grid grid-cols-[1fr_130px] items-start gap-3 rounded-lg bg-white p-3 text-sm"><div><strong>{debtLabels[group.debtType] ?? group.debtType}</strong><p className="mt-0.5 text-xs text-slate-500">Saldo total: {formatMoney(group.total)}</p><div className="mt-2 space-y-2">{group.debts.map((debt) => <div key={debt.id} className="rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2"><p className="font-medium text-slate-800">{String(debt.display_type_label ?? debtLabels[String(debt.debt_type)] ?? debt.debt_type ?? "Deuda")}</p><p className="text-xs text-slate-600">{String(debt.display_description ?? debt.description ?? "Sin detalle")}</p>{debt.display_extra_item_count ? <p className="text-xs text-slate-500">+ {Number(debt.display_extra_item_count)} item{Number(debt.display_extra_item_count) === 1 ? "" : "s"} más</p> : null}{debt.display_sale_reference ? <p className="text-xs font-medium text-slate-500">{String(debt.display_sale_reference)}</p> : null}<p className="mt-1 text-xs text-slate-500">Saldo: {formatMoney(Number(debt.outstanding_amount ?? 0))}</p></div>)}</div></div><Input type="number" min="0" max={group.total} step="0.01" value={categoryDeduction(group) || ""} onChange={(e) => setCategoryDeduction(group, e.target.value)} placeholder="Descontar" /></div>)}</div></section> : employeeId ? <p className="text-sm text-slate-500">El empleado no tiene deudas vigentes.</p> : null}<label className="block space-y-1 text-sm">Notas<Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></label></div></Modal>
     <Modal open={paymentRow !== null} title="Registrar pago" description={paymentRow ? `Neto a pagar: ${formatMoney(Number(paymentRow.net_pay_amount))}. La fecha se registra automáticamente con la fecha operativa.` : ""} onClose={() => setPaymentRow(null)} isDirty={Boolean(paymentMethodId)} size="md" footer={<div className="flex justify-end gap-2"><Button type="button" className="bg-white text-slate-700" onClick={() => setPaymentRow(null)}>Cancelar</Button><Button type="button" disabled={isSaving || !paymentMethodId} onClick={() => void pay()}>{isSaving ? "Pagando..." : "Guardar pago"}</Button></div>}><label className="block space-y-1 text-sm">Método de pago<Select value={paymentMethodId} onChange={(e) => setPaymentMethodId(e.target.value)}><option value="">Seleccionar método</option>{methods.map((m) => <option key={m.id} value={m.id}>{String(m.name)}</option>)}</Select></label></Modal>
     <SettlementReviewModal data={reviewData} adjustments={reviewAdjustments} isSaving={isSaving} onChange={setReviewAdjustments} onClose={() => { setReviewData(null); setReviewRow(null); }} onConfirm={() => void confirmReview()} />
     <Modal open={documentData !== null} title={documentData?.detail.status === "paid" ? "Comprobante de pago" : "Documento de liquidación"} onClose={() => setDocumentData(null)} confirmBeforeClose={false} size="xl">{documentData ? <EmployeeSettlementDocument {...documentData} onClose={() => setDocumentData(null)} onDownload={downloadDocument} /> : null}</Modal>
