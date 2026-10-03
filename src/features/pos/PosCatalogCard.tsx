@@ -6,6 +6,9 @@ type PosCatalogCardProps = {
   title: string;
   category: string | null;
   price: string;
+  regularPrice?: string | null;
+  employeePrice?: boolean;
+  internalOnly?: boolean;
   isInactive?: boolean;
   disabled?: boolean;
   onAdd: () => void;
@@ -15,6 +18,9 @@ export function PosCatalogCard({
   title,
   category,
   price,
+  regularPrice,
+  employeePrice = false,
+  internalOnly = false,
   isInactive = false,
   disabled = false,
   onAdd,
@@ -39,7 +45,7 @@ export function PosCatalogCard({
       </div>
 
       <div className="flex items-end justify-between gap-1">
-        <span className="text-xs font-bold text-emerald-700">{formatMoney(price)}</span>
+        <div><span className="text-xs font-bold text-emerald-700">{formatMoney(price)}</span>{employeePrice ? <p className="text-[9px] font-semibold text-violet-700">Empleado{regularPrice ? ` · Regular ${formatMoney(regularPrice)}` : ""}</p> : null}{internalOnly ? <p className="text-[9px] font-semibold text-violet-700">Solo personal</p> : null}</div>
         {isInactive ? (
           <span className="text-[9px] font-medium text-amber-700">Inactivo</span>
         ) : null}

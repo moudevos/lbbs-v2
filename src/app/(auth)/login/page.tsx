@@ -9,12 +9,9 @@ export default async function LoginPage() {
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
 
-  if (userError) {
-    console.warn("[auth/login] Se ignoro una sesion invalida", {
-      code: userError.code,
-      status: userError.status,
-    });
-  }
+  // proxy.ts already removes stale Supabase cookies before this page renders.
+  // A failed getUser here is recoverable and must not be reported as a second
+  // login error to the operator.
 
   if (!userError && userData.user) {
     const { data: employee } = await supabase.from("employees").select("must_change_password").eq("user_id", userData.user.id).maybeSingle();

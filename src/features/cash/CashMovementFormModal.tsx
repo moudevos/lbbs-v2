@@ -80,6 +80,7 @@ export function CashMovementFormModal({
                 ...value,
                 movement_type: event.target.value as CashMovementFormValue["movement_type"],
                 category_id: "",
+                adjustment_direction: "",
               })
             }
           >
@@ -107,6 +108,19 @@ export function CashMovementFormModal({
             ))}
           </SelectField>
         </div>
+
+        {value.movement_type === "adjustment" ? (
+          <SelectField
+            label="Dirección del ajuste"
+            value={value.adjustment_direction}
+            onChange={(event) => onChange({ ...value, adjustment_direction: event.target.value as CashMovementFormValue["adjustment_direction"] })}
+            hint="Indica explícitamente si el efectivo físico aumenta o disminuye."
+          >
+            <option value="">Seleccionar dirección</option>
+            <option value="increase">Aumentar efectivo</option>
+            <option value="decrease">Disminuir efectivo</option>
+          </SelectField>
+        ) : null}
 
         <TextField
           label="Monto"

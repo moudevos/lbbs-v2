@@ -124,7 +124,7 @@ export function buildServiceCartItem(service: PosServiceRecord): PosCartItem {
 }
 
 export function buildProductCartItem(product: PosProductRecord): PosCartItem {
-  return buildProductCartItemWithPrice(product, Number(product.final_sale_price));
+  return buildProductCartItemWithPrice(product, Number(product.effective_price));
 }
 
 export function buildProductCartItemWithPrice(
@@ -141,6 +141,10 @@ export function buildProductCartItemWithPrice(
     category_name: product.category_name,
     quantity: 1,
     unit_price: unitPrice,
+    retail_price: Number(product.retail_price),
+    employee_price: product.employee_price === null ? null : Number(product.employee_price),
+    price_source: product.price_source,
+    visibility_scope: product.visibility_scope,
     allow_custom_price: product.allow_custom_price,
     discount_amount: 0,
     is_courtesy: false,
@@ -148,6 +152,8 @@ export function buildProductCartItemWithPrice(
     stock_quantity: Number(product.stock_quantity),
     is_stockable: product.is_stockable,
     is_courtesy_allowed: product.is_courtesy_allowed,
+    responsible_employee_id: null,
+    business_line: product.business_line,
   };
 }
 

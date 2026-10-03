@@ -43,7 +43,10 @@ export function SalesControlPageClient() {
     } catch (error) { await Swal.fire({ icon: "error", title: "No se pudo cargar el control", text: error instanceof Error ? error.message : "Error inesperado" }); }
     finally { setLoading(false); }
   }, [date, branchId, sessionId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const summary = payload?.data.summary ?? {};
   const payments = payload?.data.payments ?? [];

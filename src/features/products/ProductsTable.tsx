@@ -117,6 +117,7 @@ export function ProductsTable({
                   {product.allow_custom_price ? (
                     <div className="text-xs text-sky-600">Precio manual permitido</div>
                   ) : null}
+                  {product.visibility_scope === "internal" ? <div className="text-xs font-medium text-violet-700">Solo personal · {product.employee_unit_price ? `Empleado ${formatMoney(product.employee_unit_price)}` : "sin precio"}</div> : product.visibility_scope === "both" ? <div className="text-xs text-violet-700">{product.employee_catalog_active && product.employee_unit_price ? `Empleado ${formatMoney(product.employee_unit_price)}` : "Empleado: precio comercial"}</div> : null}
                 </td>
                 <td className="px-3 py-3 text-sm text-slate-700">
                   {product.is_stockable ? formatQuantity(product.stock_quantity) : "No maneja"}

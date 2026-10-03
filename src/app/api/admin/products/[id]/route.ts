@@ -36,6 +36,19 @@ function normalizeMoneyValue(value: unknown) {
   return parsed === null ? null : parsed.toFixed(2);
 }
 
+function parseEmployeePricing(payload: Record<string, unknown> | null, visibilityScope: string) {
+  const enabled = visibilityScope === "internal" || (visibilityScope === "both" && payload?.employee_price_enabled === true);
+  const price = parseMoney(payload?.employee_unit_price);
+  if (enabled && (price === null || price <= 0)) return { error: "El precio especial para empleados debe ser un número mayor que cero." as const };
+  return { enabled, price };
+}
+
+async function syncEmployeePricing(productId: string, enabled: boolean, price: number | null) {
+  const admin = getSupabaseAdmin();
+  if (!enabled) return (await admin.from("employee_supply_catalog_items").update({ is_active: false }).eq("product_id", productId)).error;
+  return (await admin.from("employee_supply_catalog_items").upsert({ product_id: productId, employee_unit_price: price, is_active: true }, { onConflict: "product_id" })).error;
+}
+
 type ProductCategory = {
   id: string;
   name: string;
@@ -56,6 +69,7 @@ type ProductRow = {
   allow_custom_price: boolean;
   is_stockable: boolean;
   is_courtesy_allowed: boolean;
+  visibility_scope: "pos" | "internal" | "both";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -81,6 +95,7 @@ function formatProduct(product: ProductRow) {
     allow_custom_price: product.allow_custom_price,
     is_stockable: product.is_stockable,
     is_courtesy_allowed: product.is_courtesy_allowed,
+    visibility_scope: product.visibility_scope,
     is_active: product.is_active,
     created_at: product.created_at,
     updated_at: product.updated_at,
@@ -106,6 +121,8 @@ export async function PUT(
   const unit = trimOrNull(payload?.unit);
   const costPrice = parseMoney(payload?.cost_price);
   const baseSalePrice = parseMoney(payload?.base_sale_price);
+  const visibilityScope = trimOrNull(payload?.visibility_scope) ?? "pos";
+  const employeePricing = parseEmployeePricing(payload, visibilityScope);
 
   if (!name || !slugRaw) {
     return NextResponse.json(
@@ -135,6 +152,11 @@ export async function PUT(
     );
   }
 
+  if (!['pos', 'internal', 'both'].includes(visibilityScope)) {
+    return NextResponse.json({ error: "La visibilidad seleccionada no es valida." }, { status: 400 });
+  }
+  if ("error" in employeePricing) return NextResponse.json({ error: employeePricing.error }, { status: 400 });
+
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("products")
@@ -151,11 +173,12 @@ export async function PUT(
       allow_custom_price: payload?.allow_custom_price === true,
       is_stockable: payload?.is_stockable !== false,
       is_courtesy_allowed: payload?.is_courtesy_allowed === true,
+      visibility_scope: visibilityScope,
       is_active: payload?.is_active !== false,
     })
     .eq("id", id)
     .select(
-      "id, category_id, sku, name, slug, description, barcode, unit, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active, created_at, updated_at, category:product_categories(id, name, slug)",
+      "id, category_id, sku, name, slug, description, barcode, unit, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, visibility_scope, is_active, created_at, updated_at, category:product_categories(id, name, slug)",
     )
     .single();
 
@@ -171,5 +194,8 @@ export async function PUT(
     );
   }
 
-  return NextResponse.json({ data: formatProduct(data as ProductRow) });
+  const catalogSyncError = await syncEmployeePricing(id, employeePricing.enabled, employeePricing.price);
+  if (catalogSyncError) return NextResponse.json({ error: "El producto fue actualizado, pero no se pudo sincronizar su precio para empleados." }, { status: 400 });
+
+  return NextResponse.json({ data: { ...formatProduct(data as ProductRow), employee_unit_price: employeePricing.enabled ? employeePricing.price?.toFixed(2) ?? null : null, employee_catalog_active: employeePricing.enabled } });
 }

@@ -58,9 +58,9 @@ describe("fecha contable y periodos", () => {
   it("el historial de ventas filtra por la fecha contable de la sesión, no por un límite UTC", async () => {
     const route = await readFile(path.resolve(root, "src/app/api/admin/sales/route.ts"), "utf8");
 
-    expect(route).toContain('gte("accounting_date", dateFrom)');
-    expect(route).toContain('lte("accounting_date", dateTo)');
-    expect(route).toContain('order("accounting_date", { ascending: false })');
+    expect(route).toContain('rpc("get_sales_canonical_page"');
+    expect(route).toContain("p_date_from: dateFrom");
+    expect(route).toContain("p_date_to: dateTo");
     expect(route).not.toContain('gte("created_at", startOfDay');
     expect(route).not.toContain('lte("created_at", endOfDay');
   });

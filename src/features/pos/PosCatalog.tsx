@@ -86,7 +86,10 @@ export function PosCatalog({
             key={product.id}
             title={product.name}
             category={product.category_name}
-            price={product.final_sale_price}
+            price={product.effective_price}
+            regularPrice={product.price_source === "employee" ? product.retail_price : null}
+            employeePrice={product.price_source === "employee"}
+            internalOnly={product.visibility_scope === "internal"}
             isInactive={!product.is_active}
             disabled={product.is_stockable && Number(product.stock_quantity) <= 0}
             onAdd={() => onAddProduct(product)}

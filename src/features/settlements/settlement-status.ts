@@ -1,7 +1,7 @@
 export const settlementStatusLabels: Record<string, string> = {
   draft: "Borrador",
-  review: "Confirmada",
-  approved: "Aprobada",
+  review: "Confirmación pendiente",
+  approved: "Confirmada",
   paid: "Pagada",
   cancelled: "Anulada",
 };

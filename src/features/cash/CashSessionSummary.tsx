@@ -22,12 +22,16 @@ type CashSessionSummaryProps = {
 };
 
 const labels = [
-  { key: "openingCashAmount", title: "Monto inicial" },
+  { key: "openingCashAmount", title: "Monto inicial registrado" },
+  { key: "openingCorrectionsIncrease", title: "Correcciones apertura (+)" },
+  { key: "openingCorrectionsDecrease", title: "Correcciones apertura (-)" },
+  { key: "effectiveOpeningAmount", title: "Apertura efectiva" },
   { key: "cashSalesAmount", title: "Ventas en efectivo" },
   { key: "operationalIncome", title: "Ingresos operativos" },
   { key: "operationalExpense", title: "Egresos operativos" },
   { key: "withdrawals", title: "Retiros" },
-  { key: "adjustments", title: "Ajustes" },
+  { key: "adjustmentsIncrease", title: "Ajustes (+)" },
+  { key: "adjustmentsDecrease", title: "Ajustes (-)" },
   { key: "netOperationalAmount", title: "Neto operativo" },
   { key: "expectedCashAmount", title: "Efectivo esperado" },
 ] as const;

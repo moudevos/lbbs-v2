@@ -7,7 +7,7 @@ import {
   faLock,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
@@ -23,9 +23,12 @@ export function LoginForm() {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const submittingRef = useRef(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsLoading(true);
 
     let hasAuthenticationError = false;
@@ -39,10 +42,8 @@ export function LoginForm() {
 
       if (error) {
         hasAuthenticationError = true;
-        console.error("[auth/login] Error de autenticacion", {
-          message: error.message,
-          status: error.status,
-        });
+        // A credential rejection is an expected user-facing outcome; avoid
+        // duplicating it in the browser console.
       }
 
       if (!error) {
@@ -59,6 +60,7 @@ export function LoginForm() {
         message,
       });
     } finally {
+      submittingRef.current = false;
       setIsLoading(false);
     }
 
@@ -66,7 +68,7 @@ export function LoginForm() {
       await Swal.fire({
         icon: "error",
         title: "No se pudo iniciar sesion",
-        text: "Revisa tus datos e inténtalo nuevamente.",
+        text: "Correo o contraseña incorrectos.",
         confirmButtonColor: "#0f766e",
         background: "#ffffff",
         color: "#0f172a",

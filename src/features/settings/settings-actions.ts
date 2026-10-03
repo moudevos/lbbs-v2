@@ -65,6 +65,7 @@ export function createEmptySettingForm(): SettingFormValue {
     is_active: true,
     movement_type: "",
     payment_kind: "other_digital",
+    business_line: "other",
   };
 }
 
@@ -86,6 +87,7 @@ export function toSettingFormValue(
     is_active: item.is_active,
     movement_type: item.movement_type ?? "",
     payment_kind: item.payment_kind ?? "other_digital",
+    business_line: item.business_line ?? "other",
   };
 }
 
@@ -115,6 +117,7 @@ export async function saveSetting(
     is_active: value.is_active,
     movement_type: config.supportsMovementType ? value.movement_type || null : undefined,
     payment_kind: config.key === "payment_methods" ? value.payment_kind : undefined,
+    business_line: config.supportsBusinessLine ? value.business_line : undefined,
   };
 
   const endpoint = editingId ? `${config.endpoint}/${editingId}` : config.endpoint;
@@ -148,6 +151,7 @@ export async function toggleSetting(
     is_active: isActive,
     movement_type: config.supportsMovementType ? item.movement_type ?? null : undefined,
     payment_kind: config.key === "payment_methods" ? item.payment_kind ?? "other_digital" : undefined,
+    business_line: config.supportsBusinessLine ? item.business_line ?? "other" : undefined,
   };
 
   const response = await fetch(`${config.endpoint}/${item.id}`, {

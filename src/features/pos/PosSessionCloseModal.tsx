@@ -53,15 +53,18 @@ export function PosSessionCloseModal({
       difference: (Number.isFinite(counted) ? counted : 0) - method.expectedAmount,
     };
   });
-  const hasDifference = differences.some((item) => Math.abs(item.difference) >= 0.005);
-  const requiresNotes = Boolean(summary?.isOverdue || summary?.status === "pending_close" || hasDifference);
   const isBlocked = Boolean(
     !summary ||
-      summary.draftSalesCount > 0 ||
-      (requiresNotes && !notes.trim()) ||
-      isLoading ||
-      isSubmitting,
+    summary.draftSalesCount > 0 ||
+    isLoading ||
+    isSubmitting,
   );
+  function differenceTone(value: number) {
+    if (Math.abs(value) < 0.005) return { text: "text-slate-500", badge: "bg-emerald-50 text-emerald-700" };
+    return value > 0
+      ? { text: "text-amber-700", badge: "bg-amber-50 text-amber-700" }
+      : { text: "text-rose-700", badge: "bg-rose-50 text-rose-700" };
+  }
 
   return (
     <Modal
@@ -128,44 +131,16 @@ export function PosSessionCloseModal({
             </div>
           </section>
 
-          <section className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Ventas por categoría y producción</p>
-                <p className="mt-1 text-xs text-slate-600">Separa las ventas de servicios de los productos y muestra el aporte que se descuenta antes de la comisión.</p>
-              </div>
-              {summary.operationalBreakdown.isEstimated ? <span className="text-xs font-medium text-sky-800">Estimado antes del cierre</span> : <span className="text-xs font-medium text-emerald-700">Producción registrada</span>}
-            </div>
-            <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <dt className="text-slate-600">Servicios brutos</dt><dd className="text-right font-semibold text-slate-900">{formatMoney(summary.operationalBreakdown.serviceGrossTotal)}</dd>
-              <dt className="text-slate-600">Aportes de producción</dt><dd className="text-right font-semibold text-amber-800">-{formatMoney(summary.operationalBreakdown.operationalContributionTotal)}</dd>
-              <dt className="border-t border-sky-200 pt-2 font-semibold text-slate-800">Base comisionable de barberos</dt><dd className="border-t border-sky-200 pt-2 text-right font-bold text-slate-900">{formatMoney(summary.operationalBreakdown.commissionableBaseTotal)}</dd>
-            </dl>
-            <div className="mt-4 border-t border-sky-200 pt-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Productos y otras categorías</p>
-              {summary.operationalBreakdown.productCategories.length ? (
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {summary.operationalBreakdown.productCategories.map((category) => (
-                    <div key={category.categoryName} className="flex items-center justify-between gap-3 rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm">
-                      <span className="min-w-0 truncate text-slate-700">{category.categoryName}</span>
-                      <strong className="shrink-0 text-slate-900">{formatMoney(category.grossTotal)}</strong>
-                    </div>
-                  ))}
-                </div>
-              ) : <p className="mt-2 text-sm text-slate-500">No hubo productos vendidos en esta sesión.</p>}
-            </div>
-          </section>
-
           <section className="rounded-xl border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-slate-900">Movimientos operativos</p>
+            <p className="text-sm font-semibold text-slate-900">Movimientos de efectivo</p>
             {summary.movements.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">Sin movimientos operativos.</p>
+              <p className="mt-2 text-sm text-slate-500">Sin movimientos de efectivo.</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {summary.movements.map((movement) => (
                   <div key={movement.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="min-w-0 truncate text-slate-600">{movement.categoryName}: {movement.description}</span>
-                    <strong>{formatMoney(movement.amount)}</strong>
+                    <span className="min-w-0 text-slate-600"><span className="block truncate">{movement.movementType === "income" ? "Ingreso de efectivo" : movement.movementType === "expense" ? "Salida de efectivo" : "Ajuste"}: {movement.description}</span><span className="block text-xs text-slate-400">{formatDateTime(movement.createdAt)}</span></span>
+                    <strong className={movement.movementType === "expense" ? "text-rose-700" : "text-emerald-700"}>{movement.movementType === "expense" ? "-" : "+"}{formatMoney(movement.amount)}</strong>
                   </div>
                 ))}
               </div>
@@ -193,33 +168,44 @@ export function PosSessionCloseModal({
           </section>
 
           <section className="rounded-xl border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-slate-900">Validacion de montos reales</p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {summary.paymentMethods.map((method) => (
-                <label key={method.paymentMethodId} className="space-y-1.5 text-sm text-slate-700">
-                  <span>{method.name} validado</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    disabled={summary.status === "closed"}
-                    value={summary.status === "closed" ? String(method.countedAmount ?? 0) : countedAmounts[method.paymentMethodId] ?? "0"}
-                    onChange={(event) => onCountedAmountChange(method.paymentMethodId, event.target.value)}
-                  />
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-xl border border-slate-200">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
-                <thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-2">Metodo</th><th className="px-4 py-2 text-right">Esperado</th><th className="px-4 py-2 text-right">Real</th><th className="px-4 py-2 text-right">Diferencia</th><th className="px-4 py-2">Estado</th></tr></thead>
+            <p className="text-sm font-semibold text-slate-900">Validacion por metodo de pago</p>
+            <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-3 py-2 text-left">Metodo</th>
+                    <th className="px-3 py-2 text-right">Real</th>
+                    <th className="px-3 py-2 text-right">Esperado</th>
+                    <th className="px-3 py-2 text-right">Diferencia</th>
+                    <th className="px-3 py-2 text-center">Estado</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100">
                   {differences.map((item) => {
                     const difference = summary.status === "closed" ? item.differenceAmount ?? 0 : item.difference;
-                    const counted = summary.status === "closed" ? item.countedAmount ?? 0 : item.counted;
-                    return <tr key={item.paymentMethodId}><td className="px-4 py-2 font-medium">{item.name}</td><td className="px-4 py-2 text-right">{formatMoney(item.expectedAmount)}</td><td className="px-4 py-2 text-right">{formatMoney(counted)}</td><td className="px-4 py-2 text-right font-semibold">{formatMoney(difference)}</td><td className="px-4 py-2">{differenceLabel(difference)}</td></tr>;
+                    const tone = differenceTone(difference);
+                    return (
+                      <tr key={item.paymentMethodId}>
+                        <td className="px-3 py-2 font-medium text-slate-900">{item.name}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          <Input
+                            className="ml-auto h-8 w-28 text-right tabular-nums"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            aria-label={`${item.name} validado`}
+                            disabled={summary.status === "closed"}
+                            value={summary.status === "closed" ? String(item.countedAmount ?? 0) : countedAmounts[item.paymentMethodId] ?? "0"}
+                            onChange={(event) => onCountedAmountChange(item.paymentMethodId, event.target.value)}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-600">{formatMoney(item.expectedAmount)}</td>
+                        <td className={`px-3 py-2 text-right font-semibold tabular-nums ${tone.text}`}>{formatMoney(difference)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${tone.badge}`}>{differenceLabel(difference)}</span>
+                        </td>
+                      </tr>
+                    );
                   })}
                 </tbody>
               </table>
@@ -227,9 +213,8 @@ export function PosSessionCloseModal({
           </section>
 
           <section className="space-y-2">
-            <label className="text-sm font-medium text-slate-700" htmlFor="closing-notes">Observacion del cierre{requiresNotes ? " *" : ""}</label>
-            <Textarea id="closing-notes" disabled={summary.status === "closed"} value={summary.status === "closed" ? summary.closingNotes ?? "" : notes} onChange={(event) => onNotesChange(event.target.value)} placeholder={requiresNotes ? "Describe el motivo del faltante, sobrante o cierre pendiente." : "Observacion opcional"} className="min-h-24" />
-            <p className="text-xs text-slate-500">Describe el motivo del faltante, sobrante o cierre pendiente.</p>
+            <label className="text-sm font-medium text-slate-700" htmlFor="closing-notes">Observación del cierre (opcional)</label>
+            <Textarea id="closing-notes" disabled={summary.status === "closed"} value={summary.status === "closed" ? summary.closingNotes ?? "" : notes} onChange={(event) => onNotesChange(event.target.value)} placeholder="Observación opcional" className="min-h-24" />
           </section>
 
           {summary.status === "closed" ? (

@@ -7,11 +7,18 @@ type Session = {
 };
 
 type CloseSummary = {
+  openingNotes: string | null;
   paymentMethods: Array<{
     paymentMethodId: string;
     expectedAmount: number;
   }>;
 };
+
+const QA_SESSION_PREFIXES = ["QA_E2E_", "QA_RUN_"] as const;
+
+function isQaSession(openingNotes: string | null) {
+  return QA_SESSION_PREFIXES.some((prefix) => openingNotes?.startsWith(prefix) === true);
+}
 
 async function payload<T>(response: APIResponse) {
   const body = await response.text();
@@ -47,6 +54,12 @@ export async function closeQaOpenSessions(
     const summary = (await ensureOk<{ data: CloseSummary }>(
       await request.get(`/api/admin/pos/sessions/${session.id}/close`),
     )).data;
+    if (!isQaSession(summary.openingNotes)) {
+      throw new Error(
+        `BLOCKED: existe una sesión POS activa no identificada como QA para esta sede. sessionId=${session.id} branchId=${branchId}`,
+      );
+    }
+
     const countedAmounts = Object.fromEntries(
       summary.paymentMethods.map((method) => [
         method.paymentMethodId,
@@ -70,13 +83,16 @@ export async function openFreshQaSession(
   openingCashAmount: number,
   runCode: string,
 ) {
+  if (!QA_SESSION_PREFIXES.some((prefix) => runCode.startsWith(prefix))) {
+    throw new Error("El runCode de la sesión POS QA debe usar un prefijo QA aprobado.");
+  }
   await closeQaOpenSessions(request, branchId, runCode);
   return (await ensureOk<{ data: Session }>(
     await request.post("/api/admin/pos/sessions/open", {
       data: {
         branch_id: branchId,
         opening_cash_amount: openingCashAmount,
-        notes: `${runCode} sesion QA aislada`,
+        notes: `${runCode} QA_E2E_POS_SESSION`,
       },
     }),
   )).data;

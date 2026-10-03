@@ -87,6 +87,19 @@ export function EmployeeForm({
         />
       </div>
 
+      <section className="space-y-3 rounded-xl border border-sky-100 bg-sky-50 p-4">
+        <div><p className="text-sm font-semibold text-slate-800">Remuneración</p><p className="text-xs text-slate-600">Es independiente del rol y del cargo. Si se deja sin fecha, queda pendiente de configurar.</p></div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SelectField label="Tipo de remuneración" value={value.compensation_type} onChange={(event) => updateField("compensation_type", event.target.value as EmployeeFormValue["compensation_type"])}>
+            <option value="commission_plus_bonus">Comisión + bonos</option><option value="commission_only">Solo comisiones</option><option value="fixed_plus_bonus">Fijo + bonos</option><option value="fixed">Solo fijo</option>
+          </SelectField>
+          <TextField label="Vigente desde" type="date" value={value.compensation_effective_from} onChange={(event) => updateField("compensation_effective_from", event.target.value)} />
+          {["commission_plus_bonus", "commission_only"].includes(value.compensation_type) ? <p className="text-sm text-slate-600">El porcentaje de comisión se asigna al preparar cada liquidación.</p> : <TextField label="Sueldo base mensual" type="number" min="0.01" step="0.01" value={value.base_monthly_salary} onChange={(event) => updateField("base_monthly_salary", event.target.value)} required />}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={value.mandatory_discount_enabled} onChange={(event) => updateField("mandatory_discount_enabled", event.target.checked)} />Aplicar descuento obligatorio</label>
+        {value.mandatory_discount_enabled ? <TextField label="Porcentaje descuento obligatorio" type="number" min="0" max="100" step="0.01" value={value.mandatory_discount_rate} onChange={(event) => updateField("mandatory_discount_rate", event.target.value)} /> : null}
+      </section>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           label="Email"

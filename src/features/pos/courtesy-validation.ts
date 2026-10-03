@@ -63,6 +63,14 @@ function benefitMatches(item: CourtesyValidationItem, benefit: CourtesyRuleBenef
   return benefit.product_id === item.catalogId || (benefit.product_category_id !== null && benefit.product_category_id === item.categoryId);
 }
 
+function findMatchingBenefit(item: CourtesyValidationItem, benefits: CourtesyRuleBenefit[]) {
+  const matches = benefits.filter((benefit) => benefitMatches(item, benefit));
+  if (item.itemType === "service") {
+    return matches.find((benefit) => benefit.service_id === item.catalogId) ?? matches[0];
+  }
+  return matches.find((benefit) => benefit.product_id === item.catalogId) ?? matches[0];
+}
+
 export function validateCourtesySelection(input: {
   branchId: string;
   hasReward: boolean;
@@ -75,10 +83,6 @@ export function validateCourtesySelection(input: {
   if (courtesyItems.some((item) => !item.courtesyReason?.trim())) {
     return { ok: false, message: "Debes registrar el motivo de cada cortesia." };
   }
-  if (courtesyItems.some((item) => item.itemType === "product" && !item.isCourtesyAllowed)) {
-    return { ok: false, message: "Uno de los productos no admite cortesia." };
-  }
-
   const now = (input.now ?? new Date()).getTime();
   const activeRules = input.rules
     .filter((rule) => rule.is_active && (!rule.branch_id || rule.branch_id === input.branchId))
@@ -87,7 +91,6 @@ export function validateCourtesySelection(input: {
     .sort((left, right) => right.priority - left.priority);
 
   for (const rule of activeRules) {
-    if (input.hasReward && !rule.allow_with_reward) continue;
     const qualifyingItem = input.items.find((item) =>
       !item.isCourtesy &&
       item.itemType === "service" &&
@@ -102,14 +105,21 @@ export function validateCourtesySelection(input: {
     if (rule.maximum_courtesy_amount !== null && totalAmount > rule.maximum_courtesy_amount) continue;
 
     const benefitByCatalogId = new Map<string, CourtesyRuleBenefit>();
+    const explicitProductBenefits = rule.benefits.filter((benefit) =>
+      benefit.is_active && benefit.benefit_item_type === "product",
+    );
     let allBenefitsValid = true;
     for (const item of courtesyItems) {
-      const benefit = rule.benefits.find((candidate) => benefitMatches(item, candidate));
-      if (!benefit || item.quantity > benefit.max_quantity || (benefit.max_unit_amount !== null && item.unitPrice > benefit.max_unit_amount)) {
+      const benefit = findMatchingBenefit(item, rule.benefits);
+      const usesProductFallback = item.itemType === "product" && explicitProductBenefits.length === 0;
+      if (
+        (usesProductFallback && !item.isCourtesyAllowed)
+        || (!usesProductFallback && (!benefit || item.quantity > benefit.max_quantity || (benefit.max_unit_amount !== null && item.unitPrice > benefit.max_unit_amount)))
+      ) {
         allBenefitsValid = false;
         break;
       }
-      benefitByCatalogId.set(item.catalogId, benefit);
+      if (benefit) benefitByCatalogId.set(item.catalogId, benefit);
     }
     if (allBenefitsValid) return { ok: true, rule, benefitByCatalogId, qualifyingCatalogId: qualifyingItem.catalogId };
   }
@@ -147,7 +157,6 @@ export function getCourtesyAllowance(input: {
     .filter((rule) => rule.is_active && (!rule.branch_id || rule.branch_id === input.branchId))
     .filter((rule) => !rule.starts_at || new Date(rule.starts_at).getTime() <= now)
     .filter((rule) => !rule.ends_at || new Date(rule.ends_at).getTime() >= now)
-    .filter((rule) => !input.hasReward || rule.allow_with_reward)
     .sort((left, right) => {
       const leftSpecificity = Number(Boolean(left.qualifying_service_id)) * 2 + Number(Boolean(left.qualifying_service_category_id));
       const rightSpecificity = Number(Boolean(right.qualifying_service_id)) * 2 + Number(Boolean(right.qualifying_service_category_id));
@@ -178,8 +187,9 @@ export function getCourtesyAllowance(input: {
 
   for (const { rule, quantity } of matchedRules) {
     const benefits = rule.benefits.filter((benefit) => benefit.is_active && benefit.benefit_item_type === "product");
+    const products = input.items.filter((item) => item.itemType === "product");
     if (benefits.length === 0) {
-      for (const product of input.items.filter((item) => item.itemType === "product" && item.isCourtesyAllowed)) {
+      for (const product of products.filter((item) => item.isCourtesyAllowed)) {
         eligibleProductIds.add(product.catalogId);
         productCapacity.set(
           product.catalogId,
@@ -187,12 +197,13 @@ export function getCourtesyAllowance(input: {
         );
       }
     }
-    for (const benefit of benefits) {
-      if (benefit.is_active && benefit.benefit_item_type === "product" && benefit.product_id) {
-        eligibleProductIds.add(benefit.product_id);
+    for (const product of products) {
+      const benefit = findMatchingBenefit(product, benefits);
+      if (benefit) {
+        eligibleProductIds.add(product.catalogId);
         productCapacity.set(
-          benefit.product_id,
-          (productCapacity.get(benefit.product_id) ?? 0) + benefit.max_quantity * quantity,
+          product.catalogId,
+          (productCapacity.get(product.catalogId) ?? 0) + benefit.max_quantity * quantity,
         );
       }
     }

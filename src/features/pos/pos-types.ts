@@ -18,6 +18,7 @@ export type PosSessionRecord = {
   status: "open" | "pending_close" | "closed" | "cancelled";
   business_date: string;
   opening_cash_amount: string;
+  expected_cash_amount?: string;
   opened_at: string;
   opened_by: string | null;
   opened_by_name: string | null;
@@ -75,11 +76,18 @@ export type PosProductRecord = {
   id: string;
   category_id: string | null;
   category_name: string | null;
+  business_line?: "barbershop_products" | "cafeteria_products" | "other";
   name: string;
   description: string | null;
   sku: string | null;
   barcode: string | null;
   final_sale_price: string;
+  visibility_scope: "pos" | "internal" | "both";
+  retail_price: string;
+  employee_price: string | null;
+  employee_price_active: boolean;
+  effective_price: string;
+  price_source: "retail" | "employee" | "retail_fallback" | "internal";
   stock_quantity: string;
   allow_custom_price: boolean;
   is_stockable: boolean;
@@ -128,6 +136,10 @@ export type PosCartItem = {
   category_name: string | null;
   quantity: number;
   unit_price: number;
+  retail_price?: number;
+  employee_price?: number | null;
+  price_source?: "retail" | "employee" | "retail_fallback" | "internal";
+  visibility_scope?: "pos" | "internal" | "both";
   allow_custom_price?: boolean;
   discount_amount: number;
   is_courtesy: boolean;
@@ -137,6 +149,8 @@ export type PosCartItem = {
   is_stockable?: boolean;
   is_courtesy_allowed?: boolean;
   reservation_suggestion?: boolean;
+  responsible_employee_id?: string | null;
+  business_line?: "barbershop_products" | "cafeteria_products" | "other";
 };
 
 export type PosPreparedPayment = {
@@ -238,6 +252,7 @@ export type PosCheckoutPayload = {
     discount_amount: number;
     is_courtesy: boolean;
     courtesy_reason?: string;
+    responsible_employee_id?: string | null;
   }>;
   payments: Array<{
     payment_method_id: string;
@@ -273,6 +288,7 @@ export type PosCheckoutResult = {
   payments: PosPreparedPayment[];
   paidTotal: number;
   changeAmount: number;
+  warning?: string;
 };
 
 export type PosRecentSaleRecord = {
@@ -407,6 +423,7 @@ export type SalesHistoryRecord = {
   customerName: string;
   branchName: string;
   barberName: string | null;
+  responsibleNames?: string[];
   total: number;
   paidTotal: number;
   changeAmount: number;
@@ -485,6 +502,11 @@ export type SaleDetailRecord = {
 
 export type SalesHistoryPayload = {
   data: SalesHistoryRecord[];
+  pagination?: {
+    totalCount: number;
+    page: number;
+    pageSize: number;
+  };
   filters: {
     branches: SalesHistoryOption[];
     barbers: SalesHistoryOption[];

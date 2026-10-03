@@ -19,14 +19,15 @@ export async function GET() {
     return NextResponse.json({ error: "No se pudo preparar el periodo actual.", code: "PAYROLL_PERIOD_ERROR" }, { status: 500 });
   }
 
-  const [settlements, periods, employees, debts, methods] = await Promise.all([
-    supabase.from("employee_settlements").select("*, employee:employees!employee_settlements_employee_id_fkey(full_name, document_number, position), branch:branches(name), period:payroll_periods(start_date,end_date,period_half), payment_method:payment_methods(name)").order("created_at", { ascending: false }),
+  const [settlements, periods, employees, debts, methods, compensationTerms] = await Promise.all([
+    supabase.from("employee_settlements").select("*, employee:employees!employee_settlements_employee_id_fkey(full_name, document_number, position), branch:branches(name), period:payroll_periods(start_date,end_date,period_half), payment_method:payment_methods(name)").or("cancellation_reason_code.is.null,cancellation_reason_code.neq.DRAFT_DISCARDED").order("created_at", { ascending: false }),
     supabase.from("payroll_periods").select("id,start_date,end_date,status,period_half").neq("status", "cancelled").order("start_date", { ascending: false }),
     supabase.from("employees").select("id,full_name,branch_id,document_number,position").eq("status", "active").order("full_name"),
     supabase.from("employee_debts").select("id,employee_id,debt_type,outstanding_amount,description,status,created_at").in("status", ["pending", "partial"]).order("created_at"),
     supabase.from("payment_methods").select("id,code,name,payment_kind").eq("is_active", true).order("sort_order"),
+    supabase.from("employee_compensation_terms").select("employee_id,compensation_mode,base_monthly_salary,mandatory_discount_enabled,mandatory_discount_rate,effective_from,effective_to,compensation_policy_version").eq("is_active", true).order("effective_from", { ascending: false }),
   ]);
-  const error = settlements.error ?? periods.error ?? employees.error ?? debts.error ?? methods.error;
+  const error = settlements.error ?? periods.error ?? employees.error ?? debts.error ?? methods.error ?? compensationTerms.error;
   if (error) {
     console.error("[settlements/get] Error al cargar liquidaciones", { message: error.message, code: error.code, details: error.details, hint: error.hint });
     return NextResponse.json({ error: "No se pudieron cargar las liquidaciones.", code: "SETTLEMENTS_LOAD_ERROR" }, { status: 500 });
@@ -35,7 +36,7 @@ export async function GET() {
   const businessDateValue = String(businessDate);
   const businessDateAtMidnight = new Date(`${businessDateValue}T00:00:00`);
   const activeSettlements = (settlements.data ?? [])
-    .filter((item) => item.status !== "cancelled")
+    .filter((item) => ["draft", "review", "approved"].includes(item.status))
     .map((item) => ({ key: `${item.payroll_period_id}:${item.employee_id}`, status: item.status, settlementNumber: item.settlement_number }));
   const currentPeriodIds = (periods.data ?? [])
     .filter((period) => {
@@ -49,7 +50,7 @@ export async function GET() {
 
   return NextResponse.json({
     data: settlements.data ?? [], periods: periods.data ?? [], employees: employees.data ?? [], debts: debts.data ?? [],
-    paymentMethods: methods.data ?? [], businessDate: businessDateValue, currentPeriodIds, activeSettlements,
+    paymentMethods: methods.data ?? [], compensationTerms: compensationTerms.data ?? [], businessDate: businessDateValue, currentPeriodIds, activeSettlements,
   });
 }
 
@@ -58,8 +59,8 @@ export async function POST(request: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   const payload = await request.json().catch(() => null);
-  if (!payload?.periodId || !payload?.employeeId || !Number.isFinite(Number(payload.commissionRate))) {
-    return NextResponse.json({ error: "Periodo, empleado y porcentaje son obligatorios." }, { status: 400 });
+  if (!payload?.periodId || !payload?.employeeId || (payload.commissionRate !== undefined && payload.commissionRate !== "" && !Number.isFinite(Number(payload.commissionRate)))) {
+    return NextResponse.json({ error: "Periodo y empleado son obligatorios; el porcentaje aplica solo a perfiles por comisión." }, { status: 400 });
   }
   const supabase = await createClient();
   const { data: existingSettlement, error: existingSettlementError } = await supabase
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
     .select("id,status,settlement_number")
     .eq("payroll_period_id", payload.periodId)
     .eq("employee_id", payload.employeeId)
-    .neq("status", "cancelled")
+    .in("status", ["draft", "review", "approved"])
     .maybeSingle();
   if (existingSettlementError) {
     console.error("[settlements/post] Error al validar liquidacion activa", { message: existingSettlementError.message, code: existingSettlementError.code });
@@ -96,16 +97,25 @@ export async function POST(request: Request) {
       (item: unknown) => item && typeof item === "object" && Number((item as Record<string, unknown>).amount) > 0,
     )
     : [];
-  const { data, error } = await supabase.rpc("prepare_employee_settlement", {
+  const normalizedDebtDeductions = debtDeductions.map((item: Record<string, unknown>) => ({
+    debt_id: item.debt_id ?? item.debtId,
+    amount: Number(item.amount),
+  }));
+  const { data, error } = await supabase.rpc("prepare_employee_settlement_v193", {
     p_period_id: payload.periodId,
     p_employee_id: payload.employeeId,
-    p_commission_rate: Number(payload.commissionRate),
-    p_debt_deductions: debtDeductions,
+    p_commission_rate: payload.commissionRate === undefined || payload.commissionRate === "" ? null : Number(payload.commissionRate),
+    p_debt_deductions: normalizedDebtDeductions,
     p_notes: payload.notes || null,
-    p_high_rate_note: payload.highRateNote || null,
   });
   if (error) {
     console.error("[settlements/post] Error al preparar liquidacion", { message: error.message, code: error.code });
+    if (!error.message.includes("60")) {
+      return NextResponse.json({
+        error: "No se pudo crear la liquidación. Inténtalo nuevamente o revisa la producción del período.",
+        code: error.code,
+      }, { status: 400 });
+    }
     return NextResponse.json({
       error: error.message.includes("60") ? "Un porcentaje mayor a 60 % requiere una observación de autorización." : error.message,
     }, { status: 400 });

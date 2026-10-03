@@ -8,14 +8,28 @@ export async function POST(request: Request, context: { params: Promise<{ entryI
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
   const { entryId } = await context.params;
   const payload = await request.json().catch(() => null);
-  const reason = String(payload?.reason ?? "").trim();
-  if (!reason) return NextResponse.json({ error: "Indica el motivo de anulacion." }, { status: 400 });
+  const reasonCode = String(payload?.reasonCode ?? "").trim();
+  const note = String(payload?.note ?? "").trim();
+  if (!reasonCode) return NextResponse.json({ error: "Selecciona el motivo de anulacion." }, { status: 400 });
+  if (reasonCode === "OTHER" && !note) return NextResponse.json({ error: "La observacion es obligatoria para el motivo Otro." }, { status: 400 });
   const supabase = await createClient();
-  const { data: employeeId } = await supabase.rpc("current_employee_id");
-  const { data, error } = await supabase.from("finance_manual_entries").update({ status: "cancelled", cancellation_reason: reason, cancelled_at: new Date().toISOString(), cancelled_by: employeeId ?? null }).eq("id", entryId).eq("status", "active").select().single();
+  const { data, error } = await supabase.rpc("cancel_operational_finance_entry_v186", {
+    p_entry_id: entryId,
+    p_reason_code: reasonCode,
+    p_note: note || null,
+  });
   if (error) {
-    console.error("[finance/cancel] Error al anular asiento", { entryId, message: error.message, code: error.code });
-    return NextResponse.json({ error: "No se pudo anular el movimiento." }, { status: 400 });
+    console.error("[finance/cancel] Error al anular asiento", {
+      entryId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    const knownMessage = error.message?.includes("caja POS ya cerrada") || error.message?.includes("ya tiene pagos") || error.message?.includes("observación")
+      ? error.message
+      : "No se pudo anular el movimiento.";
+    return NextResponse.json({ error: knownMessage }, { status: 400 });
   }
   return NextResponse.json({ data });
 }

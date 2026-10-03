@@ -20,6 +20,7 @@ export type AppModule =
   | "settlements"
   | "finance"
   | "financial_analysis"
+  | "profit_loss"
   | "payment_simulations"
   | "devices"
   | "hotspots"
@@ -47,6 +48,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "settlements",
     "finance",
     "financial_analysis",
+    "profit_loss",
     "payment_simulations",
     "devices",
     "hotspots",
@@ -73,6 +75,7 @@ const roleModules: Record<AppRole, AppModule[]> = {
     "settlements",
     "finance",
     "financial_analysis",
+    "profit_loss",
     "payment_simulations",
     "devices",
     "hotspots",
@@ -120,6 +123,7 @@ export const moduleRouteMap: Record<AppModule, string> = {
   settlements: "/control/liquidaciones",
   finance: "/control/finanzas",
   financial_analysis: "/control/analisis-financiero",
+  profit_loss: "/control/ganancias-perdidas",
   payment_simulations: "/control/simulaciones-pago",
   devices: "/control/dispositivos",
   hotspots: "/control/hotspots",

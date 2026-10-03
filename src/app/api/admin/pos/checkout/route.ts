@@ -59,6 +59,8 @@ type ProductRow = {
   is_stockable: boolean;
   is_courtesy_allowed: boolean;
   is_active: boolean;
+  visibility_scope?: "pos" | "internal" | "both";
+  category?: { business_line: "barbershop_products" | "cafeteria_products" | "other" } | Array<{ business_line: "barbershop_products" | "cafeteria_products" | "other" }> | null;
 };
 
 type ProductStockRow = {
@@ -129,6 +131,7 @@ type IdempotencySaleItemRow = {
   discount_amount: number | string;
   is_courtesy: boolean;
   courtesy_reason: string | null;
+  attributed_employee_id: string | null;
 };
 
 type IdempotencySalePaymentRow = {
@@ -167,6 +170,7 @@ type CheckoutSignatureInput = {
     discountAmount: number;
     isCourtesy: boolean;
     courtesyReason: string | null;
+    responsibleEmployeeId: string | null;
   }>;
   payments: Array<{
     paymentMethodId: string;
@@ -195,6 +199,7 @@ function buildCheckoutSignature(input: CheckoutSignatureInput) {
       discountAmount: item.discountAmount,
       isCourtesy: item.isCourtesy,
       courtesyReason: item.isCourtesy ? item.courtesyReason : null,
+      responsibleEmployeeId: item.responsibleEmployeeId,
     }))
     .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
   const payments = input.payments
@@ -248,6 +253,12 @@ async function loadCompletedSaleResult(
   ]);
 
   if (saleSummaryResult.error || saleItemsResult.error || salePaymentsResult.error) {
+    console.error("[pos/checkout] Error al cargar resumen post-checkout", {
+      saleId,
+      saleSummary: saleSummaryResult.error ? { message: saleSummaryResult.error.message, code: saleSummaryResult.error.code, details: saleSummaryResult.error.details, hint: saleSummaryResult.error.hint } : null,
+      saleItems: saleItemsResult.error ? { message: saleItemsResult.error.message, code: saleItemsResult.error.code, details: saleItemsResult.error.details, hint: saleItemsResult.error.hint } : null,
+      payments: salePaymentsResult.error ? { message: salePaymentsResult.error.message, code: salePaymentsResult.error.code, details: salePaymentsResult.error.details, hint: salePaymentsResult.error.hint } : null,
+    });
     return { error: "La venta se cerro, pero no se pudo cargar su resumen." as const };
   }
 
@@ -324,7 +335,7 @@ async function findCompletedIdempotentSale(
       const [itemsResult, paymentsResult, rewardsResult, internalOperationResult] = await Promise.all([
         supabase
           .from("sale_items")
-          .select("item_type, service_id, product_id, quantity, unit_price, discount_amount, is_courtesy, courtesy_reason")
+          .select("item_type, service_id, product_id, quantity, unit_price, discount_amount, is_courtesy, courtesy_reason, attributed_employee_id")
           .eq("sale_id", sale.id),
         supabase
           .from("sale_payments")
@@ -366,6 +377,7 @@ async function findCompletedIdempotentSale(
           discountAmount: toMoneyNumber(item.discount_amount),
           isCourtesy: item.is_courtesy,
           courtesyReason: item.is_courtesy ? trimOrNull(item.courtesy_reason) ?? "Cortesia de servicio" : null,
+          responsibleEmployeeId: item.attributed_employee_id,
         })),
         payments: ((paymentsResult.data ?? []) as IdempotencySalePaymentRow[]).map((payment) => ({
           paymentMethodId: payment.payment_method_id,
@@ -405,6 +417,7 @@ function normalizeCheckoutItems(rawItems: unknown) {
     const unitPrice = parseMoney(item.unit_price);
     const discountAmount = parseMoney(item.discount_amount) ?? 0;
     const isCourtesy = item.is_courtesy === true;
+    const responsibleEmployeeId = trimOrNull(item.responsible_employee_id);
 
     if (!itemType || !trimOrNull(item.catalog_id) || quantity === null || unitPrice === null) {
       return null;
@@ -425,6 +438,7 @@ function normalizeCheckoutItems(rawItems: unknown) {
       discountAmount: Number(discountAmount.toFixed(2)),
       isCourtesy,
       courtesyReason: isCourtesy ? trimOrNull(item.courtesy_reason) ?? "Cortesia de servicio" : null,
+      responsibleEmployeeId,
       total,
     };
   });
@@ -530,7 +544,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: normalizedPayments.error }, { status: 400 });
   }
 
-  const items = normalizedItems.items;
+  let items = normalizedItems.items;
   const payments = normalizedPayments.payments;
 
   if (items.some((item) => item.isCourtesy && item.itemType !== "product")) {
@@ -639,6 +653,13 @@ export async function POST(request: Request) {
     );
   }
 
+  const { data: buyerOptions, error: buyerOptionsError } = await supabase.rpc("get_pos_internal_options", {
+    p_customer_id: customerId,
+    p_branch_id: branchId,
+  });
+  if (buyerOptionsError) return NextResponse.json({ error: "No se pudo resolver el contexto del comprador." }, { status: 500 });
+  const buyerEmployeeId = (buyerOptions as { employee?: { id?: string } | null } | null)?.employee?.id ?? null;
+
   if (
     rewardEntitlementId &&
     customerRow.full_name.trim().toLowerCase() === "cliente varios"
@@ -741,6 +762,10 @@ export async function POST(request: Request) {
   const productIds = items
     .filter((item) => item.itemType === "product")
     .map((item) => item.catalogId);
+  const responsibleEmployeeIds = Array.from(new Set([
+    ...items.map((item) => item.responsibleEmployeeId).filter((id): id is string => Boolean(id)),
+    ...(barberId ? [barberId] : []),
+  ]));
 
   const [
     servicesPrimaryResult,
@@ -748,6 +773,7 @@ export async function POST(request: Request) {
     productsResult,
     paymentMethodsResult,
     stockResult,
+    responsibleEmployeesResult,
   ] = await Promise.all([
     serviceIds.length
       ? supabase
@@ -765,7 +791,7 @@ export async function POST(request: Request) {
     productIds.length
       ? supabase
           .from("products")
-          .select("id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active")
+          .select("id, name, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active, visibility_scope, category:product_categories(business_line)")
           .in("id", productIds)
       : Promise.resolve({ data: [], error: null }),
     payments.length
@@ -783,6 +809,9 @@ export async function POST(request: Request) {
           .select("product_id, stock_quantity, final_sale_price")
           .eq("branch_id", branchId)
           .in("product_id", productIds)
+      : Promise.resolve({ data: [], error: null }),
+    responsibleEmployeeIds.length
+      ? supabase.from("employees").select("id, branch_id, status").in("id", responsibleEmployeeIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -815,6 +844,7 @@ export async function POST(request: Request) {
     productsResult.error ||
     paymentMethodsResult.error ||
     stockResult.error
+    || responsibleEmployeesResult.error
   ) {
     console.error("[pos/checkout] No se pudieron validar los catalogos de la venta", {
       servicesError: servicesError?.message,
@@ -822,6 +852,7 @@ export async function POST(request: Request) {
       productsError: productsResult.error?.message,
       paymentsError: paymentMethodsResult.error?.message,
       stockError: stockResult.error?.message,
+      responsibleEmployeesError: responsibleEmployeesResult.error?.message,
     });
     return NextResponse.json(
       { error: "No se pudieron validar los datos de la venta." },
@@ -838,12 +869,38 @@ export async function POST(request: Request) {
   const productsMap = new Map(
     ((productsResult.data ?? []) as ProductRow[]).map((product) => [product.id, product]),
   );
+
+  // A barbería product inherits the single service executor only when that
+  // executor is unambiguous. Explicit line attribution always wins.
+  const serviceExecutors = new Set(
+    items
+      .filter((item) => item.itemType === "service")
+      .map((item) => item.responsibleEmployeeId ?? barberId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (serviceExecutors.size === 1) {
+    const inheritedEmployeeId = Array.from(serviceExecutors)[0];
+    items = items.map((item) => {
+      if (item.itemType !== "product" || item.responsibleEmployeeId) return item;
+      const product = productsMap.get(item.catalogId);
+      const category = Array.isArray(product?.category) ? product?.category[0] : product?.category;
+      return category?.business_line === "barbershop_products"
+        ? { ...item, responsibleEmployeeId: inheritedEmployeeId }
+        : item;
+    });
+  }
   const paymentMethodsMap = new Map(
     ((paymentMethodsResult.data ?? []) as PaymentMethodRow[]).map((method) => [method.id, method]),
   );
   const stockMap = new Map(
     ((stockResult.data ?? []) as ProductStockRow[]).map((row) => [row.product_id, row]),
   );
+  const { data: employeeCatalog, error: employeeCatalogError } = buyerEmployeeId && productIds.length
+    ? await supabase.from("employee_supply_catalog_items").select("product_id, employee_unit_price").eq("is_active", true).in("product_id", productIds)
+    : { data: [], error: null };
+  if (employeeCatalogError) return NextResponse.json({ error: "No se pudo validar el precio de empleado." }, { status: 500 });
+  const employeePriceMap = new Map((employeeCatalog ?? []).map((row) => [row.product_id, toMoneyNumber(row.employee_unit_price)]));
+  const responsibleEmployees = new Map(((responsibleEmployeesResult.data ?? []) as Array<{ id: string; branch_id: string | null; status: string }>).map((employee) => [employee.id, employee]));
 
   for (const item of items) {
     if (item.itemType === "service") {
@@ -887,15 +944,37 @@ export async function POST(request: Request) {
         );
       }
 
+      const visibilityScope = product.visibility_scope ?? "pos";
+      if (visibilityScope === "internal" && !buyerEmployeeId) {
+        return NextResponse.json({ error: "Este producto está disponible únicamente para empleados." }, { status: 400 });
+      }
+
+      const productCategory = Array.isArray(product.category) ? product.category[0] ?? null : product.category ?? null;
+      const businessLine = productCategory?.business_line ?? "other";
+      if (businessLine === "barbershop_products" && !item.responsibleEmployeeId) {
+        return NextResponse.json({ error: "Cada producto de barbería requiere responsable o vendedor." }, { status: 400 });
+      }
+      if (item.responsibleEmployeeId) {
+        const responsible = responsibleEmployees.get(item.responsibleEmployeeId);
+        if (!responsible || responsible.status !== "active" || (responsible.branch_id && responsible.branch_id !== branchId)) {
+          return NextResponse.json({ error: "El responsable seleccionado no está activo o no pertenece a esta sede." }, { status: 400 });
+        }
+      }
+
       const stockRow = stockMap.get(item.catalogId);
-      const expectedPrice =
+      const retailPrice =
         stockRow?.final_sale_price === null || stockRow?.final_sale_price === undefined
           ? toMoneyNumber(product.base_sale_price)
           : toMoneyNumber(stockRow.final_sale_price);
+      const employeePrice = employeePriceMap.get(item.catalogId);
+      if (visibilityScope === "internal" && employeePrice === undefined) {
+        return NextResponse.json({ error: "El producto interno no tiene una configuración de precio para empleados." }, { status: 400 });
+      }
+      const expectedPrice = buyerEmployeeId && employeePrice !== undefined ? employeePrice : retailPrice;
 
       if (!product.allow_custom_price && item.unitPrice !== expectedPrice) {
         return NextResponse.json(
-          { error: "El precio del producto no coincide con el catalogo actual." },
+          { error: "El precio de uno o más productos cambió. Se actualizó el carrito antes de continuar." },
           { status: 400 },
         );
       }
@@ -1036,7 +1115,11 @@ export async function POST(request: Request) {
       discount_amount: item.discountAmount,
       total: item.total,
       cost_snapshot: product ? toMoneyNumber(product.cost_price) : null,
-      barber_id: item.itemType === "service" ? barberId : null,
+      barber_id: item.itemType === "service" ? barberId : item.responsibleEmployeeId,
+      // This is the canonical key consumed by the current checkout wrapper.
+      // Keep the historical keys too because the downstream core persists them.
+      responsible_employee_id: item.itemType === "product" ? item.responsibleEmployeeId : null,
+      attributed_employee_id: item.itemType === "product" ? item.responsibleEmployeeId : null,
       is_courtesy: item.isCourtesy,
       courtesy_reason: item.isCourtesy ? item.courtesyReason : null,
       original_unit_price: item.isCourtesy ? item.unitPrice : null,
@@ -1367,7 +1450,15 @@ export async function POST(request: Request) {
       reservationId,
     });
     if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return NextResponse.json({
+        data: {
+          saleId: completedSaleId, saleReference: formatSaleReference(completedSaleId), occurredAt: new Date().toISOString(),
+          branchName: unwrapRelation(sessionRow.branch)?.name ?? "Sin sede", customerName: customerRow.full_name,
+          barberName: barberRow?.full_name ?? null, reservationCompleted: Boolean(reservationId), items: [],
+          subtotal: 0, discountTotal: 0, courtesyTotal: 0, total: finalSaleTotal, payments: [], paidTotal, changeAmount: 0,
+          warning: result.error,
+        },
+      });
     }
 
     return NextResponse.json({ data: result.data });

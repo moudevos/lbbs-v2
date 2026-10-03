@@ -30,6 +30,7 @@ type PosCartProps = {
   customerVariousId: string | null;
   items: PosCartItemRecord[];
   barbers: PosEmployeeRecord[];
+  sellers: PosEmployeeRecord[];
   selectedBarberId: string;
   barberRequired: boolean;
   availableRewards: PosRewardEntitlement[];
@@ -67,6 +68,7 @@ type PosCartProps = {
   onIncreaseItem: (itemId: string) => void;
   onRemoveItem: (itemId: string) => void;
   onToggleCourtesy: (itemId: string) => void;
+  onItemResponsibleChange: (itemId: string, employeeId: string) => void;
   onAddPayment: (payment: PosPreparedPayment) => void;
   onRemovePayment: (paymentId: string) => void;
 };
@@ -76,6 +78,7 @@ export function PosCart({
   customerVariousId,
   items,
   barbers,
+  sellers,
   selectedBarberId,
   barberRequired,
   availableRewards,
@@ -113,6 +116,7 @@ export function PosCart({
   onIncreaseItem,
   onRemoveItem,
   onToggleCourtesy,
+  onItemResponsibleChange,
   onAddPayment,
   onRemovePayment,
 }: PosCartProps) {
@@ -127,13 +131,30 @@ export function PosCart({
 
   const isSocio = internalCustomerOptions?.beneficiaryType === "socio";
   const hasInternalBeneficiary = Boolean(internalCustomerOptions?.employee || internalCustomerOptions?.socio);
+  const isEmployeeBuyer = Boolean(internalCustomerOptions?.employee);
+  const hasIncompatibleInternalLine = !isEmployeeBuyer && items.some((item) => item.item_type === "product" && item.visibility_scope === "internal");
   const canShowReward = Boolean(customer) && customer?.id !== customerVariousId && !hasInternalBeneficiary;
+  const serviceExecutorIds = new Set(
+    items
+      .filter((item) => item.item_type === "service")
+      .map((item) => item.responsible_employee_id ?? selectedBarberId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const inheritedResponsibleEmployeeId = serviceExecutorIds.size === 1
+    ? Array.from(serviceExecutorIds)[0]
+    : null;
+  const missingBarbershopSeller = items.some(
+    (item) =>
+      item.item_type === "product" &&
+      item.business_line === "barbershop_products" &&
+      !(item.responsible_employee_id ?? inheritedResponsibleEmployeeId),
+  );
   const selectedRewardName = availableRewards.find(
     (reward) => reward.id === selectedRewardEntitlementId,
   )?.reward_benefits?.name;
 
   const canOpenPayment =
-    items.length > 0 && Boolean(customer) && (!barberRequired || Boolean(selectedBarberId));
+    items.length > 0 && Boolean(customer) && (!barberRequired || Boolean(selectedBarberId)) && !missingBarbershopSeller && !hasIncompatibleInternalLine;
 
   const blockMessage = !items.length
     ? "Agrega al menos un item."
@@ -141,6 +162,8 @@ export function PosCart({
       ? "Selecciona un cliente."
       : barberRequired && !selectedBarberId
         ? "Selecciona el barbero del servicio."
+        : missingBarbershopSeller
+          ? "Selecciona el responsable de cada producto de barbería."
         : null;
 
   return (
@@ -154,6 +177,8 @@ export function PosCart({
           onSearch={onCustomerSearch}
         />
 
+        {isEmployeeBuyer ? <section className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5"><p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Empleado vinculado</p><p className="mt-0.5 text-sm font-bold text-violet-950">{internalCustomerOptions?.employee?.fullName}</p><p className="mt-1 text-xs text-violet-800">Precio empleado activo{internalCustomerOptions?.canUseCredit ? " · Crédito disponible" : ""}</p></section> : null}
+
         <section className="mt-2.5 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {items.length > 0 ? (
             items.map((item) => (
@@ -165,6 +190,16 @@ export function PosCart({
                 onRemove={() => onRemoveItem(item.id)}
                 onToggleCourtesy={() => onToggleCourtesy(item.id)}
                 courtesyAvailable={item.is_courtesy || (courtesyRemainingCapacity >= item.quantity && (courtesyProductCapacity.get(item.catalog_id) ?? 0) >= item.quantity && courtesyEligibleProductIds.has(item.catalog_id))}
+                courtesyUnavailableReason={item.is_courtesy || courtesyEligibleProductIds.has(item.catalog_id)
+                  ? "Sin cupo de cortesía disponible."
+                  : "No incluido en la regla de cortesía."}
+                sellers={sellers}
+                inheritedResponsibleEmployeeId={
+                  item.item_type === "product" && !item.responsible_employee_id
+                    ? inheritedResponsibleEmployeeId
+                    : null
+                }
+                onResponsibleChange={(employeeId) => onItemResponsibleChange(item.id, employeeId)}
               />
             ))
           ) : (
@@ -173,6 +208,7 @@ export function PosCart({
               description="Agrega un servicio o producto."
             />
           )}
+          {hasIncompatibleInternalLine ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">Este producto está disponible únicamente para empleados. Elimínalo para continuar.</p> : null}
         </section>
       </div>
 

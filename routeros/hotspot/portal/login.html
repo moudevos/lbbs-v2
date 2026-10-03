@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="cache-control" content="no-cache"><title>LBBS WiFi</title><link rel="stylesheet" href="styles.css"><script src="md5.js"></script></head>
+<body><main class="card"><img class="logo" src="assets/lbbs-logo.svg" alt="LBBS"><p class="eyebrow">WiFi para clientes</p><h1>Identifícate para conectarte.</h1><form id="identify" novalidate><label>DNI<input id="dni" name="dni" inputmode="numeric" maxlength="8" autocomplete="off" required></label><label>Código de acceso<input id="code" name="code" maxlength="9" autocapitalize="characters" autocomplete="off" placeholder="SJU583921" required></label><button type="submit">CONTINUAR</button><p class="hint">Acceso válido para un dispositivo.</p><p id="notice" class="notice" aria-live="polite" hidden></p></form>
+<!-- Part 4 hook: this form is intentionally never submitted by this stage. -->
+$(if chap-id)<form id="chap-login" action="$(link-login-only)" method="post" hidden><input name="username"><input name="password"><input name="dst" value="$(link-orig)"><input name="popup" value="true"></form>$(endif)
+</main><script>
+(function(){var dni=document.getElementById('dni'),code=document.getElementById('code'),form=document.getElementById('identify'),notice=document.getElementById('notice');
+dni.oninput=function(){this.value=this.value.replace(/\D/g,'').slice(0,8)};code.oninput=function(){this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,9)};
+window.lbbsChapLogin=function(accessCode){var target=document.getElementById('chap-login');if(!target){return false}target.username.value=accessCode;target.password.value=hexMD5('$(chap-id)'+accessCode+'$(chap-challenge)');target.submit();return true};
+form.onsubmit=function(event){event.preventDefault();if(!/^\d{8}$/.test(dni.value)||!/^[A-Z]{3}\d{6}$/.test(code.value)){notice.textContent='Revisa tu DNI y código de acceso.';notice.hidden=false;return}notice.textContent='La validación de cliente será conectada en la siguiente etapa.';notice.hidden=false};
+}());</script></body></html>

@@ -37,7 +37,7 @@ describe("liquidación sobre ventas brutas y bloqueos activos", () => {
     ]);
 
     expect(route).toContain("ACTIVE_SETTLEMENT_EXISTS");
-    expect(client).toContain("Anúlala antes de volver a recalcular");
+    expect(client).toContain("Las deudas se reservan");
     expect(production).toContain("sesiones POS cerradas");
     expect(production).toContain("producción pendiente de liquidar");
   });

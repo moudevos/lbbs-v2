@@ -18,6 +18,7 @@ type SessionRow = {
   business_date: string;
   status: "open" | "pending_close" | "closed" | "cancelled";
   opening_cash_amount: number | string;
+  expected_cash_amount: number | string;
   total_sales_amount: number | string;
   opened_at: string;
   opening_notes: string | null;
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
   let sessionsQuery = supabase
     .from("pos_sessions")
     .select(
-      "id, branch_id, business_date, status, opening_cash_amount, total_sales_amount, opened_at, opening_notes, branch:branches(name, code, slug), opened_by_employee:employees!pos_sessions_opened_by_fkey(id, full_name)",
+      "id, branch_id, business_date, status, opening_cash_amount, expected_cash_amount, total_sales_amount, opened_at, opening_notes, branch:branches(name, code, slug), opened_by_employee:employees!pos_sessions_opened_by_fkey(id, full_name)",
     )
     .in("status", ["open", "pending_close"])
     .order("opened_at", { ascending: false });
@@ -140,6 +141,9 @@ export async function GET(request: Request) {
       opening_cash_amount: typeof session.opening_cash_amount === "number"
         ? session.opening_cash_amount.toFixed(2)
         : String(session.opening_cash_amount),
+      expected_cash_amount: typeof session.expected_cash_amount === "number"
+        ? session.expected_cash_amount.toFixed(2)
+        : String(session.expected_cash_amount),
       total_sales_amount: typeof session.total_sales_amount === "number"
         ? session.total_sales_amount.toFixed(2)
         : String(session.total_sales_amount),

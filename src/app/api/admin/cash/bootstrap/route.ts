@@ -69,6 +69,9 @@ type MovementRow = {
   created_at: string;
   cancelled_at: string | null;
   updated_at: string;
+  source_type: string | null;
+  is_system_generated: boolean;
+  adjustment_direction: "increase" | "decrease" | null;
   category?: {
     name: string | null;
     code: string | null;
@@ -222,7 +225,7 @@ export async function GET(request: Request) {
     };
   });
 
-  const activeSession = openSessions.find((session) => session.branch_id === selectedBranchId) ?? null;
+  let activeSession = openSessions.find((session) => session.branch_id === selectedBranchId) ?? null;
 
   let categoriesResult = await supabase
     .from("cash_movement_categories")
@@ -266,7 +269,7 @@ export async function GET(request: Request) {
   const categories = categoriesResult.data;
 
   if (activeSession) {
-    const { error: syncError } = await supabase.rpc("sync_pos_session_totals", {
+    const { data: syncedSession, error: syncError } = await supabase.rpc("sync_pos_session_totals", {
       p_session_id: activeSession.id,
     });
 
@@ -278,6 +281,14 @@ export async function GET(request: Request) {
         hint: syncError.hint,
         sessionId: activeSession.id,
       });
+    } else if (syncedSession) {
+      const synced = syncedSession as { expected_cash_amount?: number | string; total_sales_amount?: number | string; total_cash_amount?: number | string };
+      activeSession = {
+        ...activeSession,
+        expected_cash_amount: toMoneyNumber(synced.expected_cash_amount).toFixed(2),
+        total_sales_amount: toMoneyNumber(synced.total_sales_amount).toFixed(2),
+        total_cash_amount: toMoneyNumber(synced.total_cash_amount).toFixed(2),
+      };
     }
   }
 
@@ -296,11 +307,16 @@ export async function GET(request: Request) {
         sessionId: null,
         status: null,
         openingCashAmount: 0,
+        openingCorrectionsIncrease: 0,
+        openingCorrectionsDecrease: 0,
+        effectiveOpeningAmount: 0,
         cashSalesAmount: 0,
         operationalIncome: 0,
         operationalExpense: 0,
         withdrawals: 0,
         adjustments: 0,
+        adjustmentsIncrease: 0,
+        adjustmentsDecrease: 0,
         netOperationalAmount: 0,
         expectedCashAmount: 0,
         totalSalesAmount: 0,
@@ -316,7 +332,7 @@ export async function GET(request: Request) {
   let movementsQuery = supabase
     .from("cash_movements")
     .select(
-      "id, pos_session_id, branch_id, category_id, movement_type, amount, description, evidence_url, status, created_by, cancelled_by, cancelled_reason, created_at, cancelled_at, updated_at, category:cash_movement_categories(name, code, movement_direction), created_by_employee:employees!cash_movements_created_by_fkey(full_name), cancelled_by_employee:employees!cash_movements_cancelled_by_fkey(full_name)",
+      "id, pos_session_id, branch_id, category_id, movement_type, amount, description, evidence_url, status, created_by, cancelled_by, cancelled_reason, created_at, cancelled_at, updated_at, source_type, is_system_generated, adjustment_direction, category:cash_movement_categories(name, code, movement_direction), created_by_employee:employees!cash_movements_created_by_fkey(full_name), cancelled_by_employee:employees!cash_movements_cancelled_by_fkey(full_name)",
     )
     .eq("branch_id", selectedBranchId)
     .order("created_at", { ascending: false });
@@ -339,21 +355,27 @@ export async function GET(request: Request) {
     movementsQuery = movementsQuery.gte("created_at", range.start).lte("created_at", range.end);
   }
 
-  const [movementsResult, summaryMovementsResult] = await Promise.all([
+  const [movementsResult, summaryMovementsResult, correctionsResult] = await Promise.all([
     movementsQuery,
     supabase
       .from("cash_movements")
-      .select("movement_type, amount, status, category:cash_movement_categories(code)")
-      .eq("branch_id", selectedBranchId)
+      .select("movement_type, amount, status, adjustment_direction, category:cash_movement_categories(code)")
+      .eq("pos_session_id", activeSession?.id ?? "00000000-0000-0000-0000-000000000000")
       .eq("status", "active"),
+    activeSession
+      ? supabase
+          .from("pos_session_opening_corrections")
+          .select("direction, correction_amount")
+          .eq("pos_session_id", activeSession.id)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (movementsResult.error || summaryMovementsResult.error) {
+  if (movementsResult.error || summaryMovementsResult.error || correctionsResult.error) {
     console.error("[cash/bootstrap] No se pudieron cargar los movimientos", {
-      message: movementsResult.error?.message ?? summaryMovementsResult.error?.message,
-      code: movementsResult.error?.code ?? summaryMovementsResult.error?.code,
-      details: movementsResult.error?.details ?? summaryMovementsResult.error?.details,
-      hint: movementsResult.error?.hint ?? summaryMovementsResult.error?.hint,
+      message: movementsResult.error?.message ?? summaryMovementsResult.error?.message ?? correctionsResult.error?.message,
+      code: movementsResult.error?.code ?? summaryMovementsResult.error?.code ?? correctionsResult.error?.code,
+      details: movementsResult.error?.details ?? summaryMovementsResult.error?.details ?? correctionsResult.error?.details,
+      hint: movementsResult.error?.hint ?? summaryMovementsResult.error?.hint ?? correctionsResult.error?.hint,
       branchId: selectedBranchId,
     });
     return NextResponse.json(
@@ -366,6 +388,7 @@ export async function GET(request: Request) {
     movement_type: "income" | "expense" | "adjustment";
     amount: number | string;
     status: "active";
+    adjustment_direction: "increase" | "decrease" | null;
     category?: { code: string | null }[] | { code: string | null } | null;
   }>).reduce(
     (accumulator, item) => {
@@ -380,7 +403,11 @@ export async function GET(request: Request) {
           accumulator.operationalExpense += amount;
         }
       } else if (item.movement_type === "adjustment") {
-        accumulator.adjustments += amount;
+        if ((item.adjustment_direction ?? "increase") === "decrease") {
+          accumulator.adjustmentsDecrease += amount;
+        } else {
+          accumulator.adjustmentsIncrease += amount;
+        }
       }
 
       return accumulator;
@@ -389,8 +416,21 @@ export async function GET(request: Request) {
       operationalIncome: 0,
       operationalExpense: 0,
       withdrawals: 0,
-      adjustments: 0,
+      adjustmentsIncrease: 0,
+      adjustmentsDecrease: 0,
     },
+  );
+  const openingCorrections = ((correctionsResult.data ?? []) as Array<{
+    direction: "increase" | "decrease";
+    correction_amount: number | string;
+  }>).reduce(
+    (accumulator, correction) => {
+      const amount = toMoneyNumber(correction.correction_amount);
+      if (correction.direction === "decrease") accumulator.decrease += amount;
+      else accumulator.increase += amount;
+      return accumulator;
+    },
+    { increase: 0, decrease: 0 },
   );
 
   return NextResponse.json({
@@ -407,12 +447,17 @@ export async function GET(request: Request) {
       sessionId: activeSession?.id ?? null,
       status: activeSession?.status ?? null,
       openingCashAmount: Number(activeSession?.opening_cash_amount ?? 0),
+      openingCorrectionsIncrease: Number(openingCorrections.increase.toFixed(2)),
+      openingCorrectionsDecrease: Number(openingCorrections.decrease.toFixed(2)),
+      effectiveOpeningAmount: Number((Number(activeSession?.opening_cash_amount ?? 0) + openingCorrections.increase - openingCorrections.decrease).toFixed(2)),
       cashSalesAmount: Number(activeSession?.total_cash_amount ?? 0),
       operationalIncome: Number(summary.operationalIncome.toFixed(2)),
       operationalExpense: Number(summary.operationalExpense.toFixed(2)),
       withdrawals: Number(summary.withdrawals.toFixed(2)),
-      adjustments: Number(summary.adjustments.toFixed(2)),
-      netOperationalAmount: Number((summary.operationalIncome - summary.operationalExpense - summary.withdrawals + summary.adjustments).toFixed(2)),
+      adjustments: Number((summary.adjustmentsIncrease - summary.adjustmentsDecrease).toFixed(2)),
+      adjustmentsIncrease: Number(summary.adjustmentsIncrease.toFixed(2)),
+      adjustmentsDecrease: Number(summary.adjustmentsDecrease.toFixed(2)),
+      netOperationalAmount: Number((summary.operationalIncome - summary.operationalExpense - summary.withdrawals + summary.adjustmentsIncrease - summary.adjustmentsDecrease).toFixed(2)),
       expectedCashAmount: Number(activeSession?.expected_cash_amount ?? 0),
       totalSalesAmount: Number(activeSession?.total_sales_amount ?? 0),
       openedAt: activeSession?.opened_at ?? null,
@@ -446,6 +491,8 @@ export async function GET(request: Request) {
         created_at: movement.created_at,
         cancelled_at: movement.cancelled_at,
         updated_at: movement.updated_at,
+        source_type: movement.source_type,
+        is_system_generated: movement.is_system_generated,
         category_name: category?.name ?? null,
         category_code: category?.code ?? null,
         category_direction: category?.movement_direction ?? null,

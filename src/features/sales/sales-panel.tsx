@@ -45,7 +45,7 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function buildQuery(filters: SalesHistoryFilters) {
+function buildQuery(filters: SalesHistoryFilters, page = 1) {
   const params = new URLSearchParams();
 
   Object.entries(filters).forEach(([key, value]) => {
@@ -53,6 +53,7 @@ function buildQuery(filters: SalesHistoryFilters) {
       params.set(key, value);
     }
   });
+  params.set("page", String(page));
 
   return params.toString();
 }
@@ -65,12 +66,13 @@ export function SalesPanel() {
   const [selectedSale, setSelectedSale] = useState<SaleDetailRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [ticket, setTicket] = useState<SaleDocumentPayload | null>(null);
+  const [page, setPage] = useState(1);
 
-  async function loadData(nextFilters: SalesHistoryFilters) {
+  async function loadData(nextFilters: SalesHistoryFilters, nextPage = page) {
     setIsLoading(true);
 
     try {
-      const query = buildQuery(nextFilters);
+      const query = buildQuery(nextFilters, nextPage);
       const response = await fetch(`/api/admin/sales${query ? `?${query}` : ""}`, {
         cache: "no-store",
       });
@@ -97,12 +99,14 @@ export function SalesPanel() {
     }
   }
 
+  // The initial history load is intentionally explicit; later loads occur via filters/pagination.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadData(initialFilters);
+      void loadData(initialFilters, 1);
     }, 0);
 
     return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sales = payload?.data ?? [];
@@ -114,12 +118,14 @@ export function SalesPanel() {
   );
 
   async function handleApplyFilters() {
-    await loadData(filters);
+    setPage(1);
+    await loadData(filters, 1);
   }
 
   async function handleResetFilters() {
     setFilters(initialFilters);
-    await loadData(initialFilters);
+    setPage(1);
+    await loadData(initialFilters, 1);
   }
 
   async function handleOpenDetail(saleId: string) {
@@ -178,7 +184,7 @@ export function SalesPanel() {
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-              Filtros activos: {activeFilterCount}
+              Filtros activos: {activeFilterCount} · {payload?.pagination?.totalCount ?? 0} resultado(s)
             </div>
           </div>
 
@@ -237,7 +243,7 @@ export function SalesPanel() {
                 setFilters((current) => ({ ...current, barberId: event.target.value }))
               }
             >
-              <option value="">Todos los barberos</option>
+              <option value="">Todos los responsables</option>
               {filterOptions?.barbers.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -347,6 +353,7 @@ export function SalesPanel() {
                     </td>
                     <td className="max-w-[160px] truncate px-3 py-2.5 text-slate-700">
                       {sale.customerName}
+                      {sale.responsibleNames?.length ? <p className="mt-0.5 truncate text-xs text-slate-500">Responsable: {sale.responsibleNames.join(" · ")}</p> : null}
                     </td>
                     <td className="px-3 py-2.5 text-slate-600">{sale.branchName}</td>
                     <td className="px-3 py-2.5 text-right">
@@ -404,6 +411,15 @@ export function SalesPanel() {
               </tbody>
             </table>
           </div>
+          {payload?.pagination && payload.pagination.totalCount > payload.pagination.pageSize ? (
+            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+              <span>Página {payload.pagination.page} de {Math.max(1, Math.ceil(payload.pagination.totalCount / payload.pagination.pageSize))}</span>
+              <div className="flex gap-2">
+                <Button type="button" className="bg-white text-slate-700 shadow-none hover:bg-slate-100" disabled={isLoading || page <= 1} onClick={() => { const previous = Math.max(1, page - 1); setPage(previous); void loadData(filters, previous); }}>Anterior</Button>
+                <Button type="button" className="bg-white text-slate-700 shadow-none hover:bg-slate-100" disabled={isLoading || page >= Math.ceil(payload.pagination.totalCount / payload.pagination.pageSize)} onClick={() => { const next = page + 1; setPage(next); void loadData(filters, next); }}>Siguiente</Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 

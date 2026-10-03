@@ -15,6 +15,12 @@ import type {
   SettingsSectionConfig,
 } from "@/features/settings/settings-types";
 
+const productFamilyLabel: Record<string, string> = {
+  barbershop_products: "Producto de barbería",
+  cafeteria_products: "Producto de cafetería",
+  other: "Sin clasificar",
+};
+
 type SettingTableProps = {
   config: SettingsSectionConfig;
   items: SettingRecord[];
@@ -69,6 +75,7 @@ export function SettingTable({
                 {config.supportsMovementType ? (
                   <th className="px-5 py-3">Movimiento</th>
                 ) : null}
+                {config.supportsBusinessLine ? <th className="px-5 py-3">Familia</th> : null}
                 <th className="px-5 py-3">Orden</th>
                 <th className="px-5 py-3">Estado</th>
                 <th className="px-5 py-3 text-right">Acciones</th>
@@ -97,6 +104,11 @@ export function SettingTable({
                     {config.supportsMovementType ? (
                       <td className="px-5 py-4 text-sm text-slate-600">
                         {getMovementTypeLabel(item.movement_type)}
+                      </td>
+                    ) : null}
+                    {config.supportsBusinessLine ? (
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {productFamilyLabel[item.business_line ?? "other"] ?? "Sin clasificar"}
                       </td>
                     ) : null}
                     <td className="px-5 py-4 text-sm text-slate-600">{item.sort_order}</td>

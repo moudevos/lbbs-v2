@@ -8,19 +8,21 @@ import { requireAdminSession } from "@/lib/supabase/route-auth";
 
 export const runtime = "nodejs";
 
-export async function GET(_request: Request, context: { params: Promise<{ settlementId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ settlementId: string }> }) {
   const auth = await requireAdminSession();
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   const { settlementId } = await context.params;
   const supabase = await createClient();
-  const [settlement, services, bonuses, deductions] = await Promise.all([
+  const [settlement, services, bonuses, productLines, deductions, payments] = await Promise.all([
     supabase.from("employee_settlements").select("*, employee:employees!employee_settlements_employee_id_fkey(full_name,document_number,position), branch:branches(name), period:payroll_periods(start_date,end_date,period_half), payment_method:payment_methods(name), reviewed:employees!employee_settlements_reviewed_by_fkey(full_name), approved:employees!employee_settlements_approved_by_fkey(full_name), paid:employees!employee_settlements_paid_by_fkey(full_name)").eq("id", settlementId).maybeSingle(),
-    supabase.from("employee_settlement_service_lines").select("*, production:employee_service_production(original_line_total,operational_contribution_amount,production_source,reward_commission_mode,reward_commission_basis_amount)").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
+    supabase.from("employee_settlement_service_lines").select("*").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
     supabase.from("employee_settlement_bonus_lines").select("*").eq("settlement_id", settlementId),
+    supabase.from("employee_settlement_product_lines").select("*").eq("settlement_id", settlementId).order("accounting_date_snapshot"),
     supabase.from("employee_settlement_deductions").select("*, debt:employee_debts(debt_type,description,created_at)").eq("settlement_id", settlementId),
+    supabase.from("employee_settlement_payments").select("id,amount,reference,status,created_at,payment_method:payment_methods(name,payment_kind)").eq("settlement_id", settlementId).in("status", ["posted", "active"]).order("created_at"),
   ]);
-  const error = settlement.error ?? services.error ?? bonuses.error ?? deductions.error;
+  const error = settlement.error ?? services.error ?? bonuses.error ?? productLines.error ?? deductions.error ?? payments.error;
   if (error) {
     console.error("[settlement/document] Error al generar PDF", { settlementId, message: error.message, code: error.code });
     return NextResponse.json({ error: "No se pudo generar el documento de liquidacion." }, { status: 500 });
@@ -31,14 +33,16 @@ export async function GET(_request: Request, context: { params: Promise<{ settle
     detail: settlement.data,
     services: services.data ?? [],
     bonuses: bonuses.data ?? [],
+    productLines: productLines.data ?? [],
     deductions: deductions.data ?? [],
+    payments: payments.data ?? [],
   }) as unknown as Parameters<typeof renderToBuffer>[0]);
   const prefix = settlement.data.status === "paid" ? "comprobante-pago" : "liquidacion";
   const filename = `${prefix}-${String(settlement.data.settlement_number).replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": `${new URL(request.url).searchParams.get("mode") === "inline" ? "inline" : "attachment"}; filename="${filename}"`,
       "Cache-Control": "private, no-store",
     },
   });

@@ -35,6 +35,17 @@ function getDisplayType(movement: CashMovementRecord) {
   return movement.category_code === "cash_withdrawal" ? "Retiro" : getTypeLabel(movement.movement_type);
 }
 
+function getSourceLabel(sourceType: string | null | undefined) {
+  const labels: Record<string, string> = {
+    finance_manual_entry: "Costo/Gasto",
+    accounts_payable_payment: "Cuenta por pagar",
+    employee_settlement: "Liquidación",
+    inventory_purchase: "Compra de inventario",
+    opening_correction: "Corrección apertura",
+  };
+  return sourceType ? (labels[sourceType] ?? "Operación vinculada") : "Manual";
+}
+
 type CashMovementsTableProps = {
   movements: CashMovementRecord[];
   isLoading: boolean;
@@ -64,7 +75,7 @@ export function CashMovementsTable({
               <th className="px-4 py-3 font-medium">Fecha/hora</th>
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 font-medium">Categoria</th>
-              <th className="px-4 py-3 font-medium">Descripcion</th>
+              <th className="px-4 py-3 font-medium">Descripcion / origen</th>
               <th className="px-4 py-3 font-medium">Monto</th>
               <th className="px-4 py-3 font-medium">Registrado por</th>
               <th className="px-4 py-3 font-medium">Estado</th>
@@ -88,6 +99,7 @@ export function CashMovementsTable({
                 <td className="px-4 py-3 text-slate-700">
                   <div className="space-y-1">
                     <p>{movement.description}</p>
+                    <p className="text-xs font-medium text-slate-500">Origen: {getSourceLabel(movement.source_type)}</p>
                     {movement.cancelled_reason ? (
                       <p className="text-xs text-rose-600">
                         Motivo de anulacion: {movement.cancelled_reason}
@@ -120,10 +132,10 @@ export function CashMovementsTable({
                     <Button
                       type="button"
                       className="h-9 bg-rose-100 px-3 text-rose-700 hover:bg-rose-200 disabled:bg-slate-100 disabled:text-slate-400"
-                      disabled={movement.status !== "active" || cancellingId === movement.id}
+                      disabled={movement.status !== "active" || movement.is_system_generated || cancellingId === movement.id}
                       onClick={() => onCancel(movement)}
                     >
-                      {cancellingId === movement.id ? "Anulando..." : "Anular"}
+                      {movement.is_system_generated ? "Desde origen" : cancellingId === movement.id ? "Anulando..." : "Anular"}
                     </Button>
                   </div>
                 </td>

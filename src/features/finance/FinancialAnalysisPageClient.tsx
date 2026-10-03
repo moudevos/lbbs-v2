@@ -153,7 +153,11 @@ export function FinancialAnalysisPageClient() {
     const stored = window.localStorage.getItem("lbbs-finance-analysis-charts");
     if (stored) {
       try {
-        setVisibleCharts({ ...visibleCharts, ...JSON.parse(stored) });
+        const savedCharts = JSON.parse(stored) as Partial<Record<ChartKey, boolean>>;
+        const timer = window.setTimeout(() => {
+          setVisibleCharts((current) => ({ ...current, ...savedCharts }));
+        }, 0);
+        return () => window.clearTimeout(timer);
       } catch {
         /* ignore malformed local preference */
       }
