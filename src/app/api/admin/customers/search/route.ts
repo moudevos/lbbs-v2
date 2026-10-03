@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
     query = query.or(
       [
         `search_normalized.ilike.%${normalizedQuery}%`,
+        `full_name.ilike.%${escapedQuery}%`,
+        `first_name.ilike.%${escapedQuery}%`,
+        `last_name.ilike.%${escapedQuery}%`,
+        `business_name.ilike.%${escapedQuery}%`,
         `phone.ilike.%${escapedQuery}%`,
         digits ? `phone_normalized.ilike.%${digits}%` : "",
         `document_number.ilike.%${escapedQuery}%`,
