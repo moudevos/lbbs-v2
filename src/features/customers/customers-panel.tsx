@@ -120,13 +120,14 @@ export function CustomersPanel() {
 
   const visibleCustomers = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const digits = term.replace(/\D/g, "");
 
     return customers.filter((customer) => {
       const matchesTerm =
         !term ||
         customer.full_name.toLowerCase().includes(term) ||
         customer.phone.toLowerCase().includes(term) ||
-        customer.phone_normalized.includes(term.replace(/\D/g, "")) ||
+        (digits.length > 0 && customer.phone_normalized.includes(digits)) ||
         (customer.document_number ?? "").toLowerCase().includes(term) ||
         (customer.email ?? "").toLowerCase().includes(term);
 
