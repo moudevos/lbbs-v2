@@ -1,6 +1,7 @@
 import type { CustomerRecord } from "@/features/customers/customer-types";
 
 export type ReservationStatus =
+  | "scheduled"
   | "pending"
   | "contacted"
   | "confirmed"
@@ -9,6 +10,8 @@ export type ReservationStatus =
   | "completed"
   | "cancelled"
   | "no_show";
+
+export type ReservationVisualStatus = "scheduled" | "attended" | "unattended" | "cancelled";
 
 export type ReservationSource = "manual" | "public_form" | "whatsapp" | "phone";
 
@@ -30,6 +33,14 @@ export type ReservationRecord = {
   confirmed_at: string | null;
   cancelled_at: string | null;
   completed_at: string | null;
+  attended_at: string | null;
+  last_reminder_at: string | null;
+  reminder_count: number;
+  rescheduled_at: string | null;
+  rescheduled_by: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  visual_status: ReservationVisualStatus;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

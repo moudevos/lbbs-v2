@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
-  buildReservationTimestamps,
   formatReservation,
   matchesReservationSearch,
   trimOrNull,
@@ -13,7 +12,16 @@ import { createClient } from "@/lib/supabase/server";
 import { requireReservationWriteSession } from "@/lib/supabase/route-auth";
 
 const reservationSelect =
-  "id, customer_id, branch_id, preferred_barber_id, service_interest_id, scheduled_date, scheduled_time, status, source, channel, customer_message, internal_notes, confirmed_at, cancelled_at, completed_at, created_by, updated_by, created_at, updated_at, customer:customers(id, full_name, phone, phone_normalized, document_type, document_number), branch:branches(id, name, slug), preferred_barber:employees!reservations_preferred_barber_id_fkey(id, full_name), service_interest:services(id, name), notes:reservation_notes(id)";
+  "id, customer_id, branch_id, preferred_barber_id, service_interest_id, scheduled_date, scheduled_time, status, source, channel, customer_message, internal_notes, confirmed_at, cancelled_at, completed_at, attended_at, last_reminder_at, reminder_count, rescheduled_at, rescheduled_by, cancelled_by, cancellation_reason, created_by, updated_by, created_at, updated_at, customer:customers(id, full_name, phone, phone_normalized, document_type, document_number), branch:branches(id, name, slug), preferred_barber:employees!reservations_preferred_barber_id_fkey(id, full_name), service_interest:services(id, name), notes:reservation_notes(id)";
+
+function reservationWriteError(message: string) {
+  const status = (
+    message.includes("Ya no hay disponibilidad")
+    || message.includes("ya tiene una reserva")
+    || message.includes("horario seleccionado")
+  ) ? 409 : 400;
+  return NextResponse.json({ error: message || "No se pudo validar la reserva." }, { status });
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -46,7 +54,7 @@ export async function GET(request: NextRequest) {
   const filtered = (data ?? [])
     .map((item) => formatReservation(item as ReservationRow))
     .filter((item) => {
-      if (status && item.status !== status) {
+      if (status && item.visual_status !== status) {
         return false;
       }
 
@@ -79,12 +87,14 @@ export async function POST(request: Request) {
   const serviceInterestId = trimOrNull(payload?.service_interest_id);
   const scheduledDate = trimOrNull(payload?.scheduled_date);
   const scheduledTime = trimOrNull(payload?.scheduled_time);
-  const status = (trimOrNull(payload?.status) ?? "pending") as ReservationStatus;
+  const status: ReservationStatus = "scheduled";
   const source = trimOrNull(payload?.source) ?? "manual";
   const channel = trimOrNull(payload?.channel) ?? "reception";
   const validationError = validateReservationPayload({
     customerId,
     branchId,
+    preferredBarberId,
+    serviceInterestId,
     scheduledDate,
     scheduledTime,
     status,
@@ -94,31 +104,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
-  const { data: employeeId } = await supabase.rpc("current_employee_id");
-  const timestamps = buildReservationTimestamps(status);
-
-  const { data, error } = await supabase
-    .from("reservations")
-    .insert({
-      customer_id: customerId,
-      branch_id: branchId,
-      preferred_barber_id: preferredBarberId,
-      service_interest_id: serviceInterestId,
-      scheduled_date: scheduledDate,
-      scheduled_time: scheduledTime,
-      status,
-      source,
-      channel,
-      customer_message: trimOrNull(payload?.customer_message),
-      internal_notes: trimOrNull(payload?.internal_notes),
-      confirmed_at: timestamps.confirmed_at,
-      cancelled_at: timestamps.cancelled_at,
-      completed_at: timestamps.completed_at,
-      created_by: employeeId ?? null,
-      updated_by: employeeId ?? null,
-    })
-    .select(reservationSelect)
-    .single();
+  const { data: reservationId, error } = await supabase.rpc(
+    "create_or_update_reservation_with_capacity",
+    {
+      p_customer_id: customerId,
+      p_branch_id: branchId,
+      p_preferred_barber_id: preferredBarberId,
+      p_service_interest_id: serviceInterestId,
+      p_scheduled_date: scheduledDate,
+      p_scheduled_time: scheduledTime,
+      p_status: status,
+      p_source: source,
+      p_channel: channel,
+      p_customer_message: trimOrNull(payload?.customer_message),
+      p_internal_notes: trimOrNull(payload?.internal_notes),
+      p_confirmed_at: null,
+      p_cancelled_at: null,
+      p_completed_at: null,
+      p_reservation_id: null,
+    },
+  );
 
   if (error) {
     console.error("[reservations/post] Error al crear reserva", {
@@ -127,10 +132,17 @@ export async function POST(request: Request) {
       customerId,
       branchId,
     });
-    return NextResponse.json(
-      { error: error.message || "No se pudo crear la reserva." },
-      { status: 400 },
-    );
+    return reservationWriteError(error.message);
+  }
+
+  const { data, error: selectError } = await supabase
+    .from("reservations")
+    .select(reservationSelect)
+    .eq("id", reservationId)
+    .single();
+
+  if (selectError) {
+    return NextResponse.json({ error: "La reserva fue creada, pero no se pudo recargar." }, { status: 500 });
   }
 
   return NextResponse.json({ data: formatReservation(data as ReservationRow) });

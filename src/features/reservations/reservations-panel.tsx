@@ -25,7 +25,6 @@ import type { ServiceRecord } from "@/features/services/service-types";
 import type { CustomerFormValue, CustomerRecord } from "@/features/customers/customer-types";
 import { normalizeLookupDocument } from "@/lib/utils/document";
 import { normalizePhone } from "@/lib/utils/phone";
-import { reservationStatusOptions } from "@/lib/ui/labels";
 import { buildWhatsAppUrl } from "@/lib/whatsapp/template";
 
 const emptyReservationForm: ReservationFormValue = {
@@ -35,7 +34,7 @@ const emptyReservationForm: ReservationFormValue = {
   service_interest_id: "",
   scheduled_date: "",
   scheduled_time: "",
-  status: "pending",
+  status: "scheduled",
   source: "manual",
   channel: "reception",
   customer_message: "",
@@ -131,7 +130,7 @@ function toReservationFormValue(reservation?: ReservationRecord | null): Reserva
     service_interest_id: reservation.service_interest_id ?? "",
     scheduled_date: reservation.scheduled_date ?? "",
     scheduled_time: reservation.scheduled_time ? reservation.scheduled_time.slice(0, 5) : "",
-    status: reservation.status,
+    status: "scheduled",
     source: reservation.source,
     channel: reservation.channel,
     customer_message: reservation.customer_message ?? "",
@@ -160,6 +159,8 @@ export function ReservationsPanel() {
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
   const [isQuickCustomerModalOpen, setIsQuickCustomerModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   const activeBranches = useMemo(
     () => branches.filter((branch) => branch.is_active),
@@ -299,6 +300,44 @@ export function ReservationsPanel() {
 
     return () => window.clearTimeout(timer);
   }, [filters]);
+
+  useEffect(() => {
+    if (!isReservationModalOpen || !form.branch_id || !form.service_interest_id || !form.scheduled_date) {
+      const timer = window.setTimeout(() => setAvailableSlots([]), 0);
+      return () => window.clearTimeout(timer);
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    async function loadAvailableSlots() {
+      setIsLoadingSlots(true);
+      try {
+        const params = new URLSearchParams({
+          branchId: form.branch_id,
+          serviceId: form.service_interest_id,
+          date: form.scheduled_date,
+        });
+        if (form.preferred_barber_id) params.set("barberId", form.preferred_barber_id);
+        if (editingReservation?.id) params.set("reservationId", editingReservation.id);
+        const response = await fetch(`/api/admin/reservations/availability?${params}`, { cache: "no-store", signal: controller.signal });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "No se pudo consultar la disponibilidad.");
+        if (cancelled) return;
+        const slots = payload.data as string[];
+        setAvailableSlots(slots);
+        setForm((current) => current.scheduled_time && !slots.includes(current.scheduled_time)
+          ? { ...current, scheduled_time: "" }
+          : current);
+      } catch (error) {
+        if (cancelled || (error instanceof DOMException && error.name === "AbortError")) return;
+        setAvailableSlots([]);
+      } finally {
+        if (!cancelled) setIsLoadingSlots(false);
+      }
+    }
+    void loadAvailableSlots();
+    return () => { cancelled = true; controller.abort(); };
+  }, [editingReservation?.id, form.branch_id, form.preferred_barber_id, form.scheduled_date, form.service_interest_id, isReservationModalOpen]);
 
   function updateFilters<K extends keyof ReservationFilters>(
     key: K,
@@ -624,7 +663,7 @@ export function ReservationsPanel() {
             service_interest_id: normalizeText(form.service_interest_id),
             scheduled_date: normalizeText(form.scheduled_date),
             scheduled_time: normalizeText(form.scheduled_time),
-            status: form.status,
+            status: "scheduled",
             source: editingReservation?.source ?? "manual",
             channel: editingReservation?.channel ?? "reception",
             customer_message: normalizeText(form.customer_message),
@@ -670,53 +709,6 @@ export function ReservationsPanel() {
     }
   }
 
-  async function handlePassToSale() {
-    if (!detailReservation) return;
-    setIsUpdatingReservation(true);
-    try {
-      const response = await fetch(`/api/admin/reservations/${detailReservation.id}/pos`, { method: "POST" });
-      const payload = await response.json();
-      if (!response.ok) {
-        if (payload.code === "POS_SESSION_REQUIRED") {
-          const result = await Swal.fire({ icon: "info", title: "Sesion POS requerida", text: payload.error, showCancelButton: true, confirmButtonText: "Ir a POS", cancelButtonText: "Cancelar", confirmButtonColor: "#0f766e", background: "#ffffff", color: "#0f172a" });
-          if (result.isConfirmed) window.open("/control/pos", "_blank", "noopener,noreferrer");
-          return;
-        }
-        throw new Error(payload.error || "No se pudo preparar la venta.");
-      }
-      window.open(`/pos?session_id=${encodeURIComponent(payload.data.sessionId)}&reservation_id=${encodeURIComponent(payload.data.reservationId)}`, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo preparar la venta.";
-      console.error("[reservations/ui] Error al pasar a venta", { message, reservationId: detailReservation.id });
-      await Swal.fire({ icon: "error", title: "No se pudo pasar a venta", text: message, confirmButtonColor: "#0f766e", background: "#ffffff", color: "#0f172a" });
-    } finally { setIsUpdatingReservation(false); }
-  }
-
-  async function handleStatusChange(status: ReservationFormValue["status"]) {
-    if (!detailReservation) return;
-    let scheduledDate = detailReservation.scheduled_date;
-    let scheduledTime = detailReservation.scheduled_time;
-    let reason: string | null = null;
-    if (status === "rescheduled") {
-      const result = await Swal.fire({ title: "Reprogramar reserva", html: '<input id="reservation-date" type="date" class="swal2-input"><input id="reservation-time" type="time" class="swal2-input">', showCancelButton: true, confirmButtonText: "Reprogramar", cancelButtonText: "Cancelar", confirmButtonColor: "#0f766e", preConfirm: () => { const date=(document.getElementById("reservation-date") as HTMLInputElement)?.value; const time=(document.getElementById("reservation-time") as HTMLInputElement)?.value; if(!date||!time){Swal.showValidationMessage("Selecciona fecha y hora.");return false;} return {date,time}; } });
-      if (!result.isConfirmed || !result.value) return;
-      scheduledDate = result.value.date; scheduledTime = result.value.time;
-    }
-    if (status === "cancelled" || status === "no_show") {
-      const result = await Swal.fire({ title: status === "cancelled" ? "Cancelar reserva" : "Marcar no asistencia", input: "textarea", inputLabel: "Motivo obligatorio", showCancelButton: true, confirmButtonText: "Confirmar", cancelButtonText: "Volver", confirmButtonColor: "#dc2626", inputValidator: (value) => value.trim() ? undefined : "Ingresa el motivo." });
-      if (!result.isConfirmed) return;
-      reason = result.value;
-    }
-    setIsUpdatingReservation(true);
-    try {
-      const response = await fetch(`/api/admin/reservations/${detailReservation.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customer_id: detailReservation.customer_id, branch_id: detailReservation.branch_id, preferred_barber_id: detailReservation.preferred_barber_id, service_interest_id: detailReservation.service_interest_id, scheduled_date: scheduledDate, scheduled_time: scheduledTime, status, source: detailReservation.source, channel: detailReservation.channel, customer_message: detailReservation.customer_message, internal_notes: reason ? [detailReservation.internal_notes, reason].filter(Boolean).join("\n") : detailReservation.internal_notes }) });
-      const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "No se pudo actualizar la reserva.");
-      const nextDetail = await loadReservationDetail(detailReservation.id); setDetailReservation(nextDetail);
-      setReservations((current) => current.map((item) => item.id === payload.data.id ? { ...item, ...payload.data } : item));
-      await Swal.fire({ icon:"success", title:"Reserva actualizada", timer:1200, showConfirmButton:false });
-    } catch (error) { const message=error instanceof Error?error.message:"No se pudo actualizar la reserva."; console.error("[reservations/ui] Error al cambiar estado",{message,reservationId:detailReservation.id}); await Swal.fire({icon:"error",title:"No se pudo actualizar",text:message,confirmButtonColor:"#0f766e"}); } finally { setIsUpdatingReservation(false); }
-  }
-
   async function handleContactReservation() {
     if (!detailReservation) return;
     try {
@@ -725,9 +717,31 @@ export function ReservationsPanel() {
       if (!response.ok) throw new Error(payload.error || "No se pudo preparar el contacto.");
       window.open(buildWhatsAppUrl(payload.data.phone, payload.data.message), "_blank", "noopener,noreferrer");
       await fetch("/api/admin/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: payload.data.customerId, branchId: payload.data.branchId, reservationId: detailReservation.id, contactType: "reservation_reminder", templateId: payload.data.templateId, phone: payload.data.phone, message: payload.data.message, status: "opened" }) });
-      const result = await Swal.fire({ icon: "question", title: "Contacto abierto", text: "WhatsApp se abrio con el mensaje prellenado. ¿Deseas marcar la reserva como contactada?", showCancelButton: true, confirmButtonText: "Marcar contactada", cancelButtonText: "No cambiar estado", confirmButtonColor: "#0f766e" });
-      if (result.isConfirmed) await handleStatusChange("contacted");
+      const reminderResponse = await fetch(`/api/admin/reservations/${detailReservation.id}/contact`, { method: "POST" });
+      const reminderPayload = await reminderResponse.json();
+      if (!reminderResponse.ok) throw new Error(reminderPayload.error || "No se pudo registrar el recordatorio.");
+      const nextDetail = await loadReservationDetail(detailReservation.id);
+      setDetailReservation(nextDetail);
+      await Swal.fire({ icon: "success", title: "Recordatorio registrado", text: "WhatsApp se abrió con el mensaje editable.", timer: 1400, showConfirmButton: false });
     } catch (error) { const message=error instanceof Error?error.message:"No se pudo preparar el contacto.";console.error("[reservations/ui] Error al contactar",{message,reservationId:detailReservation.id});await Swal.fire({icon:"error",title:"No se pudo abrir WhatsApp",text:message,confirmButtonColor:"#0f766e"}); }
+  }
+
+  async function handleCancel() {
+    if (!detailReservation) return;
+    const result = await Swal.fire({ title: "Anular reserva", input: "textarea", inputLabel: "Motivo obligatorio", showCancelButton: true, confirmButtonText: "Anular", cancelButtonText: "Volver", confirmButtonColor: "#dc2626", inputValidator: (value) => value.trim() ? undefined : "Ingresa el motivo." });
+    if (!result.isConfirmed) return;
+    setIsUpdatingReservation(true);
+    try {
+      const response = await fetch(`/api/admin/reservations/${detailReservation.id}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: result.value }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "No se pudo anular la reserva.");
+      await loadReservations(filters);
+      setDetailReservation(await loadReservationDetail(detailReservation.id));
+      await Swal.fire({ icon: "success", title: "Reserva anulada", timer: 1200, showConfirmButton: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo anular la reserva.";
+      await Swal.fire({ icon: "error", title: "No se pudo anular", text: message, confirmButtonColor: "#0f766e" });
+    } finally { setIsUpdatingReservation(false); }
   }
 
   async function handleAddNote() {
@@ -812,12 +826,11 @@ export function ReservationsPanel() {
                 value={filters.status}
                 onChange={(event) => updateFilters("status", event.target.value)}
               >
-                <option value="">Todos</option>
-                {reservationStatusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
+                <option value="">Todas</option>
+                <option value="scheduled">Próximas</option>
+                <option value="attended">Atendidas</option>
+                <option value="unattended">No atendidas</option>
+                <option value="cancelled">Anuladas</option>
               </Select>
             </label>
 
@@ -861,7 +874,7 @@ export function ReservationsPanel() {
           Cargando reservas...
         </section>
       ) : (
-        <ReservationsTable reservations={reservations} onView={openDetail} onEdit={startEdit} />
+        <ReservationsTable reservations={reservations} onView={openDetail} />
       )}
 
       <ReservationFormModal
@@ -873,6 +886,8 @@ export function ReservationsPanel() {
         selectedCustomer={selectedCustomer}
         isSaving={isSavingReservation}
         isEditing={Boolean(editingReservation)}
+        availableSlots={availableSlots}
+        isLoadingSlots={isLoadingSlots}
         onClose={closeReservationModal}
         onChange={(next) => setForm((current) => ({
           ...next,
@@ -901,9 +916,9 @@ export function ReservationsPanel() {
         noteDraft={noteDraft}
         isSavingNote={isSavingNote}
         isActionBusy={isUpdatingReservation}
-        onPassToSale={handlePassToSale}
-        onContact={() => { void handleContactReservation(); }}
-        onStatusChange={(status) => { void handleStatusChange(status); }}
+        onReminder={() => { void handleContactReservation(); }}
+        onReschedule={() => { if (!detailReservation) return; setIsDetailModalOpen(false); startEdit(detailReservation); }}
+        onCancel={() => { void handleCancel(); }}
         onClose={() => setIsDetailModalOpen(false)}
         onEdit={() => {
           if (!detailReservation) {

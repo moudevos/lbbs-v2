@@ -1,6 +1,6 @@
 "use client";
 
-import { faCalendarDays, faEye, faPenToSquare } from "@fortawesome/free-solid-svg-icons";
+import { faCalendarDays, faEye } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,11 @@ import { reservationChannelLabels } from "@/lib/ui/labels";
 type ReservationsTableProps = {
   reservations: ReservationRecord[];
   onView: (reservation: ReservationRecord) => void;
-  onEdit: (reservation: ReservationRecord) => void;
 };
 
 export function ReservationsTable({
   reservations,
   onView,
-  onEdit,
 }: ReservationsTableProps) {
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -70,7 +68,7 @@ export function ReservationsTable({
                   {reservation.preferred_barber_name ?? "Sin asignar"}
                 </td>
                 <td className="px-5 py-4">
-                  <ReservationStatusBadge status={reservation.status} />
+                  <ReservationStatusBadge status={reservation.visual_status} />
                 </td>
                 <td className="px-5 py-4 text-slate-600">
                   {reservationChannelLabels[reservation.channel]}
@@ -84,10 +82,6 @@ export function ReservationsTable({
                     >
                       <FontAwesomeIcon icon={faEye} />
                       Ver
-                    </Button>
-                    <Button type="button" className="h-9 px-3" onClick={() => onEdit(reservation)}>
-                      <FontAwesomeIcon icon={faPenToSquare} />
-                      Editar
                     </Button>
                   </div>
                 </td>

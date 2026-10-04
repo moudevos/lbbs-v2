@@ -27,6 +27,8 @@ type ReservationFormModalProps = {
   selectedCustomer: ReservationCustomerOption | null;
   isSaving: boolean;
   isEditing: boolean;
+  availableSlots: string[];
+  isLoadingSlots: boolean;
   onClose: () => void;
   onChange: (next: ReservationFormValue) => void;
   onSelectCustomer: (customer: ReservationCustomerOption | null) => void;
@@ -43,6 +45,8 @@ export function ReservationFormModal({
   selectedCustomer,
   isSaving,
   isEditing,
+  availableSlots,
+  isLoadingSlots,
   onClose,
   onChange,
   onSelectCustomer,
@@ -64,7 +68,7 @@ export function ReservationFormModal({
   return (
     <Modal
       open={open}
-      title={isEditing ? "Editar reserva" : "Nueva reserva"}
+      title={isEditing ? "Reprogramar reserva" : "Nueva reserva"}
       description="Coordina cliente, fecha y seguimiento sin registrar una venta."
       onClose={() => {
         if (!isSaving) {
@@ -112,12 +116,16 @@ export function ReservationFormModal({
               onChange={(event) => updateField("scheduled_date", event.target.value)}
             />
 
-            <TextField
+            <SelectField
               label="Hora"
-              type="time"
               value={value.scheduled_time}
               onChange={(event) => updateField("scheduled_time", event.target.value)}
-            />
+              disabled={isLoadingSlots || !value.branch_id || !value.service_interest_id || !value.scheduled_date}
+            >
+              <option value="">{isLoadingSlots ? "Consultando horarios..." : "Seleccionar horario"}</option>
+              {availableSlots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+            </SelectField>
+            {!isLoadingSlots && value.branch_id && value.service_interest_id && value.scheduled_date && availableSlots.length === 0 ? <p className="text-xs text-amber-700">No hay horarios disponibles para esta combinación.</p> : null}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">

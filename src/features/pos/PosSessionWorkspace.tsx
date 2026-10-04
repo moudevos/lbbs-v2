@@ -116,6 +116,7 @@ export function PosSessionWorkspace() {
     setInternalAuthorizationPin,
     setInternalCredit,
     setSelectedReservationId,
+    setSuggestedServiceId,
   } = usePosWorkspace();
 
   const courtesyAllowance = useMemo(() => getCourtesyAllowance({
@@ -943,7 +944,7 @@ export function PosSessionWorkspace() {
           void handleCancelSale(saleId, reasonId, notes);
         }}
       />
-      <PosReservationsModal open={isReservationsOpen} sessionId={currentSession.id} onClose={() => setIsReservationsOpen(false)} onUse={(row) => { if (!row.customer) return; setSelectedCustomer(row.customer); setSelectedBarberId(row.barberId ?? ""); setSelectedReservationId(row.id); setReservationSuggestion(row.serviceName); setIsReservationsOpen(false); }} />
+      <PosReservationsModal open={isReservationsOpen} sessionId={currentSession.id} businessDate={currentSession.business_date} onClose={() => setIsReservationsOpen(false)} onUse={(row) => { if (!row.customer) return; const barber = row.barberId ? employees.find((employee) => employee.id === row.barberId && employee.role === "barber" && employee.status === "active") : null; setSelectedCustomer(row.customer); setSelectedBarberId(barber?.id ?? ""); setSelectedReservationId(row.id); setSuggestedServiceId(visibleServices.some((service) => service.id === row.serviceId) ? row.serviceId : null); setReservationSuggestion(row.serviceName); setIsReservationsOpen(false); if (row.barberId && !barber) void Swal.fire({ icon: "info", title: "Barbero no disponible", text: "El barbero de la reserva ya no esta disponible. Selecciona otro.", confirmButtonColor: "#0f766e" }); if (row.serviceId && !visibleServices.some((service) => service.id === row.serviceId)) void Swal.fire({ icon: "info", title: "Servicio no disponible", text: "El servicio reservado ya no esta disponible. Selecciona el servicio correspondiente.", confirmButtonColor: "#0f766e" }); }} />
     </div>
   );
 }
