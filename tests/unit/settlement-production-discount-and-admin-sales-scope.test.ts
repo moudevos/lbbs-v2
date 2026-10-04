@@ -33,6 +33,6 @@ describe("descuento obligatorio y alcance de ventas por sede", () => {
     expect(sql).toContain("public.current_branch_id() = target_branch_id");
     expect(sql).toContain("public.current_branch_id() is null");
     expect(salesRoute).toContain("assignedAdminBranchId ?? branchId");
-    expect(salesRoute).toContain('salesQuery = salesQuery.eq("branch_id", effectiveBranchId)');
+    expect(salesRoute).toContain("p_branch_id: effectiveBranchId");
   });
 });

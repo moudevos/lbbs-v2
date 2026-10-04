@@ -1,14 +1,15 @@
 "use client";
 
-import { faMagnifyingGlass, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faCircleQuestion, faMagnifyingGlass, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { CustomerFormModal } from "@/features/customers/CustomerFormModal";
+import { CustomerProfileModal } from "@/features/customers/CustomerProfileModal";
 import { CustomersTable } from "@/features/customers/CustomersTable";
 import type { CustomerFormValue, CustomerRecord } from "@/features/customers/customer-types";
 import { normalizeLookupDocument, validateCustomerDocument } from "@/lib/utils/document";
@@ -71,6 +72,68 @@ async function confirmToggleCustomer(isActive: boolean) {
   return result.isConfirmed;
 }
 
+/* Etiqueta "Buscar por" con un (?) que abre un globo explicando qué campos se consultan. */
+function SearchHelp() {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative flex shrink-0 items-center gap-1.5">
+      <span className="text-sm font-semibold text-slate-900">Buscar</span>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-label="¿Por qué datos se puede buscar?"
+        className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+      >
+        <FontAwesomeIcon icon={faCircleQuestion} className="h-4 w-4" />
+      </button>
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Campos de búsqueda"
+          className="absolute left-0 top-full z-30 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-lg"
+        >
+          <span
+            aria-hidden
+            className="absolute -top-1.5 left-9 h-3 w-3 rotate-45 border-l border-t border-slate-200 bg-white"
+          />
+          <p className="font-medium text-slate-900">Se busca por</p>
+          <ul className="mt-1.5 space-y-1 text-slate-600">
+            <li>Nombre o razón social</li>
+            <li>Teléfono</li>
+            <li>Documento (DNI o RUC)</li>
+            <li>Email</li>
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function CustomersPanel() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [search, setSearch] = useState("");
@@ -81,6 +144,7 @@ export function CustomersPanel() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLookingUpDocument, setIsLookingUpDocument] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [viewingCustomer, setViewingCustomer] = useState<CustomerRecord | null>(null);
 
   async function loadData() {
     setIsLoading(true);
@@ -250,7 +314,7 @@ export function CustomersPanel() {
       if (!response.ok) {
         throw new Error(
           result.error ||
-            "No se pudo consultar el documento en este momento. Puedes registrar el cliente manualmente.",
+          "No se pudo consultar el documento en este momento. Puedes registrar el cliente manualmente.",
         );
       }
 
@@ -508,23 +572,12 @@ export function CustomersPanel() {
   return (
     <>
       <div className="w-full space-y-4">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Busqueda y filtros</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Busca por nombre, telefono, documento o email.
-              </p>
-            </div>
+        {/* Filtros: una sola fila, fija. Solo se desplaza la tabla de abajo. */}
+        <section className="relative z-20 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SearchHelp />
 
-            <Button type="button" onClick={startCreate} className="w-full lg:w-auto">
-              <FontAwesomeIcon icon={faPlus} />
-              Nuevo cliente
-            </Button>
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="relative block sm:col-span-2 lg:col-span-3">
+            <label className="relative block min-w-0 flex-1">
               <FontAwesomeIcon
                 icon={faMagnifyingGlass}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -537,11 +590,18 @@ export function CustomersPanel() {
               />
             </label>
 
-            <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="">Todos los estados</option>
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </Select>
+            <div className="lg:w-52 lg:shrink-0">
+              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">Todos los estados</option>
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+              </Select>
+            </div>
+
+            <Button type="button" onClick={startCreate} className="w-full lg:w-auto lg:shrink-0">
+              <FontAwesomeIcon icon={faPlus} />
+              Nuevo cliente
+            </Button>
           </div>
         </section>
 
@@ -552,6 +612,7 @@ export function CustomersPanel() {
         ) : (
           <CustomersTable
             customers={visibleCustomers}
+            onView={setViewingCustomer}
             onEdit={startEdit}
             onToggleActive={toggleCustomer}
           />
@@ -569,6 +630,15 @@ export function CustomersPanel() {
         onLookupDocument={handleLookupDocument}
         onSubmit={handleSave}
         onReset={startCreate}
+      />
+
+      <CustomerProfileModal
+        customer={viewingCustomer}
+        onClose={() => setViewingCustomer(null)}
+        onEdit={(customer) => {
+          setViewingCustomer(null);
+          startEdit(customer);
+        }}
       />
     </>
   );

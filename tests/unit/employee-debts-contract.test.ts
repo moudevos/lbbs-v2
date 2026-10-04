@@ -27,8 +27,9 @@ describe("contrato del módulo de deudas de empleados", () => {
 
   it("preserva el libro contable usando las RPC de creación y pago", async () => {
     const route = await source();
-    expect(route).toContain('rpc("create_employee_debt"');
-    expect(route).toContain('rpc("apply_employee_debt_payment"');
+    expect(route).toContain('"create_employee_debt_with_disbursements_v2"');
+    expect(route).toContain('"create_employee_debt_from_pos_cash_v2"');
+    expect(route).toContain('rpc("collect_employee_debt_v188"');
     expect(route).not.toContain('.from("employee_debts").insert');
     expect(route).not.toContain('.from("employee_debts").update');
   });

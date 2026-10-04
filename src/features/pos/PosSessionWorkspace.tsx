@@ -9,10 +9,12 @@ import {
   cancelCompletedPosSale,
   checkoutPosSale,
   closePosSession,
+  createPosCashMovement,
   fetchPosSessionCloseSummary,
   fetchRecentPosSales,
 } from "@/features/pos/pos-actions";
 import { PosCart } from "@/features/pos/PosCart";
+import { PosCashFlowModal } from "@/features/pos/PosCashFlowModal";
 import { PosCatalog } from "@/features/pos/PosCatalog";
 import { PosSaleCancelModal } from "@/features/pos/PosSaleCancelModal";
 import { PosSaleSuccessModal } from "@/features/pos/PosSaleSuccessModal";
@@ -36,6 +38,7 @@ import {
   faBuilding,
   faCalendarDays,
   faClock,
+  faMoneyBillTransfer,
   faPowerOff,
   faReceipt,
   faUser,
@@ -161,6 +164,8 @@ export function PosSessionWorkspace() {
   const [isClosingSale, setIsClosingSale] = useState(false);
   const [closedSale, setClosedSale] = useState<PosCheckoutResult | null>(null);
   const [isCloseSessionModalOpen, setIsCloseSessionModalOpen] = useState(false);
+  const [isCashFlowModalOpen, setIsCashFlowModalOpen] = useState(false);
+  const [isSubmittingCashFlow, setIsSubmittingCashFlow] = useState(false);
   const [closeSessionSummary, setCloseSessionSummary] = useState<PosSessionCloseSummary | null>(
     null,
   );
@@ -287,6 +292,24 @@ export function PosSessionWorkspace() {
   }
 
   const currentSession = activeSession;
+
+  async function handleCreateCashFlow(input: { movementType: "income" | "expense"; amount: number; description: string; evidenceUrl: string | null }) {
+    if (currentSession.status !== "open") throw new Error("No hay una sesión POS abierta para registrar el movimiento.");
+    setIsSubmittingCashFlow(true);
+    try {
+      await createPosCashMovement({
+        posSessionId: currentSession.id,
+        branchId: selectedBranchId,
+        movementType: input.movementType,
+        amount: input.amount,
+        description: input.description,
+        evidenceUrl: input.evidenceUrl,
+      });
+      await loadBootstrap(selectedBranchId);
+    } finally {
+      setIsSubmittingCashFlow(false);
+    }
+  }
 
   async function handleOpenCloseSessionModal() {
     if (pendingOfflineCount > 0) {
@@ -582,6 +605,7 @@ export function PosSessionWorkspace() {
           discount_amount: item.discount_amount,
           is_courtesy: item.is_courtesy,
           courtesy_reason: item.courtesy_reason,
+          responsible_employee_id: item.responsible_employee_id ?? null,
         })),
         payments: internalCredit ? [] : payments.map((payment) => ({
           payment_method_id: payment.payment_method_id,
@@ -593,6 +617,9 @@ export function PosSessionWorkspace() {
       const result = await checkoutPosSale(checkoutPayload);
 
       setClosedSale(result);
+      if (result.warning) {
+        await Swal.fire({ icon: "warning", title: "Venta registrada", text: result.warning, confirmButtonColor: "#0f766e" });
+      }
       setCheckoutIdempotencyKey(null);
       clearCurrentDraft();
       await loadCatalog(selectedBranchId);
@@ -810,6 +837,15 @@ export function PosSessionWorkspace() {
           </Button>
           <Button
             type="button"
+            className="h-9 gap-2 bg-stone-200 px-3 text-xs text-stone-700 hover:bg-emerald-100 hover:text-emerald-800"
+            disabled={currentSession.status !== "open"}
+            onClick={() => setIsCashFlowModalOpen(true)}
+          >
+            <FontAwesomeIcon icon={faMoneyBillTransfer} className="h-3.5 w-3.5" />
+            Flujo de efectivo
+          </Button>
+          <Button
+            type="button"
             className="h-9 gap-2 bg-rose-600 px-3 text-xs text-white hover:bg-rose-700"
             onClick={() => {
               void handleOpenCloseSessionModal();
@@ -835,7 +871,8 @@ export function PosSessionWorkspace() {
                 customer={selectedCustomer}
                 customerVariousId={customerVariousId}
                 items={cartItems}
-                barbers={employees}
+                barbers={employees.filter((employee) => employee.role === "barber")}
+                sellers={employees}
                 selectedBarberId={selectedBarberId}
                 barberRequired={barberRequired}
                 availableRewards={availableRewards}
@@ -881,6 +918,7 @@ export function PosSessionWorkspace() {
                   setCartItems((current) => current.filter((item) => item.id !== itemId))
                 }
                 onToggleCourtesy={handleToggleCourtesy}
+                onItemResponsibleChange={(itemId, employeeId) => setCartItems((current) => current.map((item) => item.id === itemId ? { ...item, responsible_employee_id: employeeId || null } : item))}
                 onAddPayment={(payment) => setPayments((current) => [...current, payment])}
                 onRemovePayment={(paymentId) =>
                   setPayments((current) => current.filter((payment) => payment.id !== paymentId))
@@ -945,6 +983,13 @@ export function PosSessionWorkspace() {
         }}
       />
       <PosReservationsModal open={isReservationsOpen} sessionId={currentSession.id} businessDate={currentSession.business_date} onClose={() => setIsReservationsOpen(false)} onUse={(row) => { if (!row.customer) return; const barber = row.barberId ? employees.find((employee) => employee.id === row.barberId && employee.role === "barber" && employee.status === "active") : null; setSelectedCustomer(row.customer); setSelectedBarberId(barber?.id ?? ""); setSelectedReservationId(row.id); setSuggestedServiceId(visibleServices.some((service) => service.id === row.serviceId) ? row.serviceId : null); setReservationSuggestion(row.serviceName); setIsReservationsOpen(false); if (row.barberId && !barber) void Swal.fire({ icon: "info", title: "Barbero no disponible", text: "El barbero de la reserva ya no esta disponible. Selecciona otro.", confirmButtonColor: "#0f766e" }); if (row.serviceId && !visibleServices.some((service) => service.id === row.serviceId)) void Swal.fire({ icon: "info", title: "Servicio no disponible", text: "El servicio reservado ya no esta disponible. Selecciona el servicio correspondiente.", confirmButtonColor: "#0f766e" }); }} />
+      <PosCashFlowModal
+        open={isCashFlowModalOpen}
+        expectedCash={Number(currentSession.expected_cash_amount ?? 0)}
+        isSubmitting={isSubmittingCashFlow}
+        onClose={() => { if (!isSubmittingCashFlow) setIsCashFlowModalOpen(false); }}
+        onSubmit={handleCreateCashFlow}
+      />
     </div>
   );
 }

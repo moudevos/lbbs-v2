@@ -123,7 +123,7 @@ export function usePosWorkspace() {
     }
   }, []);
 
-  const loadCatalog = useCallback(async (branchId: string) => {
+  const loadCatalog = useCallback(async (branchId: string, customerId?: string | null) => {
     if (!branchId) {
       setServices([]);
       setProducts([]);
@@ -136,7 +136,7 @@ export function usePosWorkspace() {
     try {
       const [nextServices, nextProducts, nextEmployees] = await Promise.all([
         fetchPosServices(branchId),
-        fetchPosProducts(branchId),
+        fetchPosProducts(branchId, customerId),
         fetchPosEmployees(),
       ]);
 
@@ -154,7 +154,6 @@ export function usePosWorkspace() {
         (nextEmployees ?? []).filter(
           (employee: PosEmployeeRecord) =>
             employee.status === "active" &&
-            employee.role === "barber" &&
             (!employee.branch_id || employee.branch_id === branchId),
         ),
       );
@@ -487,6 +486,32 @@ export function usePosWorkspace() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerVariousId, selectedBranchId, selectedCustomer]);
+
+  // The buyer, not the payment method, determines product pricing. Re-load the
+  // batched catalog then reprice every existing product line immediately.
+  useEffect(() => {
+    if (!selectedBranchId) return;
+    const timer = window.setTimeout(() => {
+      void fetchPosProducts(selectedBranchId, selectedCustomer?.id ?? null).then((nextProducts) => {
+        const activeProducts = ((nextProducts ?? []) as PosProductRecord[]).filter((item) => item.is_active);
+        setProducts(activeProducts);
+        setCartItems((current) => current.map((item) => {
+          if (item.item_type !== "product") return item;
+          const product = activeProducts.find((candidate) => candidate.id === item.catalog_id);
+          if (!product) return item;
+          return {
+            ...item,
+            unit_price: Number(product.effective_price),
+            retail_price: Number(product.retail_price),
+            employee_price: product.employee_price === null ? null : Number(product.employee_price),
+            price_source: product.price_source,
+            visibility_scope: product.visibility_scope,
+          };
+        }));
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [selectedBranchId, selectedCustomer?.id]);
 
   useEffect(() => {
     async function loadRewards(customerId: string) {

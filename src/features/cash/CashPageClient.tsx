@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { CashMovementFormModal } from "@/features/cash/CashMovementFormModal";
 import { CashMovementsTable } from "@/features/cash/CashMovementsTable";
 import { CashSessionSummary } from "@/features/cash/CashSessionSummary";
+import { emptyOpeningCorrection, OpeningCorrectionModal, type OpeningCorrectionValue } from "@/features/cash/OpeningCorrectionModal";
 import {
   cancelCashMovement,
   createCashMovement,
@@ -31,6 +32,7 @@ const initialFilters: CashFilters = {
 
 const emptyMovementForm: CashMovementFormValue = {
   movement_type: "",
+  adjustment_direction: "",
   category_id: "",
   amount: "",
   description: "",
@@ -45,6 +47,9 @@ export function CashPageClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const [form, setForm] = useState<CashMovementFormValue>(emptyMovementForm);
+  const [openingCorrectionOpen, setOpeningCorrectionOpen] = useState(false);
+  const [openingCorrection, setOpeningCorrection] = useState<OpeningCorrectionValue>(emptyOpeningCorrection);
+  const [isCorrectingOpening, setIsCorrectingOpening] = useState(false);
 
   async function loadData(nextFilters: CashFilters) {
     setIsLoading(true);
@@ -128,6 +133,11 @@ export function CashPageClient() {
         background: "#ffffff",
         color: "#0f172a",
       });
+      return;
+    }
+
+    if (form.movement_type === "adjustment" && !form.adjustment_direction) {
+      await Swal.fire({ icon: "warning", title: "Falta la dirección", text: "Indica si el ajuste aumenta o disminuye el efectivo.", confirmButtonColor: "#0f766e" });
       return;
     }
 
@@ -259,6 +269,68 @@ export function CashPageClient() {
     }
   }
 
+  async function legacyCorrectOpening() {
+    if (!activeSession) return;
+    const result = await Swal.fire({
+      title: "Corregir apertura",
+      html: "<p class=\"text-sm text-slate-600\">No modifica el monto inicial registrado. Crea una corrección auditada solo para esta sesión abierta.</p>",
+      input: "number",
+      inputLabel: "Monto de corrección",
+      inputAttributes: { min: "0.01", step: "0.01" },
+      showDenyButton: true,
+      denyButtonText: "Disminuir",
+      confirmButtonText: "Aumentar",
+      showCancelButton: true,
+      inputValidator: (value) => Number(value) > 0 ? undefined : "Ingresa un monto mayor a cero.",
+    });
+    if (!result.isConfirmed && !result.isDenied) return;
+    const reason = await Swal.fire({
+      title: "Motivo de corrección",
+      input: "select",
+      inputOptions: { DATA_ENTRY_ERROR: "Error de digitación", COUNTING_ERROR: "Error de conteo", OTHER: "Otro" },
+      inputValidator: (value) => value ? undefined : "Selecciona un motivo.",
+    });
+    if (!reason.isConfirmed) return;
+    const note = reason.value === "OTHER"
+      ? await Swal.fire({ title: "Explica la corrección", input: "text", inputValidator: (value) => value.trim() ? undefined : "La observación es obligatoria." })
+      : null;
+    if (note && !note.isConfirmed) return;
+    const response = await fetch("/api/admin/cash/opening-corrections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: activeSession.id, amount: Number(result.value), direction: result.isConfirmed ? "increase" : "decrease", reasonCode: reason.value, note: note?.value ?? "" }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      await Swal.fire({ icon: "error", title: "No se pudo corregir", text: payload.error ?? "Error inesperado" });
+      return;
+    }
+    await refreshData();
+  }
+
+  async function correctOpening() {
+    if (!activeSession) return;
+    if (Number(openingCorrection.amount) <= 0 || !openingCorrection.reasonCode || (openingCorrection.reasonCode === "OTHER" && !openingCorrection.note.trim())) {
+      await Swal.fire({ icon: "warning", title: "Completa la corrección", text: "Monto, motivo y observación para Otro son obligatorios.", confirmButtonColor: "#0f766e" });
+      return;
+    }
+    setIsCorrectingOpening(true);
+    try {
+      const response = await fetch("/api/admin/cash/opening-corrections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId: activeSession.id, amount: Number(openingCorrection.amount), direction: openingCorrection.direction, reasonCode: openingCorrection.reasonCode, note: openingCorrection.note }) });
+      const responsePayload = await response.json();
+      if (!response.ok) throw new Error(responsePayload.error ?? "Error inesperado");
+      await refreshData();
+      setOpeningCorrectionOpen(false);
+      setOpeningCorrection(emptyOpeningCorrection);
+    } catch (error) {
+      await Swal.fire({ icon: "error", title: "No se pudo corregir", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
+    } finally { setIsCorrectingOpening(false); }
+  }
+
+  // Keep the prior interaction unreachable while this release is verified; it is
+  // intentionally not wired to any control. The explicit modal is the only flow.
+  void legacyCorrectOpening;
+
   return (
     <>
       <div className="space-y-4">
@@ -297,6 +369,7 @@ export function CashPageClient() {
               <Button type="button" onClick={openCreateModal} disabled={!activeSession}>
                 Nuevo movimiento
               </Button>
+              {canManageAllBranches ? <Button type="button" className="bg-white text-slate-700 hover:bg-slate-100" onClick={() => { setOpeningCorrection(emptyOpeningCorrection); setOpeningCorrectionOpen(true); }} disabled={!activeSession}>Corregir apertura</Button> : null}
             </div>
           </div>
 
@@ -398,6 +471,7 @@ export function CashPageClient() {
         onChange={setForm}
         onSubmit={handleCreateMovement}
       />
+      <OpeningCorrectionModal open={openingCorrectionOpen} value={openingCorrection} isSaving={isCorrectingOpening} onChange={setOpeningCorrection} onClose={() => setOpeningCorrectionOpen(false)} onSubmit={() => void correctOpening()} />
     </>
   );
 }

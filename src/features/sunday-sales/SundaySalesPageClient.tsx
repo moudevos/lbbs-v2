@@ -38,7 +38,12 @@ export function SundaySalesPageClient() {
     if (!response.ok) throw new Error(body.error || "No se pudo cargar ventas dominicales.");
     setData(body); setBranchId((value) => value || body.branches[0]?.id || ""); setBusinessDate((value) => value || body.selectedDate); setCustomerId((value) => value || body.customers.find(isGeneric)?.id || ""); setCommissionRate(String(body.day?.commission_rate ?? body.defaultCommissionRate ?? 60));
   }, [branchId, businessDate]);
-  useEffect(() => { void load().catch((error) => Swal.fire({ icon: "error", title: "No se pudo cargar", text: error.message })); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load().catch((error) => Swal.fire({ icon: "error", title: "No se pudo cargar", text: error.message }));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const catalog = useMemo(() => lines.map((line) => ({ ...line, record: (line.itemType === "service" ? data?.services : data?.products)?.find((item) => item.id === line.catalogId) })).filter((line) => line.record), [data, lines]);
   const total = catalog.reduce((sum, line) => sum + (line.isCourtesy ? 0 : Number(line.itemType === "service" ? line.record?.base_price : line.record?.base_sale_price) * Number(line.quantity || 0)), 0);

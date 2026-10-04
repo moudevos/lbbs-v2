@@ -39,7 +39,9 @@ type SaleItemRow = {
   total: number | string;
   is_courtesy: boolean;
   courtesy_reason: string | null;
+  attributed_employee_id: string | null;
   barber?: { full_name: string | null }[] | { full_name: string | null } | null;
+  responsible?: { full_name: string | null }[] | { full_name: string | null } | null;
 };
 
 type SalePaymentRow = {
@@ -95,7 +97,7 @@ export async function GET(
       supabase
         .from("sale_items")
         .select(
-          "id, item_type, description_snapshot, quantity, unit_price, discount_amount, total, is_courtesy, courtesy_reason, barber:employees!sale_items_barber_id_fkey(full_name)",
+          "id, item_type, description_snapshot, quantity, unit_price, discount_amount, total, is_courtesy, courtesy_reason, attributed_employee_id, barber:employees!sale_items_barber_id_fkey(full_name), responsible:employees!sale_items_attributed_employee_id_fkey(full_name)",
         )
         .eq("sale_id", saleId)
         .order("created_at", { ascending: true }),
@@ -162,7 +164,7 @@ export async function GET(
           total: toMoneyNumber(item.total),
           isCourtesy: item.is_courtesy,
           courtesyReason: item.courtesy_reason,
-          barberName: unwrapRelation(item.barber)?.full_name ?? null,
+          barberName: unwrapRelation(item.responsible)?.full_name ?? unwrapRelation(item.barber)?.full_name ?? null,
         })),
         payments: ((paymentsResult.data ?? []) as SalePaymentRow[]).map((payment) => {
           const method = unwrapRelation(payment.payment_method);

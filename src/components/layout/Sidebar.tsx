@@ -229,7 +229,7 @@ const items = [
   },
   {
     href: "/control/finanzas",
-    label: "Finanzas",
+    label: "Registro de Costos y Gastos",
     icon: faMoneyCheckDollar,
     module: "finance",
   },
@@ -239,6 +239,7 @@ const items = [
     icon: faChartLine,
     module: "financial_analysis",
   },
+  { href: "/control/ganancias-perdidas", label: "Ganancias y Pérdidas", icon: faChartLine, module: "profit_loss" },
   {
     href: "/control/deudas-empleados",
     label: "Deudas de empleados",
@@ -258,8 +259,8 @@ const items = [
     module: "devices",
   },
   {
-    href: "/control/hotspots",
-    label: "Hotspots",
+    href: "/control/wifi",
+    label: "Red Hotspot",
     icon: faWifi,
     module: "hotspots",
   },
@@ -277,11 +278,20 @@ type SidebarGroup = {
 };
 
 const groups: SidebarGroup[] = [
-  { id: "principal", label: "Principal", modules: ["control"] },
   {
-    id: "operacion",
-    label: "Operacion",
-    modules: ["pos", "sunday_sales", "sales", "sales_control", "cash", "reservations"],
+    id: "operaciones",
+    label: "Operaciones",
+    modules: ["pos", "cash", "sales", "sales_control", "reservations"],
+  },
+  {
+    id: "administracion",
+    label: "Administración",
+    modules: ["settlements", "payment_simulations"],
+  },
+  {
+    id: "finanzas",
+    label: "Finanzas",
+    modules: ["profit_loss", "finance", "financial_analysis"],
   },
   {
     id: "clientes",
@@ -293,26 +303,17 @@ const groups: SidebarGroup[] = [
     id: "personal",
     label: "Personal",
     modules: [
-      "production",
-      "settlements",
-      "payment_simulations",
-      "employee_debts",
-      "employee_supplies",
-    ],
-  },
-  { id: "configuracion", label: "Configuracion", modules: ["settings"] },
-  {
-    id: "administracion",
-    label: "Administracion",
-    modules: [
-      "branches",
       "employees",
-      "finance",
-      "financial_analysis",
-      "devices",
-      "hotspots",
+      "production",
+      "employee_debts",
     ],
   },
+  {
+    id: "herramientas",
+    label: "Herramientas",
+    modules: ["devices", "hotspots"],
+  },
+  { id: "configuracion", label: "Configuración", modules: ["branches", "settings"] },
 ];
 
 function isRouteActive(pathname: string, search: string, href: string) {
@@ -355,7 +356,7 @@ export function Sidebar({
   const search = useSearchParams().toString();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const visibleItems = useMemo(
-    () => items.filter((item) => canAccessModule(role, item.module)),
+    () => items.filter((item) => canAccessModule(role, item.module) && !["sunday_sales", "employee_supplies"].includes(item.module)),
     [role],
   );
   const visibleGroups = useMemo(
@@ -370,26 +371,31 @@ export function Sidebar({
         .filter((group) => group.items.length > 0),
     [visibleItems],
   );
-  const activeGroupId =
-    visibleGroups.find((group) =>
-      group.items.some((item) => isRouteActive(pathname, search, item.href)),
-    )?.id ?? null;
-  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  const principalItem = visibleItems.find((item) => item.module === "control");
+  const [openGroupIds, setOpenGroupIds] = useState<Set<string>>(() => new Set());
+  const [sidebarGroupsLoaded, setSidebarGroupsLoaded] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const stored = window.sessionStorage.getItem("lbbs-sidebar-group");
-      if (stored) setOpenGroupId(stored);
+      const stored = window.sessionStorage.getItem("lbbs-sidebar-groups");
+      if (stored) {
+        try { setOpenGroupIds(new Set(JSON.parse(stored) as string[])); } catch { window.sessionStorage.removeItem("lbbs-sidebar-groups"); }
+      } else {
+        const active = visibleGroups.find((group) => group.items.some((item) => isRouteActive(pathname, search, item.href)));
+        if (active) setOpenGroupIds(new Set([active.id]));
+      }
+      setSidebarGroupsLoaded(true);
     }, 0);
     return () => window.clearTimeout(timer);
+  // Initial resolution only. Persisted user choices always take precedence.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleGroup(groupId: string) {
-    if (groupId === activeGroupId) return;
-    setOpenGroupId((current) => {
-      const next = current === groupId ? null : groupId;
-      if (next) window.sessionStorage.setItem("lbbs-sidebar-group", next);
-      else window.sessionStorage.removeItem("lbbs-sidebar-group");
+    setOpenGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      window.sessionStorage.setItem("lbbs-sidebar-groups", JSON.stringify([...next]));
       return next;
     });
   }
@@ -429,8 +435,8 @@ export function Sidebar({
                 <Image
                   src="/branch/logobgg.png"
                   alt="La Bajadita Barber Studio"
-                  fill
-                  sizes="36px"
+                  width={36}
+                  height={36}
                   className="object-contain p-1"
                   priority
                 />
@@ -478,11 +484,8 @@ export function Sidebar({
                   onNavigate={() => setPendingHref(item.href)}
                 />
               ))
-            : visibleGroups.map((group) => {
-                const hasActiveItem = group.items.some((item) =>
-                  isRouteActive(pathname, search, item.href),
-                );
-                const isOpen = hasActiveItem || openGroupId === group.id;
+            : <>{principalItem ? <SidebarItem href={principalItem.href} label="Principal" icon={principalItem.icon} active={isRouteActive(pathname, search, principalItem.href)} collapsed={false} pending={pendingHref === principalItem.href && !isRouteActive(pathname, search, principalItem.href)} onNavigate={() => setPendingHref(principalItem.href)} /> : null}{visibleGroups.map((group) => {
+                const isOpen = sidebarGroupsLoaded && openGroupIds.has(group.id);
 
                 return (
                   <section key={group.id} className="space-y-2">
@@ -522,7 +525,7 @@ export function Sidebar({
                     ) : null}
                   </section>
                 );
-              })}
+              })}</>}
         </nav>
       </aside>
 
@@ -540,8 +543,8 @@ export function Sidebar({
                 <Image
                   src="/branch/logobgg.png"
                   alt="La Bajadita Barber Studio"
-                  fill
-                  sizes="36px"
+                  width={36}
+                  height={36}
                   className="object-contain p-1"
                   priority
                 />
@@ -568,11 +571,9 @@ export function Sidebar({
         </div>
         <DotGlow />
         <nav className="flex-1 space-y-3 overflow-y-auto p-3">
+          {principalItem ? <SidebarItem href={principalItem.href} label="Principal" icon={principalItem.icon} active={isRouteActive(pathname, search, principalItem.href)} collapsed={false} pending={pendingHref === principalItem.href && !isRouteActive(pathname, search, principalItem.href)} onNavigate={() => { setPendingHref(principalItem.href); onCloseMobile(); }} /> : null}
           {visibleGroups.map((group) => {
-            const hasActiveItem = group.items.some((item) =>
-              isRouteActive(pathname, search, item.href),
-            );
-            const isOpen = hasActiveItem || openGroupId === group.id;
+            const isOpen = sidebarGroupsLoaded && openGroupIds.has(group.id);
 
             return (
               <section key={group.id} className="space-y-2">

@@ -86,7 +86,7 @@ export function SalesDetailModal({ open, sale, isLoading, onClose, onReprint }: 
               <p className="mt-2 text-sm font-semibold text-slate-900">{sale.customerName}</p>
             </article>
             <article className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Barbero</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Responsable principal</p>
               <p className="mt-2 text-sm font-semibold text-slate-900">
                 {sale.barberName ?? "Sin barbero"}
               </p>
@@ -120,7 +120,7 @@ export function SalesDetailModal({ open, sale, isLoading, onClose, onReprint }: 
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
                       {item.quantity} x {formatMoney(item.unitPrice)}
-                      {item.barberName ? ` · ${item.barberName}` : ""}
+                      {item.barberName ? ` · Responsable: ${item.barberName}` : " · Responsable: —"}
                     </p>
                     {item.courtesyReason ? (
                       <p className="mt-1 text-xs text-slate-500">Motivo: {item.courtesyReason}</p>

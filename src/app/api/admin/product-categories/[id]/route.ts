@@ -10,7 +10,13 @@ import { requirePosWriteSession } from "@/lib/supabase/route-auth";
 import { normalizeSlug } from "@/lib/utils/slug";
 
 const selectFields =
-  "id, name, slug, description, sort_order, is_active, created_at, updated_at";
+  "id, name, slug, description, business_line, sort_order, is_active, created_at, updated_at";
+
+function parseBusinessLine(value: unknown) {
+  return typeof value === "string" && ["barbershop_products", "cafeteria_products", "other"].includes(value)
+    ? value
+    : "other";
+}
 
 export async function PUT(
   request: Request,
@@ -41,6 +47,7 @@ export async function PUT(
       name,
       slug: normalizeSlug(slugRaw),
       description: trimOrNull(payload?.description),
+      business_line: parseBusinessLine(payload?.business_line),
       sort_order: parseSortOrder(payload?.sort_order),
       is_active: payload?.is_active !== false,
     })

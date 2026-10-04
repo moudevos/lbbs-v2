@@ -51,11 +51,16 @@ export type CashSummaryRecord = {
   sessionId: string | null;
   status: "open" | "closed" | null;
   openingCashAmount: number;
+  openingCorrectionsIncrease: number;
+  openingCorrectionsDecrease: number;
+  effectiveOpeningAmount: number;
   cashSalesAmount: number;
   operationalIncome: number;
   operationalExpense: number;
   withdrawals: number;
   adjustments: number;
+  adjustmentsIncrease: number;
+  adjustmentsDecrease: number;
   netOperationalAmount: number;
   expectedCashAmount: number;
   totalSalesAmount: number;
@@ -84,6 +89,8 @@ export type CashMovementRecord = {
   category_name: string | null;
   category_code: string | null;
   category_direction: "income" | "expense" | "adjustment" | null;
+  source_type?: string | null;
+  is_system_generated?: boolean;
 };
 
 export type CashFilters = {
@@ -96,6 +103,7 @@ export type CashFilters = {
 
 export type CashMovementFormValue = {
   movement_type: "" | "income" | "expense" | "adjustment";
+  adjustment_direction: "" | "increase" | "decrease";
   category_id: string;
   amount: string;
   description: string;

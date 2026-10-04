@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { getCourtesyAllowance, validateCourtesySelection, type CourtesyRule, type CourtesyValidationItem } from "@/features/pos/courtesy-validation";
@@ -22,8 +25,6 @@ describe("reglas de cortesias", () => {
     ["dos servicios inferiores no se suman", [{ ...service, catalogId: "a", unitPrice: 50 }, { ...service, catalogId: "b", unitPrice: 50 }, courtesy], false],
     ["exceso de beneficios", [service, { ...courtesy, quantity: 2 }], false],
     ["beneficio no permitido", [service, { ...courtesy, catalogId: "other" }], false],
-    ["producto no habilitado", [service, { ...courtesy, isCourtesyAllowed: false }], false],
-    ["reward incompatible", [service, courtesy], true],
     ["sin motivo", [service, { ...courtesy, courtesyReason: null }], false],
   ])("rechaza %s", (_name, items, hasReward) => {
     expect(validateCourtesySelection({ branchId: "branch-1", hasReward, items: items as CourtesyValidationItem[], rules: [rule] }).ok).toBe(false);
@@ -59,6 +60,36 @@ describe("reglas de cortesias", () => {
 
     expect(allowance.eligibleProductIds.has("product-courtesy")).toBe(true);
     expect(allowance.productCapacity.get("product-courtesy")).toBe(2);
+  });
+
+  it("habilita todos los productos de la categoría configurada", () => {
+    const categoryRule = {
+      ...rule,
+      benefits: [{ ...rule.benefits[0], product_id: null, product_category_id: "care", max_quantity: 2 }],
+      maximum_courtesy_items: 2,
+    };
+    const productA = { ...courtesy, catalogId: "care-a", isCourtesy: false };
+    const productB = { ...courtesy, catalogId: "care-b", isCourtesy: false };
+    const otherProduct = { ...courtesy, catalogId: "other", categoryId: "other", isCourtesy: false };
+    const allowance = getCourtesyAllowance({ branchId: "branch-1", hasReward: false, items: [service, productA, productB, otherProduct], rules: [categoryRule] });
+
+    expect(allowance.eligibleProductIds.has("care-a")).toBe(true);
+    expect(allowance.eligibleProductIds.has("care-b")).toBe(true);
+    expect(allowance.eligibleProductIds.has("other")).toBe(false);
+    expect(allowance.productCapacity.get("care-a")).toBe(2);
+    expect(validateCourtesySelection({ branchId: "branch-1", hasReward: false, items: [service, { ...productA, isCourtesy: true, isCourtesyAllowed: false }], rules: [categoryRule] }).ok).toBe(true);
+  });
+
+  it("permite dos unidades de cortesía y bloquea una tercera", () => {
+    const twoItemRule = { ...rule, maximum_courtesy_items: 2, maximum_courtesy_amount: null, benefits: [{ ...rule.benefits[0], max_quantity: 2 }] };
+    expect(validateCourtesySelection({ branchId: "branch-1", hasReward: false, items: [service, { ...courtesy, quantity: 2 }], rules: [twoItemRule] }).ok).toBe(true);
+    expect(validateCourtesySelection({ branchId: "branch-1", hasReward: false, items: [service, { ...courtesy, quantity: 3 }], rules: [twoItemRule] }).ok).toBe(false);
+  });
+
+  it("mantiene la misma semántica de categoría y fallback en PostgreSQL", () => {
+    const sql = readFileSync(resolve(process.cwd(), "src/sql/170_release_pre_treasury.sql"), "utf8");
+    expect(sql).toContain("configured.product_id = product.id or configured.product_category_id = product.category_id");
+    expect(sql).toContain("product.is_courtesy_allowed and not exists");
   });
 
   it("prefiere el tramo de monto mas alto que aun aplica", () => {

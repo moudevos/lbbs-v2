@@ -1,0 +1,44 @@
+# LBBS Red Hotspot — incremental installation template for RouterOS v7.
+# Complete every {{PLACEHOLDER}} only after the on-site network survey.
+# This template intentionally does NOT reset the router, change WAN, remove
+# bridges/DHCP/firewall rules, or select an interface/VLAN/subnet for you.
+
+:local hotspotInterface "{{HOTSPOT_INTERFACE}}"
+:local serverName "{{HOTSPOT_SERVER_NAME}}"
+:local profileName "{{HOTSPOT_PROFILE_NAME}}"
+:local hotspotAddress "{{HOTSPOT_ADDRESS}}"
+:local poolName "{{HOTSPOT_POOL_NAME}}"
+:local poolRange "{{HOTSPOT_POOL_RANGE}}"
+:local dnsName "{{HOTSPOT_DNS_NAME}}"
+:local apiBase "{{LBBS_API_BASE_URL}}"
+:local routerToken "{{LBBS_ROUTER_TOKEN}}"
+:local syncInterval "{{SYNC_INTERVAL}}"
+:local heartbeatInterval "{{HEARTBEAT_INTERVAL}}"
+
+# Prerequisite: upload portal/* as hotspot/lbbs-portal/* and scripts/*.rsc to Files.
+# No client portal file contains $routerToken or $apiBase.
+:if ([:len [/ip pool find where name=$poolName]] = 0) do={
+  /ip pool add name=$poolName ranges=$poolRange comment="LBBS HotSpot — surveyed client pool"
+}
+:if ([:len [/ip hotspot profile find where name=$profileName]] = 0) do={
+  /ip hotspot profile add name=$profileName hotspot-address=$hotspotAddress dns-name=$dnsName login-by=http-chap,mac-cookie html-directory="hotspot/lbbs-portal" comment="LBBS HotSpot server profile"
+}
+:if ([:len [/ip hotspot user profile find where name=$profileName]] = 0) do={
+  /ip hotspot user profile add name=$profileName shared-users=1 on-login="" on-logout="" comment="LBBS: lifecycle hooks reserved for Part 5"
+}
+:if ([:len [/ip hotspot find where name=$serverName]] = 0) do={
+  /ip hotspot add name=$serverName interface=$hotspotInterface address-pool=$poolName profile=$profileName disabled=no comment="LBBS HotSpot on surveyed client network"
+}
+
+# HTTPS API calls are RouterOS server-side only. Keep the token out of portal files.
+:global LBBS_API_BASE_URL $apiBase
+:global LBBS_ROUTER_TOKEN $routerToken
+:global LBBS_HOTSPOT_SERVER_NAME $serverName
+:global LBBS_HOTSPOT_PROFILE_NAME $profileName
+:if ([:len [/system script find where name="lbbs-sync"]] = 0) do={ /import file-name=lbbs-sync.rsc }
+:if ([:len [/system script find where name="lbbs-heartbeat"]] = 0) do={ /import file-name=lbbs-heartbeat.rsc }
+:if ([:len [/system scheduler find where name="lbbs-sync"]] = 0) do={ /system scheduler add name=lbbs-sync interval=$syncInterval on-event="/system script run lbbs-sync" comment="LBBS command pull (recommended: 5s)" }
+:if ([:len [/system scheduler find where name="lbbs-heartbeat"]] = 0) do={ /system scheduler add name=lbbs-heartbeat interval=$heartbeatInterval on-event="/system script run lbbs-heartbeat" comment="LBBS heartbeat (recommended: 30s)" }
+
+# TLS prerequisite: RouterOS needs a correct clock and trusted CA chain for {{LBBS_API_BASE_URL}}.
+# Do not permanently disable certificate verification. Endpoints: /api/wifi/router/pull, /ack, /heartbeat.

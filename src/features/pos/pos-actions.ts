@@ -7,6 +7,18 @@ import type {
   PosSessionCloseSummary,
   PosSessionHistoryRecord,
 } from "@/features/pos/pos-types";
+import { getPosCashMovementCategoryCode } from "@/features/pos/pos-cash-flow";
+
+type PosCashFlowInput = {
+  posSessionId: string;
+  branchId: string;
+  movementType: "income" | "expense";
+  amount: number;
+  description: string;
+  evidenceUrl?: string | null;
+};
+
+type CashCategory = { id: string; code: string };
 
 export async function fetchPosBootstrap(branchId?: string, sessionId?: string, reservationId?: string) {
   const params = new URLSearchParams();
@@ -38,6 +50,34 @@ export async function fetchPosBootstrap(branchId?: string, sessionId?: string, r
   }
 
   return payload;
+}
+
+export async function createPosCashMovement(input: PosCashFlowInput) {
+  if (!input.posSessionId) throw new Error("No hay una sesión POS abierta para registrar el movimiento.");
+  const params = new URLSearchParams({ branchId: input.branchId });
+  const bootstrapResponse = await fetch("/api/admin/cash/bootstrap?" + params.toString(), { cache: "no-store" });
+  const bootstrap = await bootstrapResponse.json();
+  if (!bootstrapResponse.ok) throw new Error(bootstrap.error || "No se pudieron preparar las categorías de caja.");
+
+  const categoryCode = getPosCashMovementCategoryCode(input.movementType);
+  const category = ((bootstrap.categories ?? []) as CashCategory[]).find((item) => item.code === categoryCode);
+  if (!category) throw new Error("No se pudo preparar la categoría para el movimiento físico de caja.");
+
+  const response = await fetch("/api/admin/cash/movements", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      pos_session_id: input.posSessionId,
+      category_id: category.id,
+      movement_type: input.movementType,
+      amount: input.amount,
+      description: input.description,
+      evidence_url: input.evidenceUrl || null,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "No se pudo registrar el flujo de efectivo.");
+  return payload.data;
 }
 
 export async function fetchPosInternalCustomerOptions(customerId: string, branchId: string) {
@@ -93,8 +133,10 @@ export async function fetchPosServices(branchId: string) {
   return payload.data ?? [];
 }
 
-export async function fetchPosProducts(branchId: string) {
-  const response = await fetch(`/api/admin/products?branchId=${encodeURIComponent(branchId)}`, {
+export async function fetchPosProducts(branchId: string, customerId?: string | null) {
+  const params = new URLSearchParams({ branchId });
+  if (customerId) params.set("customerId", customerId);
+  const response = await fetch(`/api/admin/products?${params.toString()}`, {
     cache: "no-store",
   });
   const payload = await response.json();

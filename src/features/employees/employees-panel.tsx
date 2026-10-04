@@ -28,6 +28,11 @@ const emptyForm: EmployeeFormValue = {
   notes: "",
   can_login: false,
   temporary_password: "",
+  compensation_type: "commission_plus_bonus",
+  base_monthly_salary: "",
+  mandatory_discount_enabled: true,
+  mandatory_discount_rate: "1.00",
+  compensation_effective_from: "",
 };
 
 function toFormValue(employee?: EmployeeRecord | null): EmployeeFormValue {
@@ -48,6 +53,11 @@ function toFormValue(employee?: EmployeeRecord | null): EmployeeFormValue {
     notes: employee.notes ?? "",
     can_login: employee.can_login,
     temporary_password: "",
+    compensation_type: "commission_plus_bonus",
+    base_monthly_salary: "",
+    mandatory_discount_enabled: true,
+    mandatory_discount_rate: "1.00",
+    compensation_effective_from: "",
   };
 }
 
@@ -233,6 +243,16 @@ export function EmployeesPanel() {
       return;
     }
 
+    if (form.compensation_effective_from && !["commission_plus_bonus", "commission_only"].includes(form.compensation_type) && Number(form.base_monthly_salary) <= 0) {
+      await Swal.fire({ icon: "warning", title: "Falta el sueldo mensual", text: "Fijo y Fijo + bonos requieren un sueldo base mensual mayor que cero.", confirmButtonColor: "#0f766e" });
+      return;
+    }
+
+    if (form.compensation_effective_from && form.mandatory_discount_enabled && (Number(form.mandatory_discount_rate) < 0 || Number(form.mandatory_discount_rate) > 100)) {
+      await Swal.fire({ icon: "warning", title: "Descuento obligatorio inválido", text: "Indica una tasa entre 0 y 100 %.", confirmButtonColor: "#0f766e" });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -266,6 +286,23 @@ export function EmployeesPanel() {
 
       if (!response.ok) {
         throw new Error(result.error || "No se pudo guardar el empleado.");
+      }
+
+      if (form.compensation_effective_from) {
+        const compensationResponse = await fetch(`/api/admin/employees/${result.data.id}/compensation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            compensationMode: form.compensation_type,
+            baseMonthlySalary: ["commission_plus_bonus", "commission_only"].includes(form.compensation_type) ? null : Number(form.base_monthly_salary),
+            mandatoryDiscountEnabled: form.mandatory_discount_enabled,
+            mandatoryDiscountRate: form.mandatory_discount_enabled ? Number(form.mandatory_discount_rate) : 0,
+            effectiveFrom: form.compensation_effective_from,
+            replaceCurrent: editingId !== null,
+          }),
+        });
+        const compensationResult = await compensationResponse.json();
+        if (!compensationResponse.ok) throw new Error(compensationResult.error || "El empleado se guardó, pero no su condición de remuneración.");
       }
 
       await Swal.fire({

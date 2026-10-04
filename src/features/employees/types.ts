@@ -35,4 +35,9 @@ export type EmployeeFormValue = {
   notes: string;
   can_login: boolean;
   temporary_password: string;
+  compensation_type: "commission_plus_bonus" | "commission_only" | "fixed_plus_bonus" | "fixed";
+  base_monthly_salary: string;
+  mandatory_discount_enabled: boolean;
+  mandatory_discount_rate: string;
+  compensation_effective_from: string;
 };

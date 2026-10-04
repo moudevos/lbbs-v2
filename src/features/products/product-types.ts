@@ -7,6 +7,7 @@ export type ProductCategoryRecord = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  business_line?: "barbershop_products" | "cafeteria_products" | "other";
 };
 
 export type ProductRecord = {
@@ -26,15 +27,21 @@ export type ProductRecord = {
   allow_custom_price: boolean;
   is_stockable: boolean;
   is_courtesy_allowed: boolean;
+  visibility_scope: "pos" | "internal" | "both";
   is_active: boolean;
   created_at: string;
   updated_at: string;
   category_name: string | null;
   category_slug: string | null;
+  business_line?: "barbershop_products" | "cafeteria_products" | "other";
   selected_branch_id: string | null;
+  employee_unit_price?: string | null;
+  employee_catalog_active?: boolean;
 };
 
 export type ProductFormValue = {
+  /** UI-only family selector. Persistence remains category_id -> category.business_line. */
+  business_line: "barbershop_products" | "cafeteria_products" | "";
   category_id: string;
   sku: string;
   name: string;
@@ -47,6 +54,9 @@ export type ProductFormValue = {
   allow_custom_price: boolean;
   is_stockable: boolean;
   is_courtesy_allowed: boolean;
+  visibility_scope: "pos" | "internal" | "both";
+  employee_price_enabled: boolean;
+  employee_unit_price: string;
   is_active: boolean;
 };
 

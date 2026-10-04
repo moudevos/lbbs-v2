@@ -66,11 +66,13 @@ export function UserMenu() {
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
 
     async function loadUser() {
       try {
         const response = await fetch("/api/auth/me", {
           cache: "no-store",
+          signal: controller.signal,
         });
         const payload = await response.json();
 
@@ -86,6 +88,7 @@ export function UserMenu() {
           setUser(payload.data);
         }
       } catch (error) {
+        if (!mounted || (error instanceof DOMException && error.name === "AbortError")) return;
         const message = error instanceof Error ? error.message : "Error inesperado";
         console.error("[auth/sesion] Error inesperado al cargar la sesion", { message });
       }
@@ -95,6 +98,7 @@ export function UserMenu() {
 
     return () => {
       mounted = false;
+      controller.abort();
     };
   }, []);
 

@@ -53,6 +53,7 @@ export async function createCashMovement(
       pos_session_id: posSessionId,
       category_id: value.category_id,
       movement_type: value.movement_type,
+      adjustment_direction: value.movement_type === "adjustment" ? value.adjustment_direction : null,
       amount: value.amount,
       description: value.description,
       evidence_url: value.evidence_url,

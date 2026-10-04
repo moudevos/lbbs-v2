@@ -17,6 +17,8 @@ export type SettingMovementType =
   | "transfer_in"
   | "transfer_out";
 
+export type ProductBusinessLine = "barbershop_products" | "cafeteria_products" | "other";
+
 export type SettingRecord = {
   id: string;
   name: string;
@@ -29,6 +31,7 @@ export type SettingRecord = {
   code?: string;
   movement_type?: SettingMovementType | null;
   payment_kind?: PaymentKind;
+  business_line?: ProductBusinessLine;
   allows_change?: boolean;
   counts_as_cash?: boolean;
 };
@@ -48,6 +51,7 @@ export type SettingFormValue = {
   is_active: boolean;
   movement_type: SettingMovementType | "";
   payment_kind: PaymentKind;
+  business_line: ProductBusinessLine;
 };
 
 export type SettingsSectionConfig = {
@@ -61,6 +65,7 @@ export type SettingsSectionConfig = {
   identityKey: SettingIdentityKey;
   identityLabel: string;
   supportsMovementType?: boolean;
+  supportsBusinessLine?: boolean;
 };
 
 export const settingsSections: SettingsSectionConfig[] = [
@@ -85,6 +90,7 @@ export const settingsSections: SettingsSectionConfig[] = [
     endpoint: "/api/admin/product-categories",
     identityKey: "slug",
     identityLabel: "Slug",
+    supportsBusinessLine: true,
   },
   {
     key: "payment_methods",

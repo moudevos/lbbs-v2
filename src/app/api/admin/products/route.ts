@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requirePosWriteSession } from "@/lib/supabase/route-auth";
 import { normalizeSlug } from "@/lib/utils/slug";
+import { resolveProductPrice } from "@/lib/pos/employee-pricing";
 
 function trimOrNull(value: unknown) {
   if (typeof value !== "string") {
@@ -37,10 +38,32 @@ function normalizeMoneyValue(value: unknown) {
   return parsed === null ? null : parsed.toFixed(2);
 }
 
+function parseEmployeePricing(payload: Record<string, unknown> | null, visibilityScope: string) {
+  const enabled = visibilityScope === "internal" || (visibilityScope === "both" && payload?.employee_price_enabled === true);
+  const price = parseMoney(payload?.employee_unit_price);
+  if (enabled && (price === null || price <= 0)) {
+    return { error: "El precio especial para empleados debe ser un número mayor que cero." as const };
+  }
+  return { enabled, price };
+}
+
+async function syncEmployeePricing(productId: string, enabled: boolean, price: number | null) {
+  if (!enabled) {
+    const { error } = await getSupabaseAdmin().from("employee_supply_catalog_items").update({ is_active: false }).eq("product_id", productId);
+    return error;
+  }
+  const { error } = await getSupabaseAdmin().from("employee_supply_catalog_items").upsert(
+    { product_id: productId, employee_unit_price: price, is_active: true },
+    { onConflict: "product_id" },
+  );
+  return error;
+}
+
 type ProductCategory = {
   id: string;
   name: string;
   slug: string;
+  business_line?: "barbershop_products" | "cafeteria_products" | "other";
 } | null;
 
 type ProductRow = {
@@ -57,6 +80,7 @@ type ProductRow = {
   allow_custom_price: boolean;
   is_stockable: boolean;
   is_courtesy_allowed: boolean;
+  visibility_scope: "pos" | "internal" | "both";
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -105,11 +129,13 @@ function formatProduct(product: ProductRow, stock?: StockRow | null) {
     allow_custom_price: product.allow_custom_price,
     is_stockable: product.is_stockable,
     is_courtesy_allowed: product.is_courtesy_allowed,
+    visibility_scope: product.visibility_scope,
     is_active: product.is_active,
     created_at: product.created_at,
     updated_at: product.updated_at,
     category_name: category?.name ?? null,
     category_slug: category?.slug ?? null,
+    business_line: category?.business_line ?? "other",
     selected_branch_id: stock?.branch_id ?? null,
   };
 }
@@ -118,11 +144,12 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const branchId = trimOrNull(searchParams.get("branchId"));
+  const customerId = trimOrNull(searchParams.get("customerId"));
 
   const { data: products, error: productsError } = await supabase
     .from("products")
     .select(
-      "id, category_id, sku, name, slug, description, barcode, unit, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active, created_at, updated_at, category:product_categories(id, name, slug)",
+      "id, category_id, sku, name, slug, description, barcode, unit, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, visibility_scope, is_active, created_at, updated_at, category:product_categories(id, name, slug, business_line)",
     )
     .order("name", { ascending: true });
 
@@ -162,9 +189,50 @@ export async function GET(request: Request) {
   }
 
   const stockMap = new Map(stockRows.map((item) => [item.product_id, item]));
-  const formatted = (products ?? []).map((product) =>
-    formatProduct(product as ProductRow, stockMap.get(product.id) ?? null),
-  );
+  let employeeId: string | null = null;
+  if (customerId && branchId) {
+    const { data, error } = await supabase.rpc("get_pos_internal_options", {
+      p_customer_id: customerId,
+      p_branch_id: branchId,
+    });
+    if (error) return NextResponse.json({ error: "No se pudo resolver el contexto del comprador." }, { status: 500 });
+    const options = data as { employee?: { id?: string } | null } | null;
+    employeeId = options?.employee?.id ?? null;
+  }
+
+  const productIds = (products ?? []).map((product) => product.id);
+  const { data: employeeCatalog, error: catalogError } = productIds.length
+    ? await supabase.from("employee_supply_catalog_items").select("product_id, employee_unit_price, is_active").in("product_id", productIds)
+    : { data: [], error: null };
+  if (catalogError) return NextResponse.json({ error: "No se pudo cargar el precio de empleado." }, { status: 500 });
+  const employeePriceByProduct = new Map((employeeCatalog ?? []).map((row) => [row.product_id, row]));
+
+  const formatted = (products ?? [])
+    .filter((product) => !customerId || employeeId || (product as ProductRow).visibility_scope !== "internal")
+    .map((product) => {
+      const base = formatProduct(product as ProductRow, stockMap.get(product.id) ?? null);
+      const catalogItem = employeePriceByProduct.get(product.id);
+      const special = catalogItem?.employee_unit_price ?? null;
+      const hasSpecial = catalogItem?.is_active === true && special !== null;
+      const retail = base.final_sale_price;
+      const pricing = resolveProductPrice({
+        retailPrice: Number(retail),
+        employeePrice: hasSpecial ? Number(special) : null,
+        isEmployeeBuyer: Boolean(employeeId),
+        visibilityScope: base.visibility_scope,
+      });
+      return {
+        ...base,
+        retail_price: retail,
+        employee_price: hasSpecial ? normalizeMoneyValue(special) : null,
+        employee_price_active: pricing.employeePriceActive,
+        employee_unit_price: special === null ? null : normalizeMoneyValue(special),
+        employee_catalog_active: catalogItem?.is_active === true,
+        effective_price: normalizeMoneyValue(pricing.effectivePrice),
+        price_source: pricing.priceSource,
+      };
+    })
+    .filter((product) => !customerId || !employeeId || product.visibility_scope !== "internal" || product.employee_price_active);
 
   return NextResponse.json({ data: formatted });
 }
@@ -184,6 +252,8 @@ export async function POST(request: Request) {
   const unit = trimOrNull(payload?.unit);
   const costPrice = parseMoney(payload?.cost_price);
   const baseSalePrice = parseMoney(payload?.base_sale_price);
+  const visibilityScope = trimOrNull(payload?.visibility_scope) ?? "pos";
+  const employeePricing = parseEmployeePricing(payload, visibilityScope);
 
   if (!name || !slugRaw) {
     return NextResponse.json(
@@ -213,11 +283,38 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!['pos', 'internal', 'both'].includes(visibilityScope)) {
+    return NextResponse.json({ error: "La visibilidad seleccionada no es valida." }, { status: 400 });
+  }
+  if ("error" in employeePricing) return NextResponse.json({ error: employeePricing.error }, { status: 400 });
+
+  const categoryId = trimOrNull(payload?.category_id);
+  if (visibilityScope === "pos" || visibilityScope === "both") {
+    if (!categoryId) {
+      return NextResponse.json(
+        { error: "Todo producto comercial requiere categoría y familia." },
+        { status: 400 },
+      );
+    }
+
+    const { data: category, error: categoryError } = await getSupabaseAdmin()
+      .from("product_categories")
+      .select("id, business_line")
+      .eq("id", categoryId)
+      .maybeSingle();
+    if (categoryError || !category || !["barbershop_products", "cafeteria_products"].includes(category.business_line ?? "other")) {
+      return NextResponse.json(
+        { error: "Selecciona una categoría comercial de Barbería o Cafetería." },
+        { status: 400 },
+      );
+    }
+  }
+
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("products")
     .insert({
-      category_id: trimOrNull(payload?.category_id),
+      category_id: categoryId,
       sku: trimOrNull(payload?.sku),
       name,
       slug: normalizeSlug(slugRaw),
@@ -229,10 +326,11 @@ export async function POST(request: Request) {
       allow_custom_price: payload?.allow_custom_price === true,
       is_stockable: payload?.is_stockable !== false,
       is_courtesy_allowed: payload?.is_courtesy_allowed === true,
+      visibility_scope: visibilityScope,
       is_active: payload?.is_active !== false,
     })
     .select(
-      "id, category_id, sku, name, slug, description, barcode, unit, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, is_active, created_at, updated_at, category:product_categories(id, name, slug)",
+      "id, category_id, sku, name, slug, description, barcode, unit, cost_price, base_sale_price, allow_custom_price, is_stockable, is_courtesy_allowed, visibility_scope, is_active, created_at, updated_at, category:product_categories(id, name, slug, business_line)",
     )
     .single();
 
@@ -247,5 +345,11 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ data: formatProduct(data as ProductRow, null) });
+  const catalogSyncError = await syncEmployeePricing(data.id, employeePricing.enabled, employeePricing.price);
+  if (catalogSyncError) {
+    await admin.from("products").delete().eq("id", data.id);
+    return NextResponse.json({ error: "No se pudo guardar el precio para empleados; el producto no fue creado." }, { status: 400 });
+  }
+
+  return NextResponse.json({ data: { ...formatProduct(data as ProductRow, null), employee_unit_price: employeePricing.enabled ? employeePricing.price?.toFixed(2) ?? null : null, employee_catalog_active: employeePricing.enabled } });
 }

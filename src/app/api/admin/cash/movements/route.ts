@@ -21,6 +21,9 @@ export async function POST(request: Request) {
   const posSessionId = trimOrNull(payload?.pos_session_id);
   const categoryId = trimOrNull(payload?.category_id);
   const movementType = trimOrNull(payload?.movement_type);
+  const adjustmentDirection = payload?.adjustment_direction === "increase" || payload?.adjustment_direction === "decrease"
+    ? payload.adjustment_direction
+    : null;
   const amount = parseMoney(payload?.amount);
   const description = trimOrNull(payload?.description);
   const evidenceUrl = trimOrNull(payload?.evidence_url);
@@ -60,6 +63,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (movementType === "adjustment" && !adjustmentDirection) {
+    return NextResponse.json(
+      { error: "Selecciona si el ajuste aumenta o disminuye el efectivo." },
+      { status: 400 },
+    );
+  }
+
   try {
     const { data, error } = await supabase.rpc("create_cash_movement", {
       p_pos_session_id: posSessionId,
@@ -68,6 +78,7 @@ export async function POST(request: Request) {
       p_amount: Number(amount.toFixed(2)),
       p_description: description,
       p_evidence_url: evidenceUrl,
+      p_adjustment_direction: adjustmentDirection,
     });
 
     if (error || !data) {

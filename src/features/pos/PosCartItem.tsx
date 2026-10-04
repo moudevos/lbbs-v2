@@ -3,7 +3,9 @@
 import { faMinus, faPlus, faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
+import { Select } from "@/components/ui/select";
 import type { PosCartItem } from "@/features/pos/pos-types";
+import type { PosEmployeeRecord } from "@/features/pos/pos-types";
 import { formatMoney, getItemSubtotal } from "@/features/pos/pos-utils";
 
 type PosCartItemProps = {
@@ -13,6 +15,10 @@ type PosCartItemProps = {
   onRemove: () => void;
   onToggleCourtesy: () => void;
   courtesyAvailable: boolean;
+  courtesyUnavailableReason: string;
+  sellers: PosEmployeeRecord[];
+  inheritedResponsibleEmployeeId: string | null;
+  onResponsibleChange: (employeeId: string) => void;
 };
 
 export function PosCartItem({
@@ -22,7 +28,12 @@ export function PosCartItem({
   onRemove,
   onToggleCourtesy,
   courtesyAvailable,
+  courtesyUnavailableReason,
+  sellers,
+  inheritedResponsibleEmployeeId,
+  onResponsibleChange,
 }: PosCartItemProps) {
+  const inheritedSeller = sellers.find((seller) => seller.id === inheritedResponsibleEmployeeId);
 
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-2.5">
@@ -39,6 +50,8 @@ export function PosCartItem({
                 Cortesia
               </span>
             ) : null}
+            {item.price_source === "employee" ? <span className="rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">Empleado</span> : null}
+            {item.visibility_scope === "internal" ? <span className="rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">Solo personal</span> : null}
           </div>
           {item.category_name ? (
             <p className="text-[11px] text-slate-400">{item.category_name}</p>
@@ -75,7 +88,7 @@ export function PosCartItem({
           </button>
         </div>
 
-        <span className="text-xs text-slate-400">{formatMoney(item.unit_price)}</span>
+        <span className="text-xs text-slate-400">{formatMoney(item.unit_price)}{item.price_source === "employee" && item.retail_price !== undefined ? ` · Regular ${formatMoney(item.retail_price)}` : ""}</span>
         <span className="ml-auto text-sm font-semibold text-slate-900">
           {formatMoney(getItemSubtotal(item))}
         </span>
@@ -83,7 +96,7 @@ export function PosCartItem({
 
       {item.item_type === "product" ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-500" title={!item.is_courtesy && !courtesyAvailable ? courtesyUnavailableReason : undefined}>
             <input
               type="checkbox"
               className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
@@ -91,7 +104,14 @@ export function PosCartItem({
               onChange={onToggleCourtesy}
               disabled={!item.is_courtesy && !courtesyAvailable}
             />
-            Cortesia {!item.is_courtesy && !courtesyAvailable ? "(no disponible)" : ""}
+            Cortesia {!item.is_courtesy && !courtesyAvailable ? `(${courtesyUnavailableReason})` : ""}
+          </label>
+          <label className="min-w-48 flex-1 text-[11px] text-slate-600">
+            {inheritedSeller ? `Responsable: ${inheritedSeller.full_name} · heredado del servicio` : `Responsable${item.business_line === "barbershop_products" ? " *" : " (opcional)"}`}
+            <Select value={item.responsible_employee_id ?? ""} onChange={(event) => onResponsibleChange(event.target.value)} className="mt-1 h-8 text-xs">
+              <option value="">{inheritedSeller ? "Mantener responsable heredado" : item.business_line === "barbershop_products" ? "Seleccionar vendedor" : "Sin responsable"}</option>
+              {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.full_name} · {seller.role}</option>)}
+            </Select>
           </label>
         </div>
       ) : null}

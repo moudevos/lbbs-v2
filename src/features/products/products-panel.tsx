@@ -1,6 +1,6 @@
 "use client";
 
-import { faMagnifyingGlass, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faFileExcel, faMagnifyingGlass, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
@@ -15,6 +15,7 @@ import { ProductFormModal } from "@/features/products/ProductFormModal";
 import { ProductsTable } from "@/features/products/ProductsTable";
 import { ProductStockModal } from "@/features/products/ProductStockModal";
 import { StockMovementFormModal } from "@/features/products/StockMovementFormModal";
+import { commercialFamily } from "@/features/products/product-family";
 import type {
   ProductBranchPriceFormValue,
   ProductBranchPriceRecord,
@@ -27,6 +28,7 @@ import type {
 } from "@/features/products/product-types";
 
 const emptyProductForm: ProductFormValue = {
+  business_line: "",
   category_id: "",
   sku: "",
   name: "",
@@ -39,6 +41,9 @@ const emptyProductForm: ProductFormValue = {
   allow_custom_price: false,
   is_stockable: true,
   is_courtesy_allowed: false,
+  visibility_scope: "pos",
+  employee_price_enabled: false,
+  employee_unit_price: "",
   is_active: true,
 };
 
@@ -65,6 +70,7 @@ function toProductFormValue(product?: ProductRecord | null): ProductFormValue {
   }
 
   return {
+    business_line: commercialFamily(product.business_line),
     category_id: product.category_id ?? "",
     sku: product.sku ?? "",
     name: product.name,
@@ -77,6 +83,9 @@ function toProductFormValue(product?: ProductRecord | null): ProductFormValue {
     allow_custom_price: product.allow_custom_price,
     is_stockable: product.is_stockable,
     is_courtesy_allowed: product.is_courtesy_allowed,
+    visibility_scope: product.visibility_scope,
+    employee_price_enabled: product.visibility_scope === "internal" || (product.employee_catalog_active === true && product.employee_unit_price !== null && product.employee_unit_price !== undefined),
+    employee_unit_price: product.employee_unit_price ?? "",
     is_active: product.is_active,
   };
 }
@@ -217,6 +226,11 @@ export function ProductsPanel({
     }
   }
 
+  function exportInventory() {
+    const query = selectedBranchId ? `?branchId=${encodeURIComponent(selectedBranchId)}` : "";
+    window.open(`/api/admin/products/inventory-export${query}`, "_blank", "noopener,noreferrer");
+  }
+
   async function loadBranchPrices(productId: string) {
     const response = await fetch(
       `/api/admin/product-branch-prices?productId=${encodeURIComponent(productId)}`,
@@ -354,6 +368,13 @@ export function ProductsPanel({
       return;
     }
 
+    const employeePriceRequired = productForm.visibility_scope === "internal" || (productForm.visibility_scope === "both" && productForm.employee_price_enabled);
+    const employeePrice = Number(productForm.employee_unit_price);
+    if (employeePriceRequired && (!Number.isFinite(employeePrice) || employeePrice <= 0)) {
+      await Swal.fire({ icon: "warning", title: "Precio empleado inválido", text: "Ingresa un precio especial para empleados mayor que cero.", confirmButtonColor: "#0f766e", background: "#ffffff", color: "#0f172a" });
+      return;
+    }
+
     setIsSavingProduct(true);
 
     try {
@@ -370,6 +391,9 @@ export function ProductsPanel({
         is_stockable: productForm.is_stockable,
         allow_custom_price: productForm.allow_custom_price,
         is_courtesy_allowed: productForm.is_courtesy_allowed,
+        visibility_scope: productForm.visibility_scope,
+        employee_price_enabled: productForm.visibility_scope === "internal" || productForm.employee_price_enabled,
+        employee_unit_price: employeePriceRequired ? productForm.employee_unit_price : null,
         is_active: productForm.is_active,
       };
 
@@ -458,6 +482,7 @@ export function ProductsPanel({
           is_stockable: product.is_stockable,
           allow_custom_price: product.allow_custom_price,
           is_courtesy_allowed: product.is_courtesy_allowed,
+          visibility_scope: product.visibility_scope,
           is_active: !product.is_active,
         }),
       });
@@ -868,12 +893,7 @@ export function ProductsPanel({
               </p>
             </div>
 
-            {canCreateProducts ? (
-              <Button type="button" onClick={startCreateProduct}>
-                <FontAwesomeIcon icon={faPlus} />
-                Nuevo producto
-              </Button>
-            ) : null}
+            <div className="flex gap-2"><Button type="button" className="bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={exportInventory}><FontAwesomeIcon icon={faFileExcel} />Exportar inventario</Button>{canCreateProducts ? <Button type="button" onClick={startCreateProduct}><FontAwesomeIcon icon={faPlus} />Nuevo producto</Button> : null}</div>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

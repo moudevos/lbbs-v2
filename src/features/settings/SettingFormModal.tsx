@@ -13,6 +13,7 @@ import type {
   SettingFormValue,
   SettingMovementType,
   PaymentKind,
+  ProductBusinessLine,
   SettingsSectionConfig,
 } from "@/features/settings/settings-types";
 import { useModalDirtyState } from "@/lib/hooks/use-modal-dirty-state";
@@ -44,6 +45,12 @@ const paymentKindOptions: Array<{ value: PaymentKind; label: string }> = [
   { value: "card", label: "Tarjeta o POS" },
   { value: "bank_transfer", label: "Transferencia bancaria" },
   { value: "other_digital", label: "Otro digital" },
+];
+
+const businessLineOptions: Array<{ value: ProductBusinessLine; label: string }> = [
+  { value: "barbershop_products", label: "Producto de barbería" },
+  { value: "cafeteria_products", label: "Producto de cafetería" },
+  { value: "other", label: "Sin clasificar" },
 ];
 
 export function SettingFormModal({
@@ -123,6 +130,23 @@ export function SettingFormModal({
             {movementTypeOptions.map((option) => (
               <option key={option} value={option}>
                 {getMovementTypeLabel(option)}
+              </option>
+            ))}
+          </SelectField>
+        ) : null}
+
+        {config.supportsBusinessLine ? (
+          <SelectField
+            label="Familia"
+            value={value.business_line}
+            onChange={(event) =>
+              onChange({ ...value, business_line: event.target.value as ProductBusinessLine })
+            }
+            hint="Clasifica la categoría para separar ventas, costo de ventas y margen. Usa Sin clasificar si aún no corresponde a una familia."
+          >
+            {businessLineOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </SelectField>

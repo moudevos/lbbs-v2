@@ -48,7 +48,10 @@ export function EmployeeSuppliesPageClient() {
       await Swal.fire({ icon: "error", title: "No se pudo cargar insumos", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
     }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const activeCatalog = useMemo(() => (data?.catalog ?? []).filter((item) => item.is_active), [data]);
   const cart = useMemo(() => lines.map((line) => ({ ...line, item: activeCatalog.find((item) => item.id === line.catalogItemId) ?? null })).filter((line) => line.item), [activeCatalog, lines]);
