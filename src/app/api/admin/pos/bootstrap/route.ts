@@ -243,7 +243,7 @@ export async function GET(request: Request) {
       .from("reservations")
       .select("id, customer_id, branch_id, preferred_barber_id, service_interest_id, status, customer:customers(id,full_name,phone,document_number,is_active)")
       .eq("id", requestedReservationId)
-      .eq("status", "checked_in")
+      .in("status", ["scheduled", "pending", "contacted", "confirmed", "rescheduled", "checked_in"])
       .maybeSingle();
     if (reservationError || !reservation || reservation.branch_id !== selectedBranchId) {
       console.error("[pos/bootstrap] No se pudo cargar la reserva para POS", { message: reservationError?.message, code: reservationError?.code, details: reservationError?.details, hint: reservationError?.hint, reservationId: requestedReservationId });

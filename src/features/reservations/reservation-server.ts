@@ -5,6 +5,7 @@ import type {
   ReservationSource,
   ReservationStatus,
 } from "@/features/reservations/reservation-types";
+import { getReservationVisualStatus } from "@/features/reservations/reservation-presentation";
 
 type NestedCustomer = {
   id: string;
@@ -61,6 +62,13 @@ export type ReservationRow = {
   confirmed_at: string | null;
   cancelled_at: string | null;
   completed_at: string | null;
+  attended_at: string | null;
+  last_reminder_at: string | null;
+  reminder_count: number | null;
+  rescheduled_at: string | null;
+  rescheduled_by: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -111,6 +119,19 @@ export function formatReservation(row: ReservationRow): ReservationRecord {
     confirmed_at: row.confirmed_at,
     cancelled_at: row.cancelled_at,
     completed_at: row.completed_at,
+    attended_at: row.attended_at,
+    last_reminder_at: row.last_reminder_at,
+    reminder_count: row.reminder_count ?? 0,
+    rescheduled_at: row.rescheduled_at,
+    rescheduled_by: row.rescheduled_by,
+    cancelled_by: row.cancelled_by,
+    cancellation_reason: row.cancellation_reason,
+    visual_status: getReservationVisualStatus({
+      status: row.status,
+      attendedAt: row.attended_at,
+      scheduledDate: row.scheduled_date,
+      scheduledTime: row.scheduled_time,
+    }),
     created_by: row.created_by,
     updated_by: row.updated_by,
     created_at: row.created_at,
@@ -154,6 +175,8 @@ export function formatReservationDetail(row: ReservationRow): ReservationDetailR
 export function validateReservationPayload(payload: {
   customerId: string | null;
   branchId: string | null;
+  preferredBarberId: string | null;
+  serviceInterestId: string | null;
   scheduledDate: string | null;
   scheduledTime: string | null;
   status: string | null;
@@ -162,45 +185,15 @@ export function validateReservationPayload(payload: {
     return "Debes seleccionar un cliente.";
   }
 
-  if (!payload.status) {
-    return "Debes indicar el estado de la reserva.";
+  if (payload.status !== "scheduled") {
+    return "Las reservas nuevas deben quedar programadas.";
   }
 
-  if (
-    (payload.status === "confirmed" || payload.status === "completed") &&
-    (!payload.scheduledDate || !payload.scheduledTime)
-  ) {
-    return "Las reservas confirmadas o atendidas deben tener fecha y hora.";
-  }
-
-  if (
-    (payload.status === "confirmed" || payload.status === "completed") &&
-    !payload.branchId
-  ) {
-    return "Las reservas confirmadas o atendidas deben tener sede asignada.";
+  if (!payload.branchId || !payload.serviceInterestId || !payload.scheduledDate || !payload.scheduledTime) {
+    return "La reserva requiere sede, servicio, fecha y hora.";
   }
 
   return null;
-}
-
-export function buildReservationTimestamps(
-  status: ReservationStatus,
-  current?: {
-    confirmed_at: string | null;
-    cancelled_at: string | null;
-    completed_at: string | null;
-  } | null,
-) {
-  const now = new Date().toISOString();
-
-  return {
-    confirmed_at:
-      status === "confirmed" || status === "checked_in" || status === "completed"
-        ? current?.confirmed_at ?? now
-        : null,
-    cancelled_at: status === "cancelled" ? current?.cancelled_at ?? now : null,
-    completed_at: status === "completed" ? current?.completed_at ?? now : null,
-  };
 }
 
 export function matchesReservationSearch(row: ReservationRecord, term: string) {

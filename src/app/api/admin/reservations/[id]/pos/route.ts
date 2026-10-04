@@ -17,7 +17,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     console.error("[reservations/pos] Error al leer reserva", { message: reservationError?.message, code: reservationError?.code, details: reservationError?.details, hint: reservationError?.hint, reservationId: id });
     return NextResponse.json({ error: "No se pudo validar la reserva." }, { status: 404 });
   }
-  if (reservation.status !== "checked_in") return NextResponse.json({ error: "Solo las reservas en tienda pueden pasar a venta." }, { status: 400 });
+  if (!["scheduled", "pending", "contacted", "confirmed", "rescheduled", "checked_in"].includes(reservation.status)) return NextResponse.json({ error: "Solo las reservas vigentes pueden pasar a venta." }, { status: 400 });
   if (!reservation.customer_id || !reservation.branch_id) return NextResponse.json({ error: "La reserva necesita cliente y sede antes de pasar a venta." }, { status: 400 });
   const { data: existingSale, error: saleError } = await supabase.from("sales").select("id,status").eq("reservation_id", id).in("status", ["draft", "completed"]).maybeSingle();
   if (saleError) {

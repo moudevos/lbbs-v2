@@ -198,13 +198,32 @@ export function usePosWorkspace() {
   useEffect(() => {
     if (!suggestedServiceId) return;
     const service = services.find((item) => item.id === suggestedServiceId);
-    if (!service) return;
+    if (!service) {
+      if (!isLoadingCatalog) {
+        const timer = window.setTimeout(() => {
+          setSuggestedServiceId(null);
+          void Swal.fire({ icon: "info", title: "Servicio no disponible", text: "El servicio reservado ya no esta disponible. Selecciona el servicio correspondiente.", confirmButtonColor: "#0f766e" });
+        }, 0);
+        return () => window.clearTimeout(timer);
+      }
+      return;
+    }
     const timer = window.setTimeout(() => {
       setCartItems((current) => current.some((item) => item.catalog_id === service.id && item.reservation_suggestion) ? current : [...current, { ...buildServiceCartItem(service), reservation_suggestion: true }]);
       setSuggestedServiceId(null);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [services, suggestedServiceId]);
+  }, [isLoadingCatalog, services, suggestedServiceId]);
+
+  useEffect(() => {
+    if (!selectedReservationId || !selectedBarberId || isLoadingCatalog) return;
+    if (employees.some((employee) => employee.id === selectedBarberId && employee.role === "barber" && employee.status === "active")) return;
+    const timer = window.setTimeout(() => {
+      setSelectedBarberId("");
+      void Swal.fire({ icon: "info", title: "Barbero no disponible", text: "El barbero de la reserva ya no esta disponible. Selecciona otro.", confirmButtonColor: "#0f766e" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [employees, isLoadingCatalog, selectedBarberId, selectedReservationId]);
 
   const activeSession = bootstrap?.activeSession ?? null;
   const activeReservationId = selectedReservationId;
@@ -750,5 +769,6 @@ export function usePosWorkspace() {
     setInternalCredit,
     setInternalAuthorizationPin,
     setSelectedReservationId,
+    setSuggestedServiceId,
   };
 }
