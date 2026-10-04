@@ -12,6 +12,8 @@ type Payload = {
   branchReconciliations: Array<{ id: string; branchName: string; sessionStatus: string; grossSales: number; serviceGross: number; otherGross: number; rewardsCount: number; rewardsAmount: number; courtesyCost: number; employeeDebtCharges: number; operationalContribution: number; realSales: number; actualCollected: number }>;
 };
 
+type Branch = Payload["branchReconciliations"][number];
+
 const paymentColors = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#ec4899", "#64748b"];
 const limaToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
@@ -24,6 +26,15 @@ const money = (value: number | null) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(value ?? 0);
 
 const number = (value: number | null) => new Intl.NumberFormat("es-PE").format(value ?? 0);
+
+const percent = (part: number, total: number) => (total > 0 ? (part / total) * 100 : 0);
+const percentLabel = (part: number, total: number) => `${percent(part, total).toFixed(1)}%`;
+
+const sessionStatusLabel = (status: string) =>
+  status === "closed" ? "Cerrada" : status === "open" ? "Abierta" : status === "pending_close" ? "Pendiente de cierre" : "Sin sesión";
+
+const sessionStatusTone = (status: string) =>
+  status === "closed" ? "bg-emerald-50 text-emerald-700" : status === "open" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700";
 
 /* ---------------------------------- Icons --------------------------------- */
 /* Hand-drawn, stroke-based, 24x24 — kept self-contained so no new deps are needed. */
@@ -134,6 +145,16 @@ function IconGift({ className = iconBase }: IconProps) {
   );
 }
 
+function IconPercent({ className = iconBase }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M19 5L5 19" />
+      <circle cx="7" cy="7" r="2.25" />
+      <circle cx="17" cy="17" r="2.25" />
+    </svg>
+  );
+}
+
 /* ------------------------------- Building blocks ------------------------------- */
 
 function FeaturedStat({
@@ -170,11 +191,13 @@ function HeroStat({
   value,
   icon,
   accent,
+  hint,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   accent?: string;
+  hint?: string;
 }) {
   return (
     <article className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -184,6 +207,7 @@ function HeroStat({
       <div className="min-w-0">
         <p className="truncate text-xs font-medium text-slate-500">{label}</p>
         <p className={`mt-0.5 text-lg font-semibold tracking-tight ${accent ?? "text-slate-900"}`}>{value}</p>
+        {hint ? <p className="truncate text-[11px] text-slate-400">{hint}</p> : null}
       </div>
     </article>
   );
@@ -193,10 +217,12 @@ function CompareBar({
   title,
   left,
   right,
+  format = number,
 }: {
   title: string;
   left: { label: string; value: number; color: string };
   right: { label: string; value: number; color: string };
+  format?: (value: number) => string;
 }) {
   const total = left.value + right.value;
   const leftPct = total > 0 ? (left.value / total) * 100 : 50;
@@ -219,21 +245,29 @@ function CompareBar({
           />
         )}
       </div>
-      <div className="mt-2 flex justify-between text-xs text-slate-600">
+      <div className="mt-2 flex justify-between gap-3 text-xs text-slate-600">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: left.color }} />
-          {left.label}: <strong className="font-semibold text-slate-900">{number(left.value)}</strong>
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: left.color }} />
+          {left.label}: <strong className="font-semibold text-slate-900">{format(left.value)}</strong>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: right.color }} />
-          {right.label}: <strong className="font-semibold text-slate-900">{number(right.value)}</strong>
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: right.color }} />
+          {right.label}: <strong className="font-semibold text-slate-900">{format(right.value)}</strong>
         </span>
       </div>
     </div>
   );
 }
 
-function PaymentDonut({ segments }: { segments: Array<{ label: string; value: number; color: string }> }) {
+function PaymentDonut({
+  segments,
+  centerLabel = "Cobrado",
+  ariaLabel = "Distribución de métodos de pago",
+}: {
+  segments: Array<{ label: string; value: number; color: string }>;
+  centerLabel?: string;
+  ariaLabel?: string;
+}) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
 
   const gradient = useMemo(() => {
@@ -249,14 +283,9 @@ function PaymentDonut({ segments }: { segments: Array<{ label: string; value: nu
 
   return (
     <div className="flex items-center gap-5">
-      <div
-        className="relative h-28 w-28 shrink-0 rounded-full"
-        style={{ background: gradient }}
-        role="img"
-        aria-label="Distribución de métodos de pago"
-      >
+      <div className="relative h-28 w-28 shrink-0 rounded-full" style={{ background: gradient }} role="img" aria-label={ariaLabel}>
         <div className="absolute inset-2.5 flex flex-col items-center justify-center rounded-full bg-white text-center">
-          <span className="text-[10px] text-slate-500">Cobrado</span>
+          <span className="text-[10px] text-slate-500">{centerLabel}</span>
           <span className="text-sm font-semibold text-slate-900">{money(total)}</span>
         </div>
       </div>
@@ -264,10 +293,10 @@ function PaymentDonut({ segments }: { segments: Array<{ label: string; value: nu
         {segments.map((s) => {
           const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
           return (
-            <li key={s.label} className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-slate-600">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                {s.label}
+            <li key={s.label} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2 text-slate-600">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="truncate">{s.label}</span>
                 <span className="text-xs text-slate-400">{pct}%</span>
               </span>
               <span className="font-medium text-slate-900">{money(s.value)}</span>
@@ -275,6 +304,55 @@ function PaymentDonut({ segments }: { segments: Array<{ label: string; value: nu
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/* Barras horizontales por sede: bruto, venta real y cobro real, con una escala común. */
+function BranchBars({ branches }: { branches: Branch[] }) {
+  const series = [
+    { key: "grossSales" as const, label: "Bruto", color: "#0ea5e9" },
+    { key: "realSales" as const, label: "Venta real", color: "#10b981" },
+    { key: "actualCollected" as const, label: "Cobro real", color: "#6366f1" },
+  ];
+  const max = Math.max(1, ...branches.flatMap((b) => series.map((s) => b[s.key])));
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+        {series.map((s) => (
+          <span key={s.key} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+            {s.label}
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 space-y-5">
+        {branches.map((branch, index) => (
+          <div key={branch.id}>
+            <p className="flex items-center gap-2 text-sm font-medium text-slate-900">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
+                {index + 1}
+              </span>
+              {branch.branchName}
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {series.map((s) => (
+                <div key={s.key} className="flex items-center gap-3">
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${(branch[s.key] / max) * 100}%`, backgroundColor: s.color }}
+                    />
+                  </div>
+                  <span className="w-24 shrink-0 text-right text-xs font-medium text-slate-700">{money(branch[s.key])}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] text-slate-400">Ordenadas por cobro real, de mayor a menor.</p>
     </div>
   );
 }
@@ -308,6 +386,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
         const result = await response.json();
         if (!response.ok) throw new Error();
         setPayload(result);
+        setError(false);
       } catch {
         console.error("[control/ui] Error al cargar KPIs operativos");
         setError(true);
@@ -333,11 +412,47 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
 
   const m = payload.metrics;
   const internal = payload.internal;
+
   const paymentSegments = payload.paymentMethods.map((method, index) => ({
     label: method.name,
     value: method.total,
     color: paymentColors[index % paymentColors.length],
   }));
+
+  /* ---- Derivados: solo cálculos sobre lo que ya llega del API ---- */
+  const completed = m.completedSales ?? 0;
+  const cancelled = m.cancelledSales ?? 0;
+  const services = m.services ?? 0;
+  const products = m.products ?? 0;
+  const netSales = m.netSales ?? 0;
+  const discounts = m.discounts ?? 0;
+
+  const cancellationRate = percentLabel(cancelled, completed + cancelled);
+  const discountRate = percentLabel(discounts, netSales + discounts);
+  const servicesMix = percentLabel(services, services + products);
+
+  const branches = [...payload.branchReconciliations].sort((a, b) => b.actualCollected - a.actualCollected);
+  const branchSegments = branches.map((branch, index) => ({
+    label: branch.branchName,
+    value: branch.actualCollected,
+    color: paymentColors[index % paymentColors.length],
+  }));
+
+  const totalGross = branches.reduce((sum, b) => sum + b.grossSales, 0);
+  const totalCourtesyCost = branches.reduce((sum, b) => sum + b.courtesyCost, 0);
+  const courtesyCostRate = percentLabel(totalCourtesyCost, totalGross);
+
+  const statusCounts = branches.reduce<Record<string, number>>((acc, branch) => {
+    acc[branch.sessionStatus] = (acc[branch.sessionStatus] ?? 0) + 1;
+    return acc;
+  }, {});
+  const statusOrder = ["open", "pending_close", "closed"];
+  const statusEntries = [
+    ...statusOrder.filter((s) => statusCounts[s]).map((s) => [s, statusCounts[s]] as const),
+    ...Object.entries(statusCounts).filter(([s]) => !statusOrder.includes(s)),
+  ];
+
+  const hasBranches = branches.length > 0;
 
   return (
     <div className="space-y-4">
@@ -351,52 +466,76 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
           aria-hidden
           className="pointer-events-none absolute -bottom-16 right-24 h-32 w-32 rounded-full bg-sky-200/40 blur-2xl"
         />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <div className="flex items-center gap-3 sm:w-60 sm:shrink-0">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-emerald-600 shadow-sm ring-1 ring-emerald-100">
-              {greetingMeta.isNight ? <IconMoon className="h-5 w-5" /> : <IconSun className="h-5 w-5" />}
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-emerald-700" suppressHydrationWarning>
-                {greetingMeta.label}
-              </p>
-              <p className="mt-0.5 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                {greetingName}
-              </p>
+
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:gap-8">
+          {/* Izquierda: bienvenida + versículo */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 lg:shrink-0">
+            <div className="flex items-center gap-3 sm:w-60 sm:shrink-0">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-emerald-600 shadow-sm ring-1 ring-emerald-100">
+                {greetingMeta.isNight ? <IconMoon className="h-5 w-5" /> : <IconSun className="h-5 w-5" />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-emerald-700" suppressHydrationWarning>
+                  {greetingMeta.label}
+                </p>
+                <p className="mt-0.5 truncate text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
+                  {greetingName}
+                </p>
+              </div>
             </div>
+            <blockquote className="border-t border-emerald-100 pt-4 sm:border-l-2 sm:border-t-0 sm:border-emerald-300 sm:pl-5 sm:pt-0">
+              <p className="text-sm italic leading-relaxed text-slate-600">&ldquo;{verse.text}&rdquo;</p>
+              <p className="mt-1 text-xs font-medium text-emerald-700">{verse.label} · #CRISTOVIVE</p>
+            </blockquote>
           </div>
-          <blockquote className="border-t border-emerald-100 pt-4 sm:border-l-2 sm:border-t-0 sm:border-emerald-300 sm:pl-5 sm:pt-0">
-            <p className="text-sm italic leading-relaxed text-slate-600">&ldquo;{verse.text}&rdquo;</p>
-            <p className="mt-1 text-xs font-medium text-emerald-700">{verse.label} · #CRISTOVIVE</p>
-          </blockquote>
+
+          {/* Derecha: filtro de fechas ocupando todo el espacio restante */}
+          {payload.financial ? (
+            <div className="grid grid-cols-1 gap-3 border-t border-emerald-100 pt-4 sm:grid-cols-2 lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <label className="text-xs font-medium text-slate-500">
+                Desde
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo}
+                  onChange={(event) => setDateFrom(event.target.value)}
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-500">
+                Hasta
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom}
+                  onChange={(event) => setDateTo(event.target.value)}
+                  className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                />
+              </label>
+              <p className="text-xs text-slate-500 sm:col-span-2">Rango por fecha operativa Lima.</p>
+            </div>
+          ) : null}
         </div>
       </section>
-
-      {payload.financial ? (
-        <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <label className="text-xs font-medium text-slate-500">Desde<input type="date" value={dateFrom} max={dateTo} onChange={(event) => setDateFrom(event.target.value)} className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" /></label>
-          <label className="text-xs font-medium text-slate-500">Hasta<input type="date" value={dateTo} min={dateFrom} onChange={(event) => setDateTo(event.target.value)} className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm" /></label>
-          <p className="pb-1 text-xs text-slate-500">Rango por fecha operativa Lima.</p>
-        </section>
-      ) : null}
 
       {/* Cifras clave — la más importante primero, en tamaño destacado */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {payload.financial ? (
           <>
-            <FeaturedStat label="Ventas netas de hoy" value={money(m.netSales)} icon={<IconTrendUp />} tone="emerald" />
-            <HeroStat label="Ticket promedio" value={money(m.averageTicket)} icon={<IconReceipt className="h-4.5 w-4.5" />} />
+            <FeaturedStat label="Ventas netas del periodo" value={money(m.netSales)} icon={<IconTrendUp />} tone="emerald" />
+            <HeroStat label="Ticket promedio" value={money(m.averageTicket)} icon={<IconReceipt className="h-[18px] w-[18px]" />} />
             <HeroStat
               label="Ventas completadas"
               value={number(m.completedSales)}
-              icon={<IconCheckCircle className="h-4.5 w-4.5" />}
+              icon={<IconCheckCircle className="h-[18px] w-[18px]" />}
               accent="text-emerald-700"
             />
             <HeroStat
               label="Ventas anuladas"
               value={number(m.cancelledSales)}
-              icon={<IconXCircle className="h-4.5 w-4.5" />}
+              icon={<IconXCircle className="h-[18px] w-[18px]" />}
               accent="text-amber-700"
+              hint={`${cancellationRate} de las ventas`}
             />
           </>
         ) : (
@@ -405,23 +544,55 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
             <HeroStat
               label="Ventas anuladas"
               value={number(m.cancelledSales)}
-              icon={<IconXCircle className="h-4.5 w-4.5" />}
+              icon={<IconXCircle className="h-[18px] w-[18px]" />}
               accent="text-amber-700"
+              hint={`${cancellationRate} de las ventas`}
             />
-            <HeroStat label="Servicios realizados" value={number(m.services)} icon={<IconSparkles className="h-4.5 w-4.5" />} />
-            <HeroStat label="Productos vendidos" value={number(m.products)} icon={<IconBox className="h-4.5 w-4.5" />} />
+            <HeroStat label="Servicios realizados" value={number(m.services)} icon={<IconSparkles className="h-[18px] w-[18px]" />} />
+            <HeroStat label="Productos vendidos" value={number(m.products)} icon={<IconBox className="h-[18px] w-[18px]" />} />
           </>
         )}
       </section>
+
+      {/* Indicadores derivados */}
+      {payload.financial ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <HeroStat
+            label="Tasa de anulación"
+            value={cancellationRate}
+            icon={<IconXCircle className="h-[18px] w-[18px]" />}
+            accent="text-amber-700"
+            hint={`${number(cancelled)} de ${number(completed + cancelled)} ventas`}
+          />
+          <HeroStat
+            label="Descuento sobre venta"
+            value={discountRate}
+            icon={<IconPercent className="h-[18px] w-[18px]" />}
+            hint={`${money(discounts)} aplicados`}
+          />
+          <HeroStat
+            label="Servicios en el mix"
+            value={servicesMix}
+            icon={<IconSparkles className="h-[18px] w-[18px]" />}
+            accent="text-sky-700"
+            hint={`${number(services)} servicios · ${number(products)} productos`}
+          />
+          <HeroStat
+            label="Costo de cortesías / bruto"
+            value={courtesyCostRate}
+            icon={<IconGift className="h-[18px] w-[18px]" />}
+            accent="text-rose-700"
+            hint={`${money(totalCourtesyCost)} sobre ${money(totalGross)}`}
+          />
+        </section>
+      ) : null}
 
       {payload.financial && (
         <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Métodos de pago</p>
             <div className="mt-4">
-              <PaymentDonut
-                segments={paymentSegments}
-              />
+              <PaymentDonut segments={paymentSegments} />
             </div>
           </div>
 
@@ -447,18 +618,57 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
         </section>
       )}
 
+      {/* Comparativo por sede */}
+      {payload.financial && hasBranches ? (
+        <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Comparativo por sede</p>
+            <p className="mt-1 text-xs text-slate-500">Bruto, venta real y cobro real de cada sede en el periodo.</p>
+            <div className="mt-4">
+              <BranchBars branches={branches} />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Participación por sede</p>
+            <p className="mt-1 text-xs text-slate-500">Qué parte del cobro real aporta cada sede.</p>
+            <div className="mt-4">
+              <PaymentDonut segments={branchSegments} centerLabel="Cobro real" ariaLabel="Participación de cada sede en el cobro real" />
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Resultados y operaciones internas */}
       {payload.financial ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">Resultados y operaciones internas</p>
           <p className="mt-1 text-xs text-slate-500">No incrementan caja ni ventas cobradas si no existe pago real.</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {[["Crédito de empleados", internal.employeeCredit], ["Beneficios · valor lista", internal.benefitRetail], ["Beneficios · descuento", internal.benefitDiscount], ["Consumo dueño · valor lista", internal.complimentaryRetail], ["Consumo dueño · descuento", internal.complimentaryDiscount]].map(([label, value]) => <article key={String(label)} className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">{String(label)}</p><p className="mt-1 text-sm font-semibold text-slate-900">{money(Number(value))}</p></article>)}
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+            <article className="flex items-center justify-between rounded-xl bg-slate-50 p-4 lg:flex-col lg:items-start lg:justify-center lg:gap-1">
+              <p className="text-xs text-slate-500">Crédito de empleados</p>
+              <p className="text-lg font-semibold text-slate-900">{money(internal.employeeCredit)}</p>
+            </article>
+            <div className="grid gap-5 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
+              <CompareBar
+                title="Beneficios: valor lista vs. descuento"
+                format={money}
+                left={{ label: "Valor lista", value: internal.benefitRetail, color: "#0ea5e9" }}
+                right={{ label: "Descuento", value: internal.benefitDiscount, color: "#f59e0b" }}
+              />
+              <CompareBar
+                title="Consumo dueño: valor lista vs. descuento"
+                format={money}
+                left={{ label: "Valor lista", value: internal.complimentaryRetail, color: "#8b5cf6" }}
+                right={{ label: "Descuento", value: internal.complimentaryDiscount, color: "#f59e0b" }}
+              />
+            </div>
           </div>
         </section>
       ) : null}
 
       {/* Operación */}
-      {payload.branchReconciliations.length ? (
+      {hasBranches ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
@@ -467,11 +677,94 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
             </div>
             <span className="text-xs text-slate-500">{payload.range.dateFrom} al {payload.range.dateTo}</span>
           </div>
+
+          {/* Estado de sedes */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {statusEntries.map(([status, count]) => (
+              <span key={status} className={`rounded-full px-3 py-1 text-xs font-medium ${sessionStatusTone(status)}`}>
+                {sessionStatusLabel(status)}: {count}
+              </span>
+            ))}
+          </div>
+
           <div className="mt-4 grid gap-3 xl:grid-cols-3">
-            {payload.branchReconciliations.map((branch) => {
-              const status = branch.sessionStatus === "closed" ? "Cerrada" : branch.sessionStatus === "open" ? "Abierta" : branch.sessionStatus === "pending_close" ? "Pendiente de cierre" : "Sin sesión";
-              const statusTone = branch.sessionStatus === "closed" ? "bg-emerald-50 text-emerald-700" : branch.sessionStatus === "open" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700";
-              return <article key={branch.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-start justify-between gap-2"><p className="font-semibold text-slate-900">{branch.branchName}</p><span className={`rounded-full px-2 py-1 text-xs font-medium ${statusTone}`}>{status}</span></div><dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm"><div><dt className="text-xs text-slate-500">Bruto total</dt><dd className="font-semibold">{money(branch.grossSales)}</dd></div><div><dt className="text-xs text-slate-500">Aportes de producción</dt><dd>{money(branch.operationalContribution)}</dd></div><div><dt className="text-xs text-slate-500">Productos y otras categorías</dt><dd>{money(branch.otherGross)}</dd></div><div><dt className="text-xs text-slate-500">Rewards cobrados</dt><dd>{branch.rewardsCount} · {money(branch.rewardsAmount)}</dd></div><div><dt className="text-xs text-slate-500">Costo de cortesías</dt><dd className="text-rose-700">-{money(branch.courtesyCost)}</dd></div><div><dt className="text-xs text-slate-500">Deudas de empleados del día</dt><dd>{money(branch.employeeDebtCharges)}</dd></div></dl><div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 pt-4"><div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Total real de venta</p><p className="mt-1 font-semibold text-slate-900">{money(branch.realSales)}</p></div><div className="rounded-lg bg-emerald-600 p-3 text-white"><p className="text-xs text-emerald-100">Total real de cobro</p><p className="mt-1 text-lg font-bold">{money(branch.actualCollected)}</p></div></div></article>;
+            {branches.map((branch) => {
+              const gap = branch.realSales - branch.actualCollected;
+              const rewardAvg = branch.rewardsCount > 0 ? branch.rewardsAmount / branch.rewardsCount : 0;
+              return (
+                <article key={branch.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-slate-900">{branch.branchName}</p>
+                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${sessionStatusTone(branch.sessionStatus)}`}>
+                      {sessionStatusLabel(branch.sessionStatus)}
+                    </span>
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <div>
+                      <dt className="text-xs text-slate-500">Bruto total</dt>
+                      <dd className="font-semibold">{money(branch.grossSales)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Aportes de producción</dt>
+                      <dd>{money(branch.operationalContribution)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Servicios</dt>
+                      <dd>{money(branch.serviceGross)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Productos y otras categorías</dt>
+                      <dd>{money(branch.otherGross)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Rewards cobrados</dt>
+                      <dd>{branch.rewardsCount} · {money(branch.rewardsAmount)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Promedio por reward</dt>
+                      <dd>{money(rewardAvg)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Costo de cortesías</dt>
+                      <dd className="text-rose-700">-{money(branch.courtesyCost)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Deudas de empleados del día</dt>
+                      <dd>{money(branch.employeeDebtCharges)}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-4">
+                    <CompareBar
+                      title="Servicios vs. productos y otras categorías"
+                      format={money}
+                      left={{ label: "Servicios", value: branch.serviceGross, color: "#0ea5e9" }}
+                      right={{ label: "Otras", value: branch.otherGross, color: "#6366f1" }}
+                    />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 pt-4">
+                    <div className="rounded-lg bg-white p-3">
+                      <p className="text-xs text-slate-500">Total real de venta</p>
+                      <p className="mt-1 font-semibold text-slate-900">{money(branch.realSales)}</p>
+                    </div>
+                    <div className="rounded-lg bg-emerald-600 p-3 text-white">
+                      <p className="text-xs text-emerald-100">Total real de cobro</p>
+                      <p className="mt-1 text-lg font-bold">{money(branch.actualCollected)}</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`mt-3 flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium ${
+                      gap > 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
+                    }`}
+                  >
+                    <span>{gap > 0 ? "Venta sin cobrar" : "Venta totalmente cobrada"}</span>
+                    <span>{money(Math.max(gap, 0))}</span>
+                  </div>
+                </article>
+              );
             })}
           </div>
         </section>
