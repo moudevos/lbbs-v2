@@ -121,7 +121,31 @@ async function loadSessionCloseSummary(sessionId: string) {
     throw new Error(error?.message ?? "No se pudo cargar el resumen de cierre.");
   }
 
-  return mapSummary(data as JsonRecord);
+  const summary = mapSummary(data as JsonRecord);
+  const completedSaleIds = summary.sales
+    .filter((sale) => sale.status === "completed")
+    .map((sale) => sale.id);
+
+  if (completedSaleIds.length === 0) {
+    return { ...summary, courtesyCount: 0 };
+  }
+
+  const { data: courtesyItems, error: courtesyError } = await supabase
+    .from("sale_items")
+    .select("quantity")
+    .in("sale_id", completedSaleIds)
+    .eq("is_courtesy", true);
+
+  if (courtesyError) {
+    throw new Error("No se pudo calcular la cantidad de cortesias entregadas.");
+  }
+
+  const courtesyCount = (courtesyItems ?? []).reduce(
+    (total, item) => total + Number(item.quantity ?? 0),
+    0,
+  );
+
+  return { ...summary, courtesyCount };
 }
 
 export async function GET(

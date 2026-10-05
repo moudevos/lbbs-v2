@@ -324,6 +324,7 @@ export type PosSessionCloseSummary = {
   manualDiscountTotal: number;
   rewardTotal: number;
   courtesyTotal: number;
+  courtesyCount: number;
   netTotal: number;
   completedSalesCount: number;
   cancelledSalesCount: number;

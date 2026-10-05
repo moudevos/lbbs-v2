@@ -110,6 +110,7 @@ export function PosSessionCloseModal({
                 <dt className="text-slate-500">Completas</dt><dd className="text-right font-medium">{summary.completedSalesCount}</dd>
                 <dt className="text-slate-500">Anuladas</dt><dd className="text-right font-medium">{summary.cancelledSalesCount}</dd>
                 <dt className="text-slate-500">En borrador</dt><dd className="text-right font-medium text-amber-700">{summary.draftSalesCount}</dd>
+                <dt className="text-slate-500">Cortesias entregadas</dt><dd className="text-right font-medium">{summary.courtesyCount}</dd>
                 <dt className="text-slate-500">Total bruto</dt><dd className="text-right font-medium">{formatMoney(summary.grossTotal)}</dd>
                 <dt className="text-slate-500">Descuentos</dt><dd className="text-right font-medium">{formatMoney(summary.manualDiscountTotal)}</dd>
                 <dt className="text-slate-500">Rewards</dt><dd className="text-right font-medium">{formatMoney(summary.rewardTotal)}</dd>
