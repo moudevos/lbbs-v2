@@ -51,6 +51,7 @@ function mapSummary(raw: JsonRecord): PosSessionCloseSummary {
     manualDiscountTotal: money(raw.manual_discount_total),
     rewardTotal: money(raw.reward_total),
     courtesyTotal: money(raw.courtesy_total),
+    courtesyCount: 0,
     netTotal: money(raw.net_total),
     completedSalesCount: Number(raw.completed_sales_count ?? 0),
     cancelledSalesCount: Number(raw.cancelled_sales_count ?? 0),
@@ -211,7 +212,7 @@ export async function POST(
       throw new Error(error?.message ?? "No se pudo cerrar la sesion POS.");
     }
 
-    return NextResponse.json({ data: mapSummary(data as JsonRecord) });
+    return NextResponse.json({ data: await loadSessionCloseSummary(sessionId) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error inesperado";
     console.error("[pos/cierre] Error al cerrar la sesion", { sessionId, message });
