@@ -308,6 +308,18 @@ export type PosRecentSaleRecord = {
   paymentMethodLabels?: string[];
 };
 
+export type PosCourtesyProductSummary = {
+  productId: string | null;
+  productName: string;
+  quantity: number;
+};
+
+export type PosCourtesySessionSummary = {
+  sessionId: string;
+  totalQuantity: number;
+  products: PosCourtesyProductSummary[];
+};
+
 export type PosSessionCloseSummary = {
   sessionId: string;
   status: "open" | "pending_close" | "closed" | "cancelled";

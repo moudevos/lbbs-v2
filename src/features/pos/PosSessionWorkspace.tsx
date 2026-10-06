@@ -10,11 +10,13 @@ import {
   checkoutPosSale,
   closePosSession,
   createPosCashMovement,
+  fetchPosCourtesySummary,
   fetchPosSessionCloseSummary,
   fetchRecentPosSales,
 } from "@/features/pos/pos-actions";
 import { PosCart } from "@/features/pos/PosCart";
 import { PosCashFlowModal } from "@/features/pos/PosCashFlowModal";
+import { PosCourtesySummaryModal } from "@/features/pos/PosCourtesySummaryModal";
 import { PosCatalog } from "@/features/pos/PosCatalog";
 import { PosSaleCancelModal } from "@/features/pos/PosSaleCancelModal";
 import { PosSaleSuccessModal } from "@/features/pos/PosSaleSuccessModal";
@@ -22,6 +24,7 @@ import { PosSessionCloseModal } from "@/features/pos/PosSessionCloseModal";
 import { PosReservationsModal } from "@/features/pos/PosReservationsModal";
 import type {
   PosCheckoutResult,
+  PosCourtesySessionSummary,
   PosRecentSaleRecord,
   PosSessionCloseSummary,
 } from "@/features/pos/pos-types";
@@ -38,6 +41,7 @@ import {
   faBuilding,
   faCalendarDays,
   faClock,
+  faGift,
   faMoneyBillTransfer,
   faPowerOff,
   faReceipt,
@@ -165,6 +169,9 @@ export function PosSessionWorkspace() {
   const [closedSale, setClosedSale] = useState<PosCheckoutResult | null>(null);
   const [isCloseSessionModalOpen, setIsCloseSessionModalOpen] = useState(false);
   const [isCashFlowModalOpen, setIsCashFlowModalOpen] = useState(false);
+  const [isCourtesySummaryOpen, setIsCourtesySummaryOpen] = useState(false);
+  const [courtesySummary, setCourtesySummary] = useState<PosCourtesySessionSummary | null>(null);
+  const [isLoadingCourtesySummary, setIsLoadingCourtesySummary] = useState(false);
   const [isSubmittingCashFlow, setIsSubmittingCashFlow] = useState(false);
   const [closeSessionSummary, setCloseSessionSummary] = useState<PosSessionCloseSummary | null>(
     null,
@@ -308,6 +315,33 @@ export function PosSessionWorkspace() {
       await loadBootstrap(selectedBranchId);
     } finally {
       setIsSubmittingCashFlow(false);
+    }
+  }
+
+  async function handleOpenCourtesySummary() {
+    setIsCourtesySummaryOpen(true);
+    setIsLoadingCourtesySummary(true);
+
+    try {
+      const data = await fetchPosCourtesySummary(currentSession.id);
+      setCourtesySummary(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error inesperado";
+      console.error("[pos/ui] Error al cargar cortesias entregadas", {
+        message,
+        sessionId: currentSession.id,
+      });
+      await Swal.fire({
+        icon: "error",
+        title: "No se pudieron cargar las cortesias",
+        text: message,
+        confirmButtonColor: "#0f766e",
+        background: "#ffffff",
+        color: "#0f172a",
+      });
+      setIsCourtesySummaryOpen(false);
+    } finally {
+      setIsLoadingCourtesySummary(false);
     }
   }
 
@@ -837,6 +871,16 @@ export function PosSessionWorkspace() {
           </Button>
           <Button
             type="button"
+            className="h-9 gap-2 bg-stone-200 px-3 text-xs text-stone-700 hover:bg-violet-50 hover:text-violet-800"
+            onClick={() => {
+              void handleOpenCourtesySummary();
+            }}
+          >
+            <FontAwesomeIcon icon={faGift} className="h-3.5 w-3.5" />
+            Cortesias
+          </Button>
+          <Button
+            type="button"
             className="h-9 gap-2 bg-stone-200 px-3 text-xs text-stone-700 hover:bg-emerald-100 hover:text-emerald-800"
             disabled={currentSession.status !== "open"}
             onClick={() => setIsCashFlowModalOpen(true)}
@@ -983,6 +1027,15 @@ export function PosSessionWorkspace() {
         }}
       />
       <PosReservationsModal open={isReservationsOpen} sessionId={currentSession.id} businessDate={currentSession.business_date} onClose={() => setIsReservationsOpen(false)} onUse={(row) => { if (!row.customer) return; const barber = row.barberId ? employees.find((employee) => employee.id === row.barberId && employee.role === "barber" && employee.status === "active") : null; setSelectedCustomer(row.customer); setSelectedBarberId(barber?.id ?? ""); setSelectedReservationId(row.id); setSuggestedServiceId(visibleServices.some((service) => service.id === row.serviceId) ? row.serviceId : null); setReservationSuggestion(row.serviceName); setIsReservationsOpen(false); if (row.barberId && !barber) void Swal.fire({ icon: "info", title: "Barbero no disponible", text: "El barbero de la reserva ya no esta disponible. Selecciona otro.", confirmButtonColor: "#0f766e" }); if (row.serviceId && !visibleServices.some((service) => service.id === row.serviceId)) void Swal.fire({ icon: "info", title: "Servicio no disponible", text: "El servicio reservado ya no esta disponible. Selecciona el servicio correspondiente.", confirmButtonColor: "#0f766e" }); }} />
+      <PosCourtesySummaryModal
+        open={isCourtesySummaryOpen}
+        data={courtesySummary}
+        isLoading={isLoadingCourtesySummary}
+        onClose={() => {
+          setIsCourtesySummaryOpen(false);
+          setCourtesySummary(null);
+        }}
+      />
       <PosCashFlowModal
         open={isCashFlowModalOpen}
         expectedCash={Number(currentSession.expected_cash_amount ?? 0)}

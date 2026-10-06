@@ -2,6 +2,7 @@ import type {
   ClosePosSessionPayload,
   OpenPosSessionPayload,
   PosCheckoutPayload,
+  PosCourtesySessionSummary,
   PosInternalCustomerOptions,
   PosRewardEntitlement,
   PosSessionCloseSummary,
@@ -208,6 +209,22 @@ export async function checkoutPosSale(payload: PosCheckoutPayload) {
   }
 
   return result.data;
+}
+
+export async function fetchPosCourtesySummary(
+  sessionId: string,
+): Promise<PosCourtesySessionSummary> {
+  const response = await fetch(
+    `/api/admin/pos/courtesies?sessionId=${encodeURIComponent(sessionId)}`,
+    { cache: "no-store" },
+  );
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload.error || "No se pudieron cargar las cortesias entregadas.");
+  }
+
+  return payload.data as PosCourtesySessionSummary;
 }
 
 export async function fetchRecentPosSales(sessionId: string) {
