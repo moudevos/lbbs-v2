@@ -84,7 +84,10 @@ function toProductFormValue(product?: ProductRecord | null): ProductFormValue {
     is_stockable: product.is_stockable,
     is_courtesy_allowed: product.is_courtesy_allowed,
     visibility_scope: product.visibility_scope,
-    employee_price_enabled: product.visibility_scope === "internal" || (product.employee_catalog_active === true && product.employee_unit_price !== null && product.employee_unit_price !== undefined),
+    employee_price_enabled:
+      product.employee_catalog_active === true &&
+      product.employee_unit_price !== null &&
+      product.employee_unit_price !== undefined,
     employee_unit_price: product.employee_unit_price ?? "",
     is_active: product.is_active,
   };
@@ -368,9 +371,11 @@ export function ProductsPanel({
       return;
     }
 
-    const employeePriceRequired = productForm.visibility_scope === "internal" || (productForm.visibility_scope === "both" && productForm.employee_price_enabled);
+    const employeePriceEnabled =
+      (productForm.visibility_scope === "internal" || productForm.visibility_scope === "both") &&
+      productForm.employee_price_enabled;
     const employeePrice = Number(productForm.employee_unit_price);
-    if (employeePriceRequired && (!Number.isFinite(employeePrice) || employeePrice <= 0)) {
+    if (employeePriceEnabled && (!Number.isFinite(employeePrice) || employeePrice <= 0)) {
       await Swal.fire({ icon: "warning", title: "Precio empleado inválido", text: "Ingresa un precio especial para empleados mayor que cero.", confirmButtonColor: "#0f766e", background: "#ffffff", color: "#0f172a" });
       return;
     }
@@ -392,8 +397,8 @@ export function ProductsPanel({
         allow_custom_price: productForm.allow_custom_price,
         is_courtesy_allowed: productForm.is_courtesy_allowed,
         visibility_scope: productForm.visibility_scope,
-        employee_price_enabled: productForm.visibility_scope === "internal" || productForm.employee_price_enabled,
-        employee_unit_price: employeePriceRequired ? productForm.employee_unit_price : null,
+        employee_price_enabled: employeePriceEnabled,
+        employee_unit_price: employeePriceEnabled ? productForm.employee_unit_price : null,
         is_active: productForm.is_active,
       };
 

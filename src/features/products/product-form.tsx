@@ -30,7 +30,9 @@ export function ProductForm({
   onReset,
 }: ProductFormProps) {
   const commercialProduct = value.visibility_scope === "pos" || value.visibility_scope === "both";
-  const employeePriceRequired = value.visibility_scope === "internal" || (value.visibility_scope === "both" && value.employee_price_enabled);
+  const employeePriceEnabled =
+    (value.visibility_scope === "internal" || value.visibility_scope === "both") &&
+    value.employee_price_enabled;
   const categoriesByFamily = {
     barbershop_products: categories.filter((category) => category.business_line === "barbershop_products"),
     cafeteria_products: categories.filter((category) => category.business_line === "cafeteria_products"),
@@ -184,29 +186,25 @@ export function ProductForm({
           <div className="space-y-1">
             <p className="text-sm font-semibold text-violet-950">Precio para empleados</p>
 
-            {value.visibility_scope === "both" ? (
-              <label className="flex items-center gap-2 text-sm font-medium text-violet-900">
-                <input
-                  type="checkbox"
-                  checked={value.employee_price_enabled}
-                  onChange={(event) => updateField("employee_price_enabled", event.target.checked)}
-                />
-                Usar precio especial para empleados
-              </label>
-            ) : (
-              <p className="text-xs text-violet-800">Este producto solo está disponible para personal.</p>
-            )}
+            <label className="flex items-center gap-2 text-sm font-medium text-violet-900">
+              <input
+                type="checkbox"
+                checked={value.employee_price_enabled}
+                onChange={(event) => updateField("employee_price_enabled", event.target.checked)}
+              />
+              Usar precio especial para empleados
+            </label>
 
             <p className="text-xs text-violet-800">
-              {value.visibility_scope === "both"
-                ? "Si no se configura un precio especial, el empleado pagará el precio comercial vigente."
-                : "El precio empleado es obligatorio."}
+              {value.visibility_scope === "internal"
+                ? "Solo los empleados vinculados pueden comprarlo. El precio especial es opcional; si no se configura, se usa el precio comercial vigente."
+                : "El precio especial es opcional; si no se configura, el empleado pagará el precio comercial vigente."}
             </p>
           </div>
 
           {/* Input de precio especial | Card Cliente/Empleado en una sola fila */}
           <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
-            {employeePriceRequired ? (
+            {employeePriceEnabled ? (
               <TextField
                 label="Precio especial empleado"
                 type="number"
@@ -220,9 +218,9 @@ export function ProductForm({
               />
             ) : null}
 
-            <div className={`space-y-2 ${employeePriceRequired ? "" : "sm:col-span-2 sm:max-w-md"}`}>
+            <div className={`space-y-2 ${employeePriceEnabled ? "" : "sm:col-span-2 sm:max-w-md"}`}>
               {/* Espaciador invisible: iguala la altura del label del input para que la card quede a la altura del campo */}
-              {employeePriceRequired ? (
+              {employeePriceEnabled ? (
                 <span aria-hidden="true" className="invisible block text-sm font-medium">
                   Precio especial empleado
                 </span>
@@ -236,9 +234,9 @@ export function ProductForm({
                 <span className="text-slate-600">
                   Empleado
                   <strong className="block text-slate-900">
-                    S/{employeePriceRequired && value.employee_unit_price ? value.employee_unit_price : value.base_sale_price || "0.00"}
+                    S/{employeePriceEnabled && value.employee_unit_price ? value.employee_unit_price : value.base_sale_price || "0.00"}
                   </strong>
-                  {!employeePriceRequired ? (
+                  {!employeePriceEnabled ? (
                     <em className="block not-italic text-slate-500">usa precio comercial</em>
                   ) : null}
                 </span>

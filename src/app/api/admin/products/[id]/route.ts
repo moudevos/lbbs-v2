@@ -37,7 +37,8 @@ function normalizeMoneyValue(value: unknown) {
 }
 
 function parseEmployeePricing(payload: Record<string, unknown> | null, visibilityScope: string) {
-  const enabled = visibilityScope === "internal" || (visibilityScope === "both" && payload?.employee_price_enabled === true);
+  const supportsEmployeePricing = visibilityScope === "internal" || visibilityScope === "both";
+  const enabled = supportsEmployeePricing && payload?.employee_price_enabled === true;
   const price = parseMoney(payload?.employee_unit_price);
   if (enabled && (price === null || price <= 0)) return { error: "El precio especial para empleados debe ser un número mayor que cero." as const };
   return { enabled, price };

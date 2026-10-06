@@ -967,9 +967,6 @@ export async function POST(request: Request) {
           ? toMoneyNumber(product.base_sale_price)
           : toMoneyNumber(stockRow.final_sale_price);
       const employeePrice = employeePriceMap.get(item.catalogId);
-      if (visibilityScope === "internal" && employeePrice === undefined) {
-        return NextResponse.json({ error: "El producto interno no tiene una configuración de precio para empleados." }, { status: 400 });
-      }
       const expectedPrice = buyerEmployeeId && employeePrice !== undefined ? employeePrice : retailPrice;
 
       if (!product.allow_custom_price && item.unitPrice !== expectedPrice) {
