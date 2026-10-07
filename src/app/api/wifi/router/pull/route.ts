@@ -71,6 +71,7 @@ export async function POST(request: Request) {
         id: command.id,
         type: "CREATE_VOUCHER",
         voucherId: command.voucher_id,
+        payload: command.payload ?? {},
         username: code,
         password: code,
         disabled: true,

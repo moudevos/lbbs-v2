@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createDecipheriv } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 function encryptionKey() {
   const encoded = process.env.HOTSPOT_VOUCHER_ENCRYPTION_KEY;
@@ -26,4 +26,13 @@ export function decryptVoucherCode(ciphertext: string) {
     decipher.update(Buffer.from(payloadText, "base64url")),
     decipher.final(),
   ]).toString("utf8");
+}
+
+/** Encrypts a short-lived voucher only until CREATE_VOUCHER is acknowledged. */
+export function encryptVoucherCode(code: string) {
+  if (!/^\d{6}$/.test(code)) throw new Error("Hotspot voucher code is invalid.");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const payload = Buffer.concat([cipher.update(code, "utf8"), cipher.final()]);
+  return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), payload.toString("base64url")].join(".");
 }

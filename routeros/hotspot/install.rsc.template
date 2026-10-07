@@ -7,10 +7,15 @@
 :local serverName "{{HOTSPOT_SERVER_NAME}}"
 :local profileName "{{HOTSPOT_PROFILE_NAME}}"
 :local hotspotAddress "{{HOTSPOT_ADDRESS}}"
+:local hotspotNetwork "{{HOTSPOT_NETWORK}}"
 :local poolName "{{HOTSPOT_POOL_NAME}}"
 :local poolRange "{{HOTSPOT_POOL_RANGE}}"
+:local dhcpName "{{HOTSPOT_DHCP_NAME}}"
+:local userProfile "{{HOTSPOT_USER_PROFILE}}"
 :local dnsName "{{HOTSPOT_DNS_NAME}}"
 :local apiBase "{{LBBS_API_BASE_URL}}"
+:local legalHost "{{LBBS_LEGAL_HOST}}"
+:local routerIdentifier "{{LBBS_ROUTER_IDENTIFIER}}"
 :local routerToken "{{LBBS_ROUTER_TOKEN}}"
 :local syncInterval "{{SYNC_INTERVAL}}"
 :local heartbeatInterval "{{HEARTBEAT_INTERVAL}}"
@@ -20,11 +25,14 @@
 :if ([:len [/ip pool find where name=$poolName]] = 0) do={
   /ip pool add name=$poolName ranges=$poolRange comment="LBBS HotSpot — surveyed client pool"
 }
+:if ([:len [/ip address find where address=$hotspotAddress]] = 0) do={ /ip address add address=$hotspotAddress interface=$hotspotInterface comment="LBBS HotSpot client gateway" }
+:if ([:len [/ip dhcp-server find where name=$dhcpName]] = 0) do={ /ip dhcp-server add name=$dhcpName interface=$hotspotInterface address-pool=$poolName disabled=no comment="LBBS HotSpot DHCP" }
+:if ([:len [/ip dhcp-server network find where address=$hotspotNetwork]] = 0) do={ /ip dhcp-server network add address=$hotspotNetwork gateway=[:pick $hotspotAddress 0 [:find $hotspotAddress "/"]] dns-server=[:pick $hotspotAddress 0 [:find $hotspotAddress "/"]] comment="LBBS HotSpot clients" }
 :if ([:len [/ip hotspot profile find where name=$profileName]] = 0) do={
   /ip hotspot profile add name=$profileName hotspot-address=$hotspotAddress dns-name=$dnsName login-by=http-chap,mac-cookie html-directory="hotspot/lbbs-portal" comment="LBBS HotSpot server profile"
 }
 :if ([:len [/ip hotspot user profile find where name=$profileName]] = 0) do={
-  /ip hotspot user profile add name=$profileName shared-users=1 on-login="" on-logout="" comment="LBBS: lifecycle hooks reserved for Part 5"
+  /ip hotspot user profile add name=$userProfile shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login="/system script run lbbs-session-login" on-logout="/system script run lbbs-session-logout" comment="LBBS HotSpot lifecycle"
 }
 :if ([:len [/ip hotspot find where name=$serverName]] = 0) do={
   /ip hotspot add name=$serverName interface=$hotspotInterface address-pool=$poolName profile=$profileName disabled=no comment="LBBS HotSpot on surveyed client network"
@@ -34,11 +42,20 @@
 :global LBBS_API_BASE_URL $apiBase
 :global LBBS_ROUTER_TOKEN $routerToken
 :global LBBS_HOTSPOT_SERVER_NAME $serverName
-:global LBBS_HOTSPOT_PROFILE_NAME $profileName
+:global LBBS_HOTSPOT_USER_PROFILE $userProfile
 :if ([:len [/system script find where name="lbbs-sync"]] = 0) do={ /import file-name=lbbs-sync.rsc }
 :if ([:len [/system script find where name="lbbs-heartbeat"]] = 0) do={ /import file-name=lbbs-heartbeat.rsc }
+:if ([:len [/system script find where name="lbbs-session-login"]] = 0) do={ /import file-name=lbbs-session-login.rsc }
+:if ([:len [/system script find where name="lbbs-session-logout"]] = 0) do={ /import file-name=lbbs-session-logout.rsc }
 :if ([:len [/system scheduler find where name="lbbs-sync"]] = 0) do={ /system scheduler add name=lbbs-sync interval=$syncInterval on-event="/system script run lbbs-sync" comment="LBBS command pull (recommended: 5s)" }
 :if ([:len [/system scheduler find where name="lbbs-heartbeat"]] = 0) do={ /system scheduler add name=lbbs-heartbeat interval=$heartbeatInterval on-event="/system script run lbbs-heartbeat" comment="LBBS heartbeat (recommended: 30s)" }
+
+# The only pre-auth Internet destination is LBBS's public API. Add the actual
+# hostname here during installation (RouterOS walled garden matches host names).
+:if ([:len [/ip hotspot walled-garden find where dst-host~"LBBS_API_HOST"]] = 0) do={ /ip hotspot walled-garden add dst-host="{{LBBS_API_HOST}}" action=allow comment="LBBS captive API only" }
+:if ([:len [/ip hotspot walled-garden find where dst-host=$legalHost]] = 0) do={ /ip hotspot walled-garden add dst-host=$legalHost action=allow comment="LBBS legal pages only" }
+# Add masquerade only for the surveyed client subnet; it never changes WAN or global firewall.
+:if ([:len [/ip firewall nat find where chain=srcnat and src-address=$hotspotNetwork and action=masquerade]] = 0) do={ /ip firewall nat add chain=srcnat src-address=$hotspotNetwork action=masquerade comment="LBBS HotSpot client NAT" }
 
 # TLS prerequisite: RouterOS needs a correct clock and trusted CA chain for {{LBBS_API_BASE_URL}}.
 # Do not permanently disable certificate verification. Endpoints: /api/wifi/router/pull, /ack, /heartbeat.

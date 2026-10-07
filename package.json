@@ -16,7 +16,8 @@
     "test:e2e:visual": "playwright test qa-iteration-10 --headed --workers=1 --project=chromium",
     "test:e2e:debug": "playwright test --debug --project=chromium",
     "test:e2e:ui": "playwright test --ui --project=chromium",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "hotspot:package": "node scripts/build-hotspot-package.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.0",

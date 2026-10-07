@@ -1,6 +1,9 @@
-import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { hashCode, normalizeCode, normalizeDni, publicError, signHotspotToken } from "@/lib/hotspot/captive";
+import { captiveJson, captiveOptions } from "@/lib/hotspot/cors";
+
+const NextResponse = { json: captiveJson };
+export function OPTIONS() { return captiveOptions(); }
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null); const dni = normalizeDni(body?.dni); const code = normalizeCode(body?.code);

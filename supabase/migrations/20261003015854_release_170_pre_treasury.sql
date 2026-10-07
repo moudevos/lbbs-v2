@@ -144,6 +144,10 @@ begin
  return v_settlement;
 end; $$;
 alter table public.treasury_accounts enable row level security; alter table public.treasury_movements enable row level security; alter table public.employee_payout_methods enable row level security; alter table public.employee_settlement_payments enable row level security;
+drop policy if exists treasury_accounts_admin on public.treasury_accounts;
+drop policy if exists treasury_movements_admin on public.treasury_movements;
+drop policy if exists employee_payout_methods_admin on public.employee_payout_methods;
+drop policy if exists employee_settlement_payments_admin on public.employee_settlement_payments;
 create policy treasury_accounts_admin on public.treasury_accounts for all to authenticated using(public.is_admin()) with check(public.is_admin());
 create policy treasury_movements_admin on public.treasury_movements for all to authenticated using(public.is_admin()) with check(public.is_admin());
 create policy employee_payout_methods_admin on public.employee_payout_methods for all to authenticated using(public.is_admin()) with check(public.is_admin());
@@ -3300,10 +3304,10 @@ begin
         and coalesce(posting.business_line, 'other') = 'other'
     ), 0),
     coalesce(-sum(posting.profit_signed_amount) filter (
-      where posting.financial_group = 'cost_of_sales' and posting.posting_code <> 'courtesy_cost'
+      where posting.financial_group = 'cost_of_sales' and posting.posting_code <> 'courtesy_actual_cost'
     ), 0),
     coalesce(-sum(posting.profit_signed_amount) filter (
-      where posting.financial_group = 'cost_of_sales' and posting.posting_code = 'courtesy_cost'
+      where posting.financial_group = 'cost_of_sales' and posting.posting_code = 'courtesy_actual_cost'
     ), 0),
     coalesce(-sum(posting.profit_signed_amount) filter (
       where posting.financial_group = 'personnel_cost'
@@ -3524,8 +3528,8 @@ begin
     coalesce(sum(profit_signed_amount) filter(where financial_group='operating_income' and business_line='barbershop_products'),0),
     coalesce(sum(profit_signed_amount) filter(where financial_group='operating_income' and business_line='cafeteria_products'),0),
     coalesce(sum(profit_signed_amount) filter(where financial_group='operating_income' and coalesce(business_line,'other')='other'),0),
-    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code<>'courtesy_cost'),0),
-    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code='courtesy_cost'),0),
+    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code<>'courtesy_actual_cost'),0),
+    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code='courtesy_actual_cost'),0),
     coalesce(-sum(profit_signed_amount) filter(where financial_group='personnel_cost'),0),
     coalesce(-sum(profit_signed_amount) filter(where financial_group='operating_expense'),0)
   into v_services,v_barber,v_cafe,v_other,v_cogs,v_courtesy,v_personnel,v_expenses
@@ -4949,6 +4953,7 @@ create index if not exists wifi_access_vouchers_branch_status_idx on public.wifi
 create index if not exists wifi_access_vouchers_unused_expiry_idx on public.wifi_access_vouchers(unused_expires_at) where status='available';
 create index if not exists wifi_access_vouchers_session_expiry_idx on public.wifi_access_vouchers(session_expires_at) where status='active';
 alter table public.wifi_access_vouchers enable row level security;
+drop policy if exists wifi_access_vouchers_admin on public.wifi_access_vouchers;
 create policy wifi_access_vouchers_admin on public.wifi_access_vouchers for all to authenticated using(public.is_admin()) with check(public.is_admin());
 revoke all on public.wifi_access_vouchers from public,anon;
 grant select,insert,update on public.wifi_access_vouchers to authenticated;
@@ -5836,6 +5841,7 @@ create index cash_movement_applications_type_source_idx
 
 alter table public.cash_movement_applications enable row level security;
 grant select on table public.cash_movement_applications to authenticated;
+drop policy if exists "cash_movement_applications_branch_read" on public.cash_movement_applications;
 create policy "cash_movement_applications_branch_read" on public.cash_movement_applications
   for select to authenticated
   using (
