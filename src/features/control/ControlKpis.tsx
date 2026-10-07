@@ -8,6 +8,8 @@ type Payload = {
   paymentMethods: Array<{ code: string; name: string; total: number }>;
   range: { dateFrom: string; dateTo: string };
   internal: { employeeCredit: number; complimentaryRetail: number; complimentaryDiscount: number; benefitRetail: number; benefitDiscount: number };
+  discountBreakdown: { rewards: number; employeeBenefits: number; internalBenefits: number; commercial: number; unclassified: number };
+  courtesyProducts: Array<{ name: string; quantity: number; amount: number; cost: number }>;
   sessions: Array<{ id: string; branchName: string; status: string }>;
   branchReconciliations: Array<{ id: string; branchName: string; sessionStatus: string; grossSales: number; serviceGross: number; otherGross: number; rewardsCount: number; rewardsAmount: number; courtesyCost: number; employeeDebtCharges: number; operationalContribution: number; realSales: number; actualCollected: number }>;
 };
@@ -60,15 +62,6 @@ function IconReceipt({ className = iconBase }: IconProps) {
   );
 }
 
-function IconCheckCircle({ className = iconBase }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M8.5 12.5l2.5 2.5 5-5" />
-    </svg>
-  );
-}
-
 function IconXCircle({ className = iconBase }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -83,16 +76,6 @@ function IconSparkles({ className = iconBase }: IconProps) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 3l1.4 4.2L18 9l-4.6 1.8L12 15l-1.4-4.2L6 9l4.6-1.8L12 3z" />
       <path d="M19 15.5l.6 1.8L21 18l-1.4.7-.6 1.8-.6-1.8L17 18l1.4-.7.6-1.8z" />
-    </svg>
-  );
-}
-
-function IconBox({ className = iconBase }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M21 8l-9-5-9 5 9 5 9-5z" />
-      <path d="M3 8v8l9 5 9-5V8" />
-      <path d="M12 13v8" />
     </svg>
   );
 }
@@ -156,35 +139,6 @@ function IconPercent({ className = iconBase }: IconProps) {
 }
 
 /* ------------------------------- Building blocks ------------------------------- */
-
-function FeaturedStat({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  tone: "emerald" | "sky";
-}) {
-  const toneStyles =
-    tone === "emerald"
-      ? { bg: "from-emerald-50 to-white", ring: "ring-emerald-100", icon: "bg-emerald-600 text-white" }
-      : { bg: "from-sky-50 to-white", ring: "ring-sky-100", icon: "bg-sky-600 text-white" };
-
-  return (
-    <article
-      className={`col-span-2 flex items-center gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br ${toneStyles.bg} p-5 shadow-sm ring-1 ${toneStyles.ring} sm:col-span-1`}
-    >
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneStyles.icon}`}>{icon}</span>
-      <div>
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[26px]">{value}</p>
-      </div>
-    </article>
-  );
-}
 
 function HeroStat({
   label,
@@ -412,6 +366,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
 
   const m = payload.metrics;
   const internal = payload.internal;
+  const discountBreakdown = payload.discountBreakdown;
 
   const paymentSegments = payload.paymentMethods.map((method, index) => ({
     label: method.name,
@@ -453,6 +408,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
   ];
 
   const hasBranches = branches.length > 0;
+  const showLegacySummaryCards = false;
 
   return (
     <div className="space-y-4">
@@ -512,45 +468,30 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
                   className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
                 />
               </label>
-              <p className="text-xs text-slate-500 sm:col-span-2">Rango por fecha operativa Lima.</p>
+              <p className="text-xs text-slate-500 sm:col-span-2">Rango por fecha operativa.</p>
             </div>
           ) : null}
         </div>
       </section>
 
       {/* Cifras clave — la más importante primero, en tamaño destacado */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 lg:grid-cols-3">
         {payload.financial ? (
           <>
-            <FeaturedStat label="Ventas netas del periodo" value={money(m.netSales)} icon={<IconTrendUp />} tone="emerald" />
-            <HeroStat label="Ticket promedio" value={money(m.averageTicket)} icon={<IconReceipt className="h-[18px] w-[18px]" />} />
-            <HeroStat
-              label="Ventas completadas"
-              value={number(m.completedSales)}
-              icon={<IconCheckCircle className="h-[18px] w-[18px]" />}
-              accent="text-emerald-700"
-            />
-            <HeroStat
-              label="Ventas anuladas"
-              value={number(m.cancelledSales)}
-              icon={<IconXCircle className="h-[18px] w-[18px]" />}
-              accent="text-amber-700"
-              hint={`${cancellationRate} de las ventas`}
-            />
+            <article className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white"><IconTrendUp /></span><div><p className="text-sm font-semibold text-slate-900">Ventas totales</p><p className="text-xs text-slate-500">Ingresos netos del periodo</p></div></div>
+              <p className="mt-5 text-3xl font-bold tracking-tight text-emerald-700">{money(m.netSales)}</p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-sm"><div><dt className="text-slate-500">Servicios</dt><dd className="mt-1 font-semibold text-slate-900">{money(m.serviceSales)}</dd></div><div><dt className="text-slate-500">Productos</dt><dd className="mt-1 font-semibold text-slate-900">{money(m.productSales)}</dd></div></dl>
+            </article>
+            <article className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white"><IconReceipt /></span><div><p className="text-sm font-semibold text-slate-900">Ticket promedio</p><p className="text-xs text-slate-500">Ingresos netos / citas completadas</p></div></div>
+              <p className="mt-5 text-3xl font-bold tracking-tight text-sky-700">{money(m.averageTicket)}</p>
+              <p className="mt-4 border-t border-slate-100 pt-4 text-sm text-slate-500">{number(m.completedAppointments)} citas completadas en el periodo.</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm font-semibold text-slate-900">Métodos de pago</p><p className="mt-1 text-xs text-slate-500">Uso de efectivo, tarjeta y transferencias.</p><div className="mt-4"><PaymentDonut segments={paymentSegments} centerLabel="Cobrado" ariaLabel="Distribución de métodos de pago" /></div></article>
           </>
         ) : (
-          <>
-            <FeaturedStat label="Ventas completadas" value={number(m.completedSales)} icon={<IconCheckCircle />} tone="sky" />
-            <HeroStat
-              label="Ventas anuladas"
-              value={number(m.cancelledSales)}
-              icon={<IconXCircle className="h-[18px] w-[18px]" />}
-              accent="text-amber-700"
-              hint={`${cancellationRate} de las ventas`}
-            />
-            <HeroStat label="Servicios realizados" value={number(m.services)} icon={<IconSparkles className="h-[18px] w-[18px]" />} />
-            <HeroStat label="Productos vendidos" value={number(m.products)} icon={<IconBox className="h-[18px] w-[18px]" />} />
-          </>
+          <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No tienes permiso para visualizar los indicadores financieros.</p>
         )}
       </section>
 
@@ -587,7 +528,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
         </section>
       ) : null}
 
-      {payload.financial && (
+      {showLegacySummaryCards && payload.financial && (
         <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-900">Métodos de pago</p>
@@ -606,6 +547,7 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
                 <span className="flex-1 text-sm text-slate-600">Descuentos aplicados</span>
                 <span className="text-sm font-semibold text-slate-900">{money(m.discounts)}</span>
               </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1 px-1 text-xs text-slate-600"><dt>Rewards</dt><dd className="text-right">{money(discountBreakdown.rewards)}</dd><dt>Beneficio empleados</dt><dd className="text-right">{money(discountBreakdown.employeeBenefits)}</dd><dt>Beneficios internos</dt><dd className="text-right">{money(discountBreakdown.internalBenefits)}</dd><dt>Descuento comercial</dt><dd className="text-right">{money(discountBreakdown.commercial)}</dd>{discountBreakdown.unclassified > 0 ? <><dt>Otros / sin clasificar</dt><dd className="text-right">{money(discountBreakdown.unclassified)}</dd></> : null}</dl>
               <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm">
                   <IconGift className="h-4 w-4" />
@@ -618,7 +560,28 @@ export function ControlKpis({ greetingName, verse }: ControlKpisProps) {
         </section>
       )}
 
+      {showLegacySummaryCards && payload.financial ? <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-baseline justify-between gap-3"><p className="text-sm font-semibold text-slate-900">Cortesías entregadas</p><p className="text-sm font-semibold text-slate-900">{number(payload.courtesyProducts.reduce((sum, item) => sum + item.quantity, 0))} unidades · {money(payload.courtesyProducts.reduce((sum, item) => sum + item.cost, 0))}</p></div><p className="mt-1 text-xs text-slate-500">Dato operativo: incluye ventas completadas aun si su sesión POS sigue abierta.</p><div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead className="text-left text-xs text-slate-500"><tr><th className="pb-2">Producto</th><th className="pb-2 text-right">Cantidad</th><th className="pb-2 text-right">Costo real</th></tr></thead><tbody>{payload.courtesyProducts.length ? payload.courtesyProducts.map((item) => <tr key={item.name} className="border-t border-slate-100"><td className="py-2">{item.name}</td><td className="py-2 text-right">{number(item.quantity)}</td><td className="py-2 text-right">{money(item.cost)}</td></tr>) : <tr><td colSpan={3} className="py-3 text-slate-500">No hay cortesías entregadas en el rango.</td></tr>}</tbody></table></div></section> : null}
+
       {/* Comparativo por sede */}
+      {payload.financial ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <div><p className="text-sm font-semibold text-slate-900">Descuentos y cortesías del periodo</p><p className="mt-1 text-xs text-slate-500">Aplicados únicamente sobre ventas completadas.</p></div>
+            <span className="text-xs text-slate-500">{payload.range.dateFrom} al {payload.range.dateTo}</span>
+          </div>
+          <div className="mt-5 grid gap-6 lg:grid-cols-2">
+            <section className="lg:border-r lg:border-slate-100 lg:pr-6">
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3"><span className="flex items-center gap-2 text-sm font-medium text-amber-900"><IconTag className="h-4 w-4" />Descuentos aplicados</span><span className="text-lg font-bold text-amber-800">{money(m.discounts)}</span></div>
+              <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm"><div><dt className="text-slate-500">Rewards</dt><dd className="mt-0.5 font-semibold text-slate-900">{money(discountBreakdown.rewards)}</dd></div><div><dt className="text-slate-500">Beneficios empleados</dt><dd className="mt-0.5 font-semibold text-slate-900">{money(discountBreakdown.employeeBenefits)}</dd></div><div><dt className="text-slate-500">Beneficios internos</dt><dd className="mt-0.5 font-semibold text-slate-900">{money(discountBreakdown.internalBenefits)}</dd></div><div><dt className="text-slate-500">Descuento comercial</dt><dd className="mt-0.5 font-semibold text-slate-900">{money(discountBreakdown.commercial)}</dd></div>{discountBreakdown.unclassified > 0 ? <div><dt className="text-slate-500">Otros / sin clasificar</dt><dd className="mt-0.5 font-semibold text-slate-900">{money(discountBreakdown.unclassified)}</dd></div> : null}</dl>
+            </section>
+            <section>
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-emerald-50 px-4 py-3"><span className="flex items-center gap-2 text-sm font-medium text-emerald-900"><IconGift className="h-4 w-4" />Cortesías facturadas</span><span className="text-right text-sm font-bold text-emerald-800">{number(payload.courtesyProducts.reduce((sum, item) => sum + item.quantity, 0))} uds. · {money(m.courtesies)}</span></div>
+              <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead className="text-left text-xs text-slate-500"><tr><th className="pb-2 font-medium">Producto</th><th className="pb-2 text-right font-medium">Cantidad</th><th className="pb-2 text-right font-medium">Valor</th></tr></thead><tbody>{payload.courtesyProducts.length ? payload.courtesyProducts.map((item) => <tr key={item.name} className="border-t border-slate-100"><td className="py-2.5 text-slate-800">{item.name}</td><td className="py-2.5 text-right text-slate-700">{number(item.quantity)}</td><td className="py-2.5 text-right font-medium text-slate-900">{money(item.amount)}</td></tr>) : <tr><td colSpan={3} className="py-4 text-slate-500">No se facturaron cortesías en el periodo.</td></tr>}</tbody></table></div>
+            </section>
+          </div>
+        </section>
+      ) : null}
+
       {payload.financial && hasBranches ? (
         <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -35,12 +35,25 @@ describe("base RouterOS y portal HotSpot", () => {
     const login = await read("routeros/hotspot/portal/login.html");
     const css = await read("routeros/hotspot/portal/styles.css");
     expect(login).toContain('maxlength="8"');
-    expect(login).toContain('maxlength="9"');
+    expect(login).toContain('maxlength="6"');
+    expect(login).toContain("/^\\d{6}$/");
     expect(login).toContain("$(chap-id)");
     expect(login).toContain("$(link-login-only)");
+    expect(login).toContain('id="registrationDni" readonly');
+    expect(login).toContain('id="birthdate" type="date"');
+    expect(login).toContain("clubMarketingAccepted");
+    expect(login).toContain("LBBS_LEGAL_HOST");
+    expect(login).not.toContain("PREMIUM");
+    expect(login).not.toContain('id="phone"');
     expect(login).not.toContain("NEXT_PUBLIC");
     expect(login).not.toContain("LBBS_ROUTER_TOKEN");
     expect(login).not.toMatch(/react|next\.js/i);
     expect(css).not.toMatch(/https?:\/\//);
+  });
+
+  it("habilita solo los dominios legales necesarios antes de autenticar", async () => {
+    const template = await read("routeros/hotspot/install.rsc.template");
+    expect(template).toContain("{{LBBS_LEGAL_HOST}}");
+    expect(template).toContain("LBBS legal pages only");
   });
 });

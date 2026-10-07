@@ -3300,10 +3300,10 @@ begin
         and coalesce(posting.business_line, 'other') = 'other'
     ), 0),
     coalesce(-sum(posting.profit_signed_amount) filter (
-      where posting.financial_group = 'cost_of_sales' and posting.posting_code <> 'courtesy_cost'
+      where posting.financial_group = 'cost_of_sales' and posting.posting_code <> 'courtesy_actual_cost'
     ), 0),
     coalesce(-sum(posting.profit_signed_amount) filter (
-      where posting.financial_group = 'cost_of_sales' and posting.posting_code = 'courtesy_cost'
+      where posting.financial_group = 'cost_of_sales' and posting.posting_code = 'courtesy_actual_cost'
     ), 0),
     coalesce(-sum(posting.profit_signed_amount) filter (
       where posting.financial_group = 'personnel_cost'
@@ -3524,8 +3524,8 @@ begin
     coalesce(sum(profit_signed_amount) filter(where financial_group='operating_income' and business_line='barbershop_products'),0),
     coalesce(sum(profit_signed_amount) filter(where financial_group='operating_income' and business_line='cafeteria_products'),0),
     coalesce(sum(profit_signed_amount) filter(where financial_group='operating_income' and coalesce(business_line,'other')='other'),0),
-    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code<>'courtesy_cost'),0),
-    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code='courtesy_cost'),0),
+    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code<>'courtesy_actual_cost'),0),
+    coalesce(-sum(profit_signed_amount) filter(where financial_group='cost_of_sales' and posting_code='courtesy_actual_cost'),0),
     coalesce(-sum(profit_signed_amount) filter(where financial_group='personnel_cost'),0),
     coalesce(-sum(profit_signed_amount) filter(where financial_group='operating_expense'),0)
   into v_services,v_barber,v_cafe,v_other,v_cogs,v_courtesy,v_personnel,v_expenses

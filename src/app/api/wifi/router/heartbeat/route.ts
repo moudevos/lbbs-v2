@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       last_seen_at: new Date().toISOString(),
       routeros_version: shortText(body?.routerosVersion),
       model: shortText(body?.model),
+      uptime: shortText(body?.uptime),
     })
     .eq("id", authenticated.router.id);
   if (error) return NextResponse.json({ error: "No se pudo registrar heartbeat." }, { status: 500 });

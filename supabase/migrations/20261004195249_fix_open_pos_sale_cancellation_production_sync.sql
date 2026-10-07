@@ -1,8 +1,8 @@
--- El checkout completa una venta mientras la sesión POS sigue abierta. La
--- producción se difiere hasta el cierre auditado de la sesión (o hasta la
--- regeneración del período); de lo contrario, el guard de sesión cerrada
--- bloquearía una venta válida antes de terminar.
-
+-- A completed POS sale can only be cancelled while its session is open.
+-- Production is not allowed for an open POS session, therefore cancellation
+-- must never call the generator (which can attempt an active upsert). It only
+-- reverses any residual production/bonus rows that may exist from a legacy
+-- state or a previously closed/reopened operational flow.
 create or replace function public.sales_production_sync_trigger()
 returns trigger
 language plpgsql
@@ -10,9 +10,6 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
-  -- Una anulacion se refleja de inmediato, pero no puede usar el generador:
-  -- la venta se anula mientras la sesion POS sigue abierta y el guard bloquea
-  -- cualquier alta de produccion en esa condicion. Solo se revierten restos.
   if new.status = 'cancelled' and new.status is distinct from old.status then
     update public.employee_service_production
     set status = 'reversed',
@@ -30,19 +27,14 @@ begin
       and status <> 'reversed';
   end if;
 
-  -- Nunca generar producción al pasar la venta a completed: en este momento
-  -- la sesión aún está abierta. El cierre/recalculo solo toma sesiones closed.
   return new;
 end;
 $$;
 
--- Se recrea el trigger para garantizar que incluso instalaciones que quedaron
--- con una versión anterior de la función usen el flujo diferido.
 drop trigger if exists sales_production_sync on public.sales;
 create trigger sales_production_sync
 after update of status on public.sales
 for each row execute function public.sales_production_sync_trigger();
 
 revoke all on function public.sales_production_sync_trigger() from public;
-
 notify pgrst, 'reload schema';
