@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -35,6 +38,23 @@ const terms: EmployeeCompensationTerm[] = [
 ];
 
 describe("resolución visual de remuneración", () => {
+  it("la API de liquidaciones entrega metadatos suficientes para el tipo de remuneración", () => {
+    const route = readFileSync(
+      resolve(process.cwd(), "src/app/api/admin/settlements/route.ts"),
+      "utf8",
+    );
+    expect(route).toContain("id,employee_id,compensation_mode,commission_rate,fixed_amount,base_monthly_salary");
+    expect(route).toContain("compensationTerms: compensationTerms.data ?? []");
+  });
+
+  it("editar empleados ya no usa Comisión + bonos como default falso", () => {
+    const panel = readFileSync(
+      resolve(process.cwd(), "src/features/employees/employees-panel.tsx"),
+      "utf8",
+    );
+    expect(panel).toContain('compensation_type: compensation?.compensation_mode ?? ""');
+    expect(panel).toContain("current_compensation");
+  });
   it("carga la condición vigente real del empleado en lugar de un default", () => {
     expect(resolveCompensationForDate(terms, "employee-1", "2026-10-08")?.id).toBe("current");
     expect(resolveCompensationForDate(terms, "employee-1", "2026-09-15")?.id).toBe("old");

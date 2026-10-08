@@ -89,7 +89,7 @@ function compensationChanged(
     return true;
   }
 
-  if (form.mandatory_discount_enabled !== Boolean(current.mandatory_discount_enabled)) {
+  if (form.mandatory_discount_enabled !== (current.mandatory_discount_enabled ?? true)) {
     return true;
   }
 

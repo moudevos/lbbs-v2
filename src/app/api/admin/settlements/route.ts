@@ -25,7 +25,7 @@ export async function GET() {
     supabase.from("employees").select("id,full_name,branch_id,document_number,position").eq("status", "active").order("full_name"),
     supabase.from("employee_debts").select("id,employee_id,debt_type,outstanding_amount,description,status,created_at").in("status", ["pending", "partial"]).order("created_at"),
     supabase.from("payment_methods").select("id,code,name,payment_kind").eq("is_active", true).order("sort_order"),
-    supabase.from("employee_compensation_terms").select("employee_id,compensation_mode,base_monthly_salary,mandatory_discount_enabled,mandatory_discount_rate,effective_from,effective_to,compensation_policy_version").eq("is_active", true).order("effective_from", { ascending: false }),
+    supabase.from("employee_compensation_terms").select("id,employee_id,compensation_mode,commission_rate,fixed_amount,base_monthly_salary,mandatory_discount_enabled,mandatory_discount_rate,effective_from,effective_to,compensation_policy_version,created_at").eq("is_active", true).order("effective_from", { ascending: false }),
   ]);
   const error = settlements.error ?? periods.error ?? employees.error ?? debts.error ?? methods.error ?? compensationTerms.error;
   if (error) {
