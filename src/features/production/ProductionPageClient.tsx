@@ -329,8 +329,8 @@ export function ProductionPageClient() {
     if (!periodId) return;
     const confirmation = await Swal.fire({
       icon: "question",
-      title: "Generar produccion del periodo",
-      text: "Se procesaran solo ventas faltantes o que requieran reversion.",
+      title: "Generar producción acumulada",
+      text: "Se consolidarán únicamente ventas completadas de sesiones POS cerradas hasta ayer. Las ventas del día actual y la sesión POS activa no se incluyen.",
       showCancelButton: true,
       confirmButtonText: "Generar",
       cancelButtonText: "Cancelar",
@@ -347,10 +347,13 @@ export function ProductionPageClient() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error);
       await loadData(periodId);
+      const cutoffDate = payload.data?.cutoff_date
+        ? formatAccountingDate(payload.data.cutoff_date)
+        : null;
       await Swal.fire({
         icon: "success",
-        title: "Produccion actualizada",
-        text: `Ventas revisadas: ${payload.data?.sales_reviewed ?? 0}. Servicios: ${payload.data?.services_generated ?? 0}. Bonos: ${payload.data?.bonuses_generated ?? 0}.`,
+        title: "Producción actualizada",
+        text: `Corte: ${cutoffDate ?? "hasta ayer"}. Ventas revisadas: ${payload.data?.sales_reviewed ?? 0}. Servicios: ${payload.data?.services_generated ?? 0}. Bonos: ${payload.data?.bonuses_generated ?? 0}.`,
         confirmButtonColor: "#0f766e",
       });
     } catch (error) {
