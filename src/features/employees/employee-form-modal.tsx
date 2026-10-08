@@ -3,6 +3,7 @@
 import { Modal } from "@/components/ui/Modal";
 import { EmployeeForm } from "@/features/employees/employee-form";
 import type { BranchRecord } from "@/features/branches/types";
+import type { EmployeeCompensationTerm } from "@/features/employees/compensation";
 import type { EmployeeFormValue } from "@/features/employees/types";
 import { useModalDirtyState } from "@/lib/hooks/use-modal-dirty-state";
 
@@ -12,6 +13,7 @@ type EmployeeFormModalProps = {
   branches: BranchRecord[];
   isSaving: boolean;
   isEditing: boolean;
+  currentCompensation: EmployeeCompensationTerm | null;
   onClose: () => void;
   onChange: (next: EmployeeFormValue) => void;
   onSubmit: () => void;
@@ -24,6 +26,7 @@ export function EmployeeFormModal({
   branches,
   isSaving,
   isEditing,
+  currentCompensation,
   onClose,
   onChange,
   onSubmit,
@@ -49,6 +52,7 @@ export function EmployeeFormModal({
         branches={branches}
         isSaving={isSaving}
         isEditing={isEditing}
+        currentCompensation={currentCompensation}
         onChange={onChange}
         onSubmit={onSubmit}
         onReset={onReset}

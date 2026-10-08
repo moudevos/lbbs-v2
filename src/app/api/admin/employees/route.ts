@@ -4,6 +4,10 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 import { canHavePanelAccess } from "@/lib/auth/panel-access";
+import {
+  resolveCompensationForDate,
+  type EmployeeCompensationTerm,
+} from "@/features/employees/compensation";
 
 function trimOrNull(value: unknown) {
   if (typeof value !== "string") {
@@ -42,7 +46,10 @@ type EmployeeRow = {
   branch?: EmployeeBranch[] | EmployeeBranch;
 };
 
-function formatEmployee(employee: EmployeeRow) {
+function formatEmployee(
+  employee: EmployeeRow,
+  currentCompensation: EmployeeCompensationTerm | null = null,
+) {
   const branch = Array.isArray(employee.branch)
     ? employee.branch[0] ?? null
     : employee.branch ?? null;
@@ -69,22 +76,34 @@ function formatEmployee(employee: EmployeeRow) {
     branch_name: branch?.name ?? null,
     branch_slug: branch?.slug ?? null,
     branch_code: branch?.code ?? null,
+    current_compensation: currentCompensation,
   };
 }
 
 export async function GET() {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("employees")
-    .select(
-      "id, user_id, branch_id, full_name, document_type, document_number, email, phone, role, status, position, avatar_url, must_change_password, can_login, login_created_at, notes, created_at, updated_at, branch:branches(id, name, slug, code)",
-    )
-    .order("created_at", { ascending: false });
+  const [employeesResult, businessDateResult, compensationResult] = await Promise.all([
+    supabase
+      .from("employees")
+      .select(
+        "id, user_id, branch_id, full_name, document_type, document_number, email, phone, role, status, position, avatar_url, must_change_password, can_login, login_created_at, notes, created_at, updated_at, branch:branches(id, name, slug, code)",
+      )
+      .order("created_at", { ascending: false }),
+    supabase.rpc("pos_business_date"),
+    supabase
+      .from("employee_compensation_terms")
+      .select(
+        "id,employee_id,compensation_mode,commission_rate,fixed_amount,base_monthly_salary,mandatory_discount_enabled,mandatory_discount_rate,compensation_policy_version,effective_from,effective_to,created_at",
+      )
+      .eq("is_active", true)
+      .order("effective_from", { ascending: false }),
+  ]);
 
-  if (error) {
+  const error = employeesResult.error ?? businessDateResult.error ?? compensationResult.error;
+  if (error || !businessDateResult.data) {
     console.error("[employees/get] Error al listar equipo", {
-      message: error.message,
-      code: error.code,
+      message: error?.message ?? "No se pudo resolver la fecha operativa.",
+      code: error?.code,
     });
     return NextResponse.json(
       { error: "No se pudo cargar el equipo." },
@@ -92,7 +111,17 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ data: (data ?? []).map(formatEmployee) });
+  const businessDate = String(businessDateResult.data);
+  const compensationTerms = (compensationResult.data ?? []) as EmployeeCompensationTerm[];
+
+  return NextResponse.json({
+    data: (employeesResult.data ?? []).map((employee) =>
+      formatEmployee(
+        employee,
+        resolveCompensationForDate(compensationTerms, employee.id, businessDate),
+      ),
+    ),
+  });
 }
 
 export async function POST(request: Request) {

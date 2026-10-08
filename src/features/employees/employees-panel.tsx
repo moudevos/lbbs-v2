@@ -13,6 +13,11 @@ import { EmployeeFinanceModal } from "@/features/employees/EmployeeFinanceModal"
 import { EmployeesTable } from "@/features/employees/employees-table";
 import { canHavePanelAccess } from "@/lib/auth/panel-access";
 import type { BranchRecord } from "@/features/branches/types";
+import {
+  isConfigurableCompensationMode,
+  isFixedCompensationMode,
+  type EmployeeCompensationTerm,
+} from "@/features/employees/compensation";
 import type { EmployeeFormValue, EmployeeRecord } from "@/features/employees/types";
 
 const emptyForm: EmployeeFormValue = {
@@ -28,17 +33,24 @@ const emptyForm: EmployeeFormValue = {
   notes: "",
   can_login: false,
   temporary_password: "",
-  compensation_type: "commission_plus_bonus",
+  compensation_type: "",
   base_monthly_salary: "",
   mandatory_discount_enabled: true,
   mandatory_discount_rate: "1.00",
   compensation_effective_from: "",
 };
 
+function numberInput(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+  return String(Number(value));
+}
+
 function toFormValue(employee?: EmployeeRecord | null): EmployeeFormValue {
   if (!employee) {
     return emptyForm;
   }
+
+  const compensation = employee.current_compensation;
 
   return {
     full_name: employee.full_name,
@@ -53,12 +65,42 @@ function toFormValue(employee?: EmployeeRecord | null): EmployeeFormValue {
     notes: employee.notes ?? "",
     can_login: employee.can_login,
     temporary_password: "",
-    compensation_type: "commission_plus_bonus",
-    base_monthly_salary: "",
-    mandatory_discount_enabled: true,
-    mandatory_discount_rate: "1.00",
+    compensation_type: compensation?.compensation_mode ?? "",
+    base_monthly_salary: numberInput(compensation?.base_monthly_salary),
+    mandatory_discount_enabled: compensation?.mandatory_discount_enabled ?? true,
+    mandatory_discount_rate: numberInput(compensation?.mandatory_discount_rate ?? 1),
+    // Al editar, esta fecha representa una NUEVA vigencia. La fecha actual se
+    // muestra por separado para no duplicar contratos al guardar solo el perfil.
     compensation_effective_from: "",
   };
+}
+
+function compensationChanged(
+  form: EmployeeFormValue,
+  current: EmployeeCompensationTerm | null,
+) {
+  if (!current) return form.compensation_type !== "";
+  if (form.compensation_type !== current.compensation_mode) return true;
+
+  if (
+    isFixedCompensationMode(form.compensation_type)
+    && Number(form.base_monthly_salary || 0) !== Number(current.base_monthly_salary ?? 0)
+  ) {
+    return true;
+  }
+
+  if (form.mandatory_discount_enabled !== Boolean(current.mandatory_discount_enabled)) {
+    return true;
+  }
+
+  const nextRate = form.mandatory_discount_enabled
+    ? Number(form.mandatory_discount_rate || 0)
+    : 0;
+  const currentRate = current.mandatory_discount_enabled
+    ? Number(current.mandatory_discount_rate ?? 0)
+    : 0;
+
+  return Math.abs(nextRate - currentRate) > 0.0001;
 }
 
 function normalizeText(value: string) {
@@ -243,12 +285,42 @@ export function EmployeesPanel() {
       return;
     }
 
-    if (form.compensation_effective_from && !["commission_plus_bonus", "commission_only"].includes(form.compensation_type) && Number(form.base_monthly_salary) <= 0) {
+    const editingEmployee = editingId
+      ? employees.find((employee) => employee.id === editingId) ?? null
+      : null;
+    const currentCompensation = editingEmployee?.current_compensation ?? null;
+    const shouldSaveCompensation = editingId
+      ? compensationChanged(form, currentCompensation)
+      : form.compensation_type !== "";
+
+    if (shouldSaveCompensation && !isConfigurableCompensationMode(form.compensation_type)) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Selecciona una remuneración vigente",
+        text: "Elige uno de los tipos actuales de remuneración para registrar una nueva condición.",
+        confirmButtonColor: "#0f766e",
+      });
+      return;
+    }
+
+    if (shouldSaveCompensation && !form.compensation_effective_from) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Falta la fecha de vigencia",
+        text: editingId
+          ? "Los datos generales pueden actualizarse sin tocar la remuneración. Si cambias la remuneración, indica desde qué fecha aplicará la nueva condición."
+          : "Indica desde qué fecha aplicará la remuneración seleccionada.",
+        confirmButtonColor: "#0f766e",
+      });
+      return;
+    }
+
+    if (shouldSaveCompensation && isFixedCompensationMode(form.compensation_type) && Number(form.base_monthly_salary) <= 0) {
       await Swal.fire({ icon: "warning", title: "Falta el sueldo mensual", text: "Fijo y Fijo + bonos requieren un sueldo base mensual mayor que cero.", confirmButtonColor: "#0f766e" });
       return;
     }
 
-    if (form.compensation_effective_from && form.mandatory_discount_enabled && (Number(form.mandatory_discount_rate) < 0 || Number(form.mandatory_discount_rate) > 100)) {
+    if (shouldSaveCompensation && form.mandatory_discount_enabled && (Number(form.mandatory_discount_rate) < 0 || Number(form.mandatory_discount_rate) > 100)) {
       await Swal.fire({ icon: "warning", title: "Descuento obligatorio inválido", text: "Indica una tasa entre 0 y 100 %.", confirmButtonColor: "#0f766e" });
       return;
     }
@@ -288,7 +360,7 @@ export function EmployeesPanel() {
         throw new Error(result.error || "No se pudo guardar el empleado.");
       }
 
-      if (form.compensation_effective_from) {
+      if (shouldSaveCompensation) {
         const compensationResponse = await fetch(`/api/admin/employees/${result.data.id}/compensation`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -298,7 +370,7 @@ export function EmployeesPanel() {
             mandatoryDiscountEnabled: form.mandatory_discount_enabled,
             mandatoryDiscountRate: form.mandatory_discount_enabled ? Number(form.mandatory_discount_rate) : 0,
             effectiveFrom: form.compensation_effective_from,
-            replaceCurrent: editingId !== null,
+            replaceCurrent: currentCompensation !== null,
           }),
         });
         const compensationResult = await compensationResponse.json();
@@ -456,6 +528,7 @@ export function EmployeesPanel() {
         branches={branches}
         isSaving={isSaving}
         isEditing={Boolean(editingId)}
+        currentCompensation={editingId ? employees.find((employee) => employee.id === editingId)?.current_compensation ?? null : null}
         onClose={closeForm}
         onChange={setForm}
         onSubmit={handleSave}

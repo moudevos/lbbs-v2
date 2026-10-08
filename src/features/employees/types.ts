@@ -1,3 +1,8 @@
+import type {
+  EmployeeCompensationMode,
+  EmployeeCompensationTerm,
+} from "@/features/employees/compensation";
+
 export type EmployeeRecord = {
   id: string;
   user_id: string | null;
@@ -20,6 +25,7 @@ export type EmployeeRecord = {
   branch_name: string | null;
   branch_slug: string | null;
   branch_code: string | null;
+  current_compensation: EmployeeCompensationTerm | null;
 };
 
 export type EmployeeFormValue = {
@@ -35,7 +41,7 @@ export type EmployeeFormValue = {
   notes: string;
   can_login: boolean;
   temporary_password: string;
-  compensation_type: "commission_plus_bonus" | "commission_only" | "fixed_plus_bonus" | "fixed";
+  compensation_type: "" | EmployeeCompensationMode;
   base_monthly_salary: string;
   mandatory_discount_enabled: boolean;
   mandatory_discount_rate: string;

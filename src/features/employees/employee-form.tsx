@@ -8,6 +8,12 @@ import { SelectField } from "@/components/ui/SelectField";
 import { TextField } from "@/components/ui/TextField";
 import { Textarea } from "@/components/ui/textarea";
 import type { BranchRecord } from "@/features/branches/types";
+import {
+  compensationModeLabels,
+  isCommissionCompensationMode,
+  isFixedCompensationMode,
+  type EmployeeCompensationTerm,
+} from "@/features/employees/compensation";
 import type { EmployeeFormValue } from "@/features/employees/types";
 import { canHavePanelAccess } from "@/lib/auth/panel-access";
 import {
@@ -21,6 +27,7 @@ type EmployeeFormProps = {
   branches: BranchRecord[];
   isSaving: boolean;
   isEditing: boolean;
+  currentCompensation: EmployeeCompensationTerm | null;
   onChange: (next: EmployeeFormValue) => void;
   onSubmit: () => void;
   onReset: () => void;
@@ -31,6 +38,7 @@ export function EmployeeForm({
   branches,
   isSaving,
   isEditing,
+  currentCompensation,
   onChange,
   onSubmit,
   onReset,
@@ -88,16 +96,100 @@ export function EmployeeForm({
       </div>
 
       <section className="space-y-3 rounded-xl border border-sky-100 bg-sky-50 p-4">
-        <div><p className="text-sm font-semibold text-slate-800">Remuneración</p><p className="text-xs text-slate-600">Es independiente del rol y del cargo. Si se deja sin fecha, queda pendiente de configurar.</p></div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField label="Tipo de remuneración" value={value.compensation_type} onChange={(event) => updateField("compensation_type", event.target.value as EmployeeFormValue["compensation_type"])}>
-            <option value="commission_plus_bonus">Comisión + bonos</option><option value="commission_only">Solo comisiones</option><option value="fixed_plus_bonus">Fijo + bonos</option><option value="fixed">Solo fijo</option>
-          </SelectField>
-          <TextField label="Vigente desde" type="date" value={value.compensation_effective_from} onChange={(event) => updateField("compensation_effective_from", event.target.value)} />
-          {["commission_plus_bonus", "commission_only"].includes(value.compensation_type) ? <p className="text-sm text-slate-600">El porcentaje de comisión se asigna al preparar cada liquidación.</p> : <TextField label="Sueldo base mensual" type="number" min="0.01" step="0.01" value={value.base_monthly_salary} onChange={(event) => updateField("base_monthly_salary", event.target.value)} required />}
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Remuneración</p>
+          <p className="text-xs text-slate-600">
+            El rol y el cargo son independientes de la condición remunerativa.
+          </p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={value.mandatory_discount_enabled} onChange={(event) => updateField("mandatory_discount_enabled", event.target.checked)} />Aplicar descuento obligatorio</label>
-        {value.mandatory_discount_enabled ? <TextField label="Porcentaje descuento obligatorio" type="number" min="0" max="100" step="0.01" value={value.mandatory_discount_rate} onChange={(event) => updateField("mandatory_discount_rate", event.target.value)} /> : null}
+
+        {isEditing ? (
+          currentCompensation ? (
+            <div className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm text-slate-700">
+              <strong>Condición vigente:</strong>{" "}
+              {compensationModeLabels[currentCompensation.compensation_mode] ?? currentCompensation.compensation_mode}
+              {" · desde "}
+              {currentCompensation.effective_from}
+              {isFixedCompensationMode(currentCompensation.compensation_mode) && currentCompensation.base_monthly_salary
+                ? ` · S/ ${Number(currentCompensation.base_monthly_salary).toFixed(2)} mensual`
+                : ""}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Remuneración pendiente de configurar.
+            </div>
+          )
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SelectField
+            label="Tipo de remuneración"
+            value={value.compensation_type}
+            onChange={(event) =>
+              updateField("compensation_type", event.target.value as EmployeeFormValue["compensation_type"])
+            }
+          >
+            <option value="">Selecciona un tipo</option>
+            {value.compensation_type === "commission" ? <option value="commission" disabled>Comisión (legado)</option> : null}
+            <option value="commission_plus_bonus">Comisión + bonos</option>
+            <option value="commission_only">Solo comisiones</option>
+            <option value="fixed_plus_bonus">Fijo + bonos</option>
+            <option value="fixed">Solo fijo</option>
+          </SelectField>
+
+          <TextField
+            label={isEditing && currentCompensation ? "Aplicar cambio desde" : "Vigente desde"}
+            type="date"
+            value={value.compensation_effective_from}
+            onChange={(event) => updateField("compensation_effective_from", event.target.value)}
+          />
+
+          {value.compensation_type && isCommissionCompensationMode(value.compensation_type) ? (
+            <p className="text-sm text-slate-600">
+              El porcentaje de comisión se asigna al preparar cada liquidación.
+            </p>
+          ) : value.compensation_type && isFixedCompensationMode(value.compensation_type) ? (
+            <TextField
+              label="Sueldo base mensual"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={value.base_monthly_salary}
+              onChange={(event) => updateField("base_monthly_salary", event.target.value)}
+              required
+            />
+          ) : null}
+        </div>
+
+        {isEditing && currentCompensation ? (
+          <p className="text-xs text-slate-600">
+            Si solo actualizas datos del empleado, deja “Aplicar cambio desde” vacío. Una modificación de remuneración crea una nueva vigencia y conserva el historial anterior.
+          </p>
+        ) : null}
+
+        {value.compensation_type ? (
+          <>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={value.mandatory_discount_enabled}
+                onChange={(event) => updateField("mandatory_discount_enabled", event.target.checked)}
+              />
+              Aplicar descuento obligatorio
+            </label>
+            {value.mandatory_discount_enabled ? (
+              <TextField
+                label="Porcentaje descuento obligatorio"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={value.mandatory_discount_rate}
+                onChange={(event) => updateField("mandatory_discount_rate", event.target.value)}
+              />
+            ) : null}
+          </>
+        ) : null}
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2">
