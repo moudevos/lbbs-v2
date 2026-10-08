@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     .select("id,status,settlement_number")
     .eq("payroll_period_id", payload.periodId)
     .eq("employee_id", payload.employeeId)
-    .in("status", ["draft", "review", "approved"])
+    .neq("status", "cancelled")
     .maybeSingle();
   if (existingSettlementError) {
     console.error("[settlements/post] Error al validar liquidacion activa", { message: existingSettlementError.message, code: existingSettlementError.code });
@@ -79,7 +79,9 @@ export async function POST(request: Request) {
       error: existingSettlement.status === "paid"
         ? "El empleado ya tiene una liquidación pagada en este período y no puede recalcularse."
         : "El empleado ya tiene una liquidación activa. Anúlala antes de recalcular.",
-      code: "ACTIVE_SETTLEMENT_EXISTS",
+      code: existingSettlement.status === "paid"
+        ? "SETTLEMENT_ALREADY_PAID"
+        : "ACTIVE_SETTLEMENT_EXISTS",
     }, { status: 409 });
   }
 
@@ -110,6 +112,17 @@ export async function POST(request: Request) {
   });
   if (error) {
     console.error("[settlements/post] Error al preparar liquidacion", { message: error.message, code: error.code });
+
+    // Segunda barrera contra carreras: aunque dos requests pasen el pre-check
+    // al mismo tiempo, el índice único de employee_id + payroll_period_id
+    // impide materializar dos liquidaciones no canceladas.
+    if (error.code === "23505") {
+      return NextResponse.json({
+        error: "Ya existe una liquidación para este empleado en el período. Actualiza la pantalla antes de intentar nuevamente.",
+        code: "SETTLEMENT_UNIQUENESS_CONFLICT",
+      }, { status: 409 });
+    }
+
     if (!error.message.includes("60")) {
       return NextResponse.json({
         error: "No se pudo crear la liquidación. Inténtalo nuevamente o revisa la producción del período.",
