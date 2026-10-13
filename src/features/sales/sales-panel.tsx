@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SalesDetailModal } from "@/features/sales/SalesDetailModal";
+import {
+  HistoricalSaleReversalModal,
+  type HistoricalReversalPreview,
+  type RefundInput,
+  type ReversalReason,
+} from "@/features/sales/HistoricalSaleReversalModal";
 import { PrintableSaleTicket } from "@/features/sales/PrintableSaleTicket";
 import { Modal } from "@/components/ui/Modal";
 import type { SaleDocumentPayload } from "@/lib/sales/sale-document-types";
@@ -66,6 +72,13 @@ export function SalesPanel() {
   const [selectedSale, setSelectedSale] = useState<SaleDetailRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [ticket, setTicket] = useState<SaleDocumentPayload | null>(null);
+  const [isHistoricalReverseOpen, setIsHistoricalReverseOpen] = useState(false);
+  const [historicalPreview, setHistoricalPreview] = useState<HistoricalReversalPreview | null>(null);
+  const [reversalReasons, setReversalReasons] = useState<ReversalReason[]>([]);
+  const [reversalReasonId, setReversalReasonId] = useState("");
+  const [reversalNotes, setReversalNotes] = useState("");
+  const [refunds, setRefunds] = useState<RefundInput[]>([]);
+  const [isReversing, setIsReversing] = useState(false);
   const [page, setPage] = useState(1);
 
   async function loadData(nextFilters: SalesHistoryFilters, nextPage = page) {
@@ -169,6 +182,69 @@ export function SalesPanel() {
       const message = error instanceof Error ? error.message : "No se pudo cargar el ticket.";
       console.error("[sales/ui] Error al reimprimir ticket", { message, saleId: selectedSale.id });
       await Swal.fire({ icon: "error", title: "No se pudo cargar el ticket", text: message, confirmButtonColor: "#0f766e", background: "#ffffff", color: "#0f172a" });
+    }
+  }
+
+  async function handleOpenHistoricalReverse() {
+    if (!selectedSale) return;
+    setIsHistoricalReverseOpen(true);
+    setHistoricalPreview(null);
+    setReversalReasonId("");
+    setReversalNotes("");
+    setRefunds([]);
+    try {
+      const [previewResponse, reasonsResponse] = await Promise.all([
+        fetch(`/api/admin/sales/${selectedSale.id}/reversal-preview`, { cache: "no-store" }),
+        fetch("/api/admin/sale-cancellation-reasons", { cache: "no-store" }),
+      ]);
+      const previewResult = await previewResponse.json();
+      const reasonsResult = await reasonsResponse.json();
+      if (!previewResponse.ok) throw new Error(previewResult.error || "No se pudo revisar la reversa.");
+      if (!reasonsResponse.ok) throw new Error(reasonsResult.error || "No se pudieron cargar los motivos.");
+      setHistoricalPreview(previewResult.data as HistoricalReversalPreview);
+      setReversalReasons((reasonsResult.data ?? []) as ReversalReason[]);
+      const byMethod = new Map<string, RefundInput>();
+      for (const payment of selectedSale.payments) {
+        if (payment.paymentMethodCode === "internal_credit") continue;
+        const current = byMethod.get(payment.paymentMethodId);
+        byMethod.set(payment.paymentMethodId, {
+          paymentMethodId: payment.paymentMethodId,
+          amount: String((Number(current?.amount ?? 0) + payment.amount).toFixed(2)),
+          reference: current?.reference || payment.reference || "",
+          selected: false,
+        });
+      }
+      setRefunds([...byMethod.values()]);
+    } catch (error) {
+      setIsHistoricalReverseOpen(false);
+      await Swal.fire({ icon: "error", title: "No se pudo revisar la reversa", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
+    }
+  }
+
+  async function handleConfirmHistoricalReverse() {
+    if (!selectedSale) return;
+    setIsReversing(true);
+    try {
+      const response = await fetch(`/api/admin/sales/${selectedSale.id}/reverse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reasonId: reversalReasonId,
+          notes: reversalNotes,
+          refunds: refunds.filter((refund) => refund.selected).map(({ paymentMethodId, amount, reference }) => ({ payment_method_id: paymentMethodId, amount: Number(amount), reference })),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo completar la reversa.");
+      await Swal.fire({ icon: "success", title: "Venta revertida", text: "Se generó la nota interna y los contraasientos auditables.", confirmButtonColor: "#0f766e" });
+      setIsHistoricalReverseOpen(false);
+      setIsDetailOpen(false);
+      setSelectedSale(null);
+      await loadData(filters, page);
+    } catch (error) {
+      await Swal.fire({ icon: "error", title: "No se pudo revertir la venta", text: error instanceof Error ? error.message : "Error inesperado", confirmButtonColor: "#0f766e" });
+    } finally {
+      setIsReversing(false);
     }
   }
 
@@ -432,6 +508,22 @@ export function SalesPanel() {
           setSelectedSale(null);
         }}
         onReprint={() => { void handleReprintTicket(); }}
+        onHistoricalReverse={() => { void handleOpenHistoricalReverse(); }}
+      />
+      <HistoricalSaleReversalModal
+        open={isHistoricalReverseOpen}
+        sale={selectedSale}
+        preview={historicalPreview}
+        reasons={reversalReasons}
+        reasonId={reversalReasonId}
+        notes={reversalNotes}
+        refunds={refunds}
+        isSubmitting={isReversing}
+        onClose={() => setIsHistoricalReverseOpen(false)}
+        onReasonChange={setReversalReasonId}
+        onNotesChange={setReversalNotes}
+        onRefundChange={(index, value) => setRefunds((current) => current.map((refund, currentIndex) => currentIndex === index ? { ...refund, ...value } : refund))}
+        onSubmit={() => { void handleConfirmHistoricalReverse(); }}
       />
       <Modal open={ticket !== null} title="Reimpresion de ticket" description="Snapshot operativo de la venta." onClose={() => setTicket(null)} confirmBeforeClose={false} size="md">
         {ticket ? <PrintableSaleTicket payload={ticket} onClose={() => setTicket(null)} /> : null}

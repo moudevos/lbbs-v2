@@ -16,6 +16,7 @@ type SalesDetailModalProps = {
   isLoading: boolean;
   onClose: () => void;
   onReprint: () => void;
+  onHistoricalReverse: () => void;
 };
 
 function formatDateTime(value: string | null) {
@@ -29,7 +30,7 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-export function SalesDetailModal({ open, sale, isLoading, onClose, onReprint }: SalesDetailModalProps) {
+export function SalesDetailModal({ open, sale, isLoading, onClose, onReprint, onHistoricalReverse }: SalesDetailModalProps) {
   return (
     <Modal
       open={open}
@@ -40,6 +41,9 @@ export function SalesDetailModal({ open, sale, isLoading, onClose, onReprint }: 
       size="xl"
       footer={
         <div className="flex justify-end gap-2">
+          <Button type="button" className="bg-rose-50 text-rose-700 shadow-none hover:bg-rose-100" onClick={onHistoricalReverse} disabled={isLoading || sale?.status !== "completed"}>
+            Reversa historica
+          </Button>
           <Button type="button" onClick={onReprint} disabled={isLoading || !sale}>
             Reimprimir ticket
           </Button>

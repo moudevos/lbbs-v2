@@ -1,3 +1,5 @@
+export type SaleDocumentType = "internal_ticket" | "internal_credit_note";
+
 export type SaleDocumentPayload = {
   schema_version: "1.0";
   document_type: "internal_ticket";
@@ -13,4 +15,18 @@ export type SaleDocumentPayload = {
   payments: Array<{ method_code: string; method_name: string; applied_amount: number; tendered_amount: number; change_amount: number; reference: string | null }>;
   future_see: { document_code: null; series: null; correlative: null; operation_type: null; taxable_amount: null; tax_amount: null };
   metadata: { source: "LBBS_POS"; generated_at: string; non_fiscal: true };
+};
+
+export type SaleReversalDocumentPayload = {
+  schema_version: "1.0";
+  document_type: "internal_credit_note";
+  non_fiscal: true;
+  reversal_id: string;
+  sale_id: string;
+  original_accounting_date: string;
+  reversal_accounting_date: string;
+  original_total: number;
+  reason: string;
+  notes: string | null;
+  internal_number: string;
 };

@@ -480,6 +480,7 @@ export type SaleDetailItem = {
 
 export type SaleDetailPayment = {
   id: string;
+  paymentMethodId: string;
   paymentMethodCode: string;
   paymentMethodName: string;
   amount: number;
