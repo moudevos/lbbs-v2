@@ -46,6 +46,7 @@ type SaleItemRow = {
 
 type SalePaymentRow = {
   id: string;
+  payment_method_id: string;
   amount: number | string;
   tendered_amount: number | string | null;
   change_amount: number | string;
@@ -104,7 +105,7 @@ export async function GET(
       supabase
         .from("sale_payments")
         .select(
-          "id, amount, tendered_amount, change_amount, reference, notes, payment_method:payment_methods(code, name)",
+          "id, payment_method_id, amount, tendered_amount, change_amount, reference, notes, payment_method:payment_methods(code, name)",
         )
         .eq("sale_id", saleId)
         .order("created_at", { ascending: true }),
@@ -171,6 +172,7 @@ export async function GET(
 
           return {
             id: payment.id,
+            paymentMethodId: payment.payment_method_id,
             paymentMethodCode: method?.code ?? "cash",
             paymentMethodName: method?.name ?? "Metodo",
             amount: toMoneyNumber(payment.amount),
