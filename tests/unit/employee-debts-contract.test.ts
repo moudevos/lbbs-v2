@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 
 describe("contrato del módulo de deudas de empleados", () => {
   async function source() {
-    return readFile(path.resolve(process.cwd(), "src/app/api/admin/employee-debts/route.ts"), "utf8");
+    return readFile(
+      path.resolve(process.cwd(), "src/app/api/admin/employee-debts/route.ts"),
+      "utf8",
+    );
   }
 
   it("protege la lectura y las mutaciones con sesión administrativa", async () => {
@@ -25,10 +28,9 @@ describe("contrato del módulo de deudas de empleados", () => {
     expect(route).toContain('.neq("payment_kind", "internal_credit")');
   });
 
-  it("preserva el libro contable usando las RPC de creación y pago", async () => {
+  it("preserva el libro contable mediante la RPC idempotente y el cobro existente", async () => {
     const route = await source();
-    expect(route).toContain('"create_employee_debt_with_disbursements_v2"');
-    expect(route).toContain('"create_employee_debt_from_pos_cash_v2"');
+    expect(route).toContain('"create_employee_debt_idempotent_v1"');
     expect(route).toContain('rpc("collect_employee_debt_v188"');
     expect(route).not.toContain('.from("employee_debts").insert');
     expect(route).not.toContain('.from("employee_debts").update');
