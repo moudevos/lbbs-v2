@@ -1121,18 +1121,23 @@ export function EmployeeDebtsPageClient() {
             <Button
               type="button"
               className="bg-rose-600 hover:bg-rose-700"
+              disabled={!form.reason?.trim()}
               onClick={() => void submit()}
             >
-              Confirmar anulación
+              Confirmar dejar sin efecto
             </Button>
           </div>
         }
       >
-        <Textarea
-          placeholder="Motivo obligatorio"
-          value={form.reason ?? ""}
-          onChange={(e) => set("reason", e.target.value)}
-        />
+        <label className="block text-sm font-medium">
+          Motivo obligatorio
+          <Textarea
+            className="mt-1"
+            placeholder="Explica por qué se deja sin efecto la deuda"
+            value={form.reason ?? ""}
+            onChange={(e) => set("reason", e.target.value)}
+          />
+        </label>
       </Modal>
       <Modal
         open={mode === "payment"}
@@ -1294,13 +1299,13 @@ export function EmployeeDebtsPageClient() {
                             Cobrar
                           </Button>
                         ) : null}
-                        {canWaiveDebts && item.debt_type === "penalty" ? (
+                        {canWaiveDebts ? (
                           <Button
                             type="button"
                             className="h-8 bg-rose-100 px-2 text-xs text-rose-700 hover:bg-rose-200"
                             onClick={() => waive(item)}
                           >
-                            Sin efecto
+                            Dejar sin efecto
                           </Button>
                         ) : null}
                       </div>
