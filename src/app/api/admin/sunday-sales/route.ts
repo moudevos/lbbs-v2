@@ -9,6 +9,10 @@ function sundayIso(date = new Date()) {
   return local.toISOString().slice(0, 10);
 }
 
+function cleanText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export async function GET(request: Request) {
   const auth = await requireTeamBranchSession();
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -16,18 +20,31 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const requestedBranchId = params.get("branchId") || "";
   const requestedDate = params.get("businessDate") || sundayIso();
+  const customerSearch = cleanText(params.get("customerSearch"));
   const branchId = auth.role === "reception" ? auth.branchId || "" : requestedBranchId;
   const supabase = await createClient();
-  const [branches, employees, customers, services, products, paymentMethods, settings] = await Promise.all([
+  if (customerSearch) {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id,full_name,document_number,phone")
+      .eq("is_active", true)
+      .or(`full_name.ilike.%${customerSearch}%,document_number.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%`)
+      .order("full_name")
+      .limit(25);
+    if (error) return NextResponse.json({ error: "No se pudo buscar clientes." }, { status: 500 });
+    return NextResponse.json({ customers: data ?? [] });
+  }
+  const [branches, employees, customerVarious, services, products, paymentMethods, settings, courtesyRules] = await Promise.all([
     auth.role === "reception" ? supabase.from("branches").select("id,name").eq("id", branchId).eq("is_active", true) : supabase.from("branches").select("id,name").eq("is_active", true).order("name"),
     branchId ? supabase.from("employees").select("id,full_name,branch_id").eq("branch_id", branchId).eq("status", "active").order("full_name") : supabase.from("employees").select("id,full_name,branch_id").eq("status", "active").order("full_name"),
-    supabase.from("customers").select("id,full_name,document_number,phone").eq("is_active", true).order("full_name").limit(500),
-    supabase.from("services").select("id,name,base_price").eq("is_active", true).order("name"),
-    supabase.from("products").select("id,name,base_sale_price,is_courtesy_allowed").eq("is_active", true).in("visibility_scope", ["pos", "both"]).order("name"),
+    supabase.from("customers").select("id,full_name,document_number,phone").eq("is_active", true).or("phone_normalized.eq.000000000,full_name.ilike.Cliente varios").limit(1).maybeSingle(),
+    branchId ? supabase.from("vw_services_effective_prices").select("service_id,service_name,category_id,final_price").eq("branch_id", branchId).eq("service_is_active", true).order("service_name") : supabase.from("vw_services_effective_prices").select("service_id,service_name,category_id,final_price").limit(0),
+    branchId ? supabase.from("vw_product_stock").select("product_id,product_name,category_id,final_sale_price,stock_quantity,is_stockable,is_courtesy_allowed").eq("branch_id", branchId).eq("is_active", true).order("product_name") : supabase.from("vw_product_stock").select("product_id,product_name,category_id,final_sale_price,stock_quantity,is_stockable,is_courtesy_allowed").limit(0),
     supabase.from("payment_methods").select("id,name").eq("is_active", true).neq("payment_kind", "internal_credit").order("sort_order"),
     supabase.from("sunday_sales_settings").select("default_commission_rate").eq("id", true).maybeSingle(),
+    supabase.from("courtesy_rules").select("id,name,branch_id,priority,qualifying_service_id,qualifying_service_category_id,minimum_unit_amount,maximum_courtesy_items,maximum_courtesy_amount,allow_with_reward,starts_at,ends_at,is_active,benefits:courtesy_rule_benefits(id,benefit_item_type,service_id,product_id,service_category_id,product_category_id,max_quantity,max_unit_amount,is_active)").eq("is_active", true).order("priority", { ascending: false }),
   ]);
-  const baseError = branches.error ?? employees.error ?? customers.error ?? services.error ?? products.error ?? paymentMethods.error ?? settings.error;
+  const baseError = branches.error ?? employees.error ?? customerVarious.error ?? services.error ?? products.error ?? paymentMethods.error ?? settings.error ?? courtesyRules.error;
   if (baseError) return NextResponse.json({ error: "No se pudo cargar la jornada dominical." }, { status: 500 });
   const dayResult = branchId ? await supabase.from("sunday_sales_days").select("*").eq("branch_id", branchId).eq("business_date", requestedDate).maybeSingle() : { data: null, error: null };
   if (dayResult.error) {
@@ -36,7 +53,7 @@ export async function GET(request: Request) {
   }
   const day = dayResult.data;
   const [sales, settlements] = day ? await Promise.all([
-    supabase.from("sunday_sales").select("id,customer:customers!sunday_sales_customer_id_fkey(full_name),barber:employees!sunday_sales_barber_id_fkey(full_name),subtotal,courtesy_total,total,paid_total,status,created_at,items:sunday_sale_items(description_snapshot,item_type,quantity,unit_price,total,is_courtesy),payments:sunday_sale_payments(amount,payment_method:payment_methods!sunday_sale_payments_payment_method_id_fkey(name))").eq("sunday_day_id", day.id).order("created_at", { ascending: false }),
+    supabase.from("sunday_sales").select("id,customer:customers!sunday_sales_customer_id_fkey(full_name),barber:employees!sunday_sales_barber_id_fkey(full_name),subtotal,courtesy_total,total,paid_total,status,created_at,cancelled_at,cancellation_reason,items:sunday_sale_items(description_snapshot,item_type,quantity,original_unit_price,unit_price,discount_amount,total,is_courtesy),payments:sunday_sale_payments(amount,reference,payment_method:payment_methods!sunday_sale_payments_payment_method_id_fkey(name))").eq("sunday_day_id", day.id).order("created_at", { ascending: false }),
     supabase.from("sunday_barber_settlements").select("id,employee:employees!sunday_barber_settlements_employee_id_fkey(full_name),status,commission_rate,service_gross_total,operational_contribution_total,commissionable_base_total,payout_amount,paid_at,payment_method:payment_methods!sunday_barber_settlements_payment_method_id_fkey(name)").eq("sunday_day_id", day.id).order("created_at"),
   ]) : [{ data: [] }, { data: [] }];
   if (sales.error || settlements.error) {
@@ -44,7 +61,7 @@ export async function GET(request: Request) {
     console.error("[sunday-sales/get] No se pudieron cargar registros", { message: error?.message, code: error?.code });
     return NextResponse.json({ error: "No se pudieron cargar las ventas de la jornada. Verifica que la migración 165 esté instalada." }, { status: 500 });
   }
-  return NextResponse.json({ branches: branches.data ?? [], employees: employees.data ?? [], customers: customers.data ?? [], services: services.data ?? [], products: products.data ?? [], paymentMethods: paymentMethods.data ?? [], defaultCommissionRate: Number(settings.data?.default_commission_rate ?? 60), selectedDate: requestedDate, day: day ?? null, sales: sales.data ?? [], settlements: settlements.data ?? [] });
+  return NextResponse.json({ branches: branches.data ?? [], employees: employees.data ?? [], customerVarious: customerVarious.data ?? null, services: (services.data ?? []).map((row) => ({ ...row, id: row.service_id, name: row.service_name })), products: (products.data ?? []).map((row) => ({ ...row, id: row.product_id, name: row.product_name })), paymentMethods: paymentMethods.data ?? [], courtesyRules: courtesyRules.data ?? [], defaultCommissionRate: Number(settings.data?.default_commission_rate ?? 60), selectedDate: requestedDate, day: day ?? null, sales: sales.data ?? [], settlements: settlements.data ?? [] });
 }
 
 export async function POST(request: Request) {
@@ -53,9 +70,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const supabase = await createClient();
   let result;
-  if (body?.action === "open") result = await supabase.rpc("open_sunday_sales_day", { p_branch_id: body.branchId, p_business_date: body.businessDate });
-  else if (body?.action === "rate") result = await supabase.rpc("set_sunday_sales_day_commission_rate", { p_day_id: body.dayId, p_commission_rate: Number(body.commissionRate) });
-  else if (body?.action === "sale") result = await supabase.rpc("register_sunday_sale", { p_day_id: body.dayId, p_customer_id: body.customerId, p_barber_id: body.barberId, p_items: body.items ?? [], p_payments: body.payments ?? [], p_notes: body.notes || null });
+  if (body?.action === "open") result = await supabase.rpc("open_sunday_sales_day", { p_branch_id: body.branchId, p_business_date: body.businessDate, p_opening_cash_amount: Number(body.openingCashAmount ?? 0), p_opening_notes: cleanText(body.openingNotes) });
+  else if (body?.action === "rate") result = await supabase.rpc("set_sunday_barber_settlement_rate", { p_settlement_id: body.settlementId, p_commission_rate: Number(body.commissionRate) });
+  else if (body?.action === "sale") result = await supabase.rpc("register_sunday_sale", { p_day_id: body.dayId, p_customer_id: body.customerId, p_barber_id: body.barberId, p_items: body.items ?? [], p_payments: body.payments ?? [], p_notes: cleanText(body.notes), p_entry_idempotency_key: body.idempotencyKey });
+  else if (body?.action === "cancel") result = await supabase.rpc("cancel_sunday_sale", { p_sunday_sale_id: body.saleId, p_reason: cleanText(body.reason) });
   else if (body?.action === "prepare") result = await supabase.rpc("prepare_sunday_settlements", { p_day_id: body.dayId });
   else if (body?.action === "pay") result = await supabase.rpc("pay_sunday_settlement", { p_settlement_id: body.settlementId, p_payment_method_id: body.paymentMethodId, p_reference: body.reference || null, p_notes: body.notes || null });
   else if (body?.action === "close") result = await supabase.rpc("close_sunday_sales_day", { p_day_id: body.dayId, p_notes: body.notes || null });
