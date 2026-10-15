@@ -25,65 +25,65 @@
     :local fetched [/tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/pull") http-method=post http-header-field=$headers http-data="{}" check-certificate=yes output=user as-value]
     :local response [:deserialize from=json value=($fetched->"data")]
 
-    :foreach command in=($response->"commands") do={
-      :local id ($command->"id")
-      :local commandType ($command->"type")
-      :local voucherId ($command->"voucherId")
-      :local ok false
-      :local errorCode "unsupported_command"
-      :local errorMessage "Comando no compatible."
-      :local result {}
-      :local tag ("LBBS:" . $voucherId)
+    :foreach lbbsCommand in=($response->"commands") do={
+      :local lbbsCommandId ($lbbsCommand->"id")
+      :local lbbsCommandType ($lbbsCommand->"type")
+      :local lbbsVoucherId ($lbbsCommand->"voucherId")
+      :local lbbsOk false
+      :local lbbsErrorCode "unsupported_command"
+      :local lbbsErrorMessage "Comando no compatible."
+      :local lbbsResult [:toarray ""]
+      :local lbbsTag ("LBBS:" . $lbbsVoucherId)
 
       :do {
-        :if ($commandType = "CREATE_VOUCHER") do={
-          :local username ($command->"username")
-          :local password ($command->"password")
-          :local found [/ip hotspot user find where comment=$tag]
+        :if ($lbbsCommandType = "CREATE_VOUCHER") do={
+          :local lbbsUsername ($lbbsCommand->"username")
+          :local lbbsPassword ($lbbsCommand->"password")
+          :local found [/ip hotspot user find where comment=$lbbsTag]
 
           :if ([:len $found] = 0) do={
-            /ip hotspot user add name=$username password=$password server=$lbbsHotspotServerName profile=$lbbsHotspotUserProfile disabled=yes comment=$tag
+            /ip hotspot user add name=$lbbsUsername password=$lbbsPassword server=$lbbsHotspotServerName profile=$lbbsHotspotUserProfile disabled=yes comment=$lbbsTag
           } else={
-            /ip hotspot user set $found name=$username password=$password server=$lbbsHotspotServerName profile=$lbbsHotspotUserProfile disabled=yes comment=$tag
+            /ip hotspot user set $found name=$lbbsUsername password=$lbbsPassword server=$lbbsHotspotServerName profile=$lbbsHotspotUserProfile disabled=yes comment=$lbbsTag
           }
 
-          :set result {"routerUserId"=$username}
-          :set ok true
+          :set lbbsResult {"routerUserId"=$lbbsUsername}
+          :set lbbsOk true
         }
 
-        :if ($commandType = "ACTIVATE_VOUCHER") do={
-          :local found [/ip hotspot user find where comment=$tag]
-          :local clientMac (($command->"payload")->"mac")
+        :if ($lbbsCommandType = "ACTIVATE_VOUCHER") do={
+          :local found [/ip hotspot user find where comment=$lbbsTag]
+          :local lbbsClientMac (($lbbsCommand->"payload")->"mac")
           :if ([:len $found] = 0) do={ :error "voucher_missing" }
-          /ip hotspot user set $found mac-address=$clientMac disabled=no
-          :set ok true
+          /ip hotspot user set $found mac-address=$lbbsClientMac disabled=no
+          :set lbbsOk true
         }
 
-        :if (($commandType = "REVOKE_VOUCHER") || ($commandType = "EXPIRE_VOUCHER")) do={
-          :local found [/ip hotspot user find where comment=$tag]
+        :if (($lbbsCommandType = "REVOKE_VOUCHER") || ($lbbsCommandType = "EXPIRE_VOUCHER")) do={
+          :local found [/ip hotspot user find where comment=$lbbsTag]
           :foreach userId in=$found do={
             :local hotspotUser [/ip hotspot user get $userId name]
             :local boundMac [/ip hotspot user get $userId mac-address]
             /ip hotspot active remove [find where user=$hotspotUser]
             :if ([:len $boundMac] > 0) do={ /ip hotspot cookie remove [find where mac-address=$boundMac] }
           }
-          :foreach userId in=[/ip hotspot user find where comment=$tag] do={ /ip hotspot user remove $userId }
-          :set ok true
+          :foreach userId in=[/ip hotspot user find where comment=$lbbsTag] do={ /ip hotspot user remove $userId }
+          :set lbbsOk true
         }
 
-        :if ($ok) do={
-          :set errorCode ""
-          :set errorMessage ""
+        :if ($lbbsOk) do={
+          :set lbbsErrorCode ""
+          :set lbbsErrorMessage ""
         }
       } on-error={
-        :set errorCode "router_command_failed"
-        :set errorMessage "No se pudo aplicar el comando."
+        :set lbbsErrorCode "router_command_failed"
+        :set lbbsErrorMessage "No se pudo aplicar el comando."
       }
 
-      :if ($ok) do={
-        $ack {"commandId"=$id;"success"=true;"result"=$result}
+      :if ($lbbsOk) do={
+        $ack {"commandId"=$lbbsCommandId;"success"=true;"result"=$lbbsResult}
       } else={
-        $ack {"commandId"=$id;"success"=false;"errorCode"=$errorCode;"errorMessage"=$errorMessage}
+        $ack {"commandId"=$lbbsCommandId;"success"=false;"errorCode"=$lbbsErrorCode;"errorMessage"=$lbbsErrorMessage}
       }
     }
   } on-error={
