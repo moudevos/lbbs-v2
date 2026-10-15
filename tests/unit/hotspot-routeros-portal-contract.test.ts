@@ -15,6 +15,9 @@ describe("base RouterOS y portal HotSpot", () => {
     expect(template).toContain("session-timeout=3h");
     expect(template).toContain("addresses-per-mac=1");
     expect(template).toContain("find where name=$userProfile");
+    expect(template).toContain(":global lbbsApiBaseUrl");
+    expect(template).toContain(":global lbbsRouterToken");
+    expect(template).not.toContain(":global LBBS_API_BASE_URL");
   });
 
   it("sincroniza por HTTPS, crea usuarios deshabilitados y confirma cada comando", async () => {
@@ -22,6 +25,10 @@ describe("base RouterOS y portal HotSpot", () => {
     expect(sync).toContain("/api/wifi/router/pull");
     expect(sync).toContain("/api/wifi/router/ack");
     expect(sync).toContain("Authorization: Bearer");
+    expect(sync).toContain("/system script add name=\"lbbs-sync\"");
+    expect(sync).toContain(":global lbbsApiBaseUrl");
+    expect(sync).toContain(":global lbbsRouterToken");
+    expect(sync).not.toContain(":global LBBS_API_BASE_URL");
     expect(sync).toContain(":deserialize from=json");
     expect(sync).toContain("disabled=yes");
     expect(sync).toContain("CREATE_VOUCHER");
@@ -33,6 +40,8 @@ describe("base RouterOS y portal HotSpot", () => {
 
   it("deja heartbeat separado y sin sesiones", async () => {
     const heartbeat = await read("routeros/hotspot/scripts/lbbs-heartbeat.rsc");
+    expect(heartbeat).toContain("/system script add name=\"lbbs-heartbeat\"");
+    expect(heartbeat).toContain(":global lbbsApiBaseUrl");
     expect(heartbeat).toContain("/api/wifi/router/heartbeat");
     expect(heartbeat).toContain("routerosVersion");
     expect(heartbeat).not.toContain("activeSessions");
