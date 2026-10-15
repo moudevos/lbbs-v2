@@ -1,12 +1,12 @@
-# LBBS San Juan — production finishing template for the already-surveyed hEX.
+# LBBS San Juan — production finishing template for the surveyed hEX.
 # RouterOS v7.23.8, WAN ether1, admin ether2-4, HotSpot on bridge-hotspot/ether5.
-# Upload portal files to flash/hotspot and the four LBBS scripts to Files before importing.
-# Replace ONLY {{LBBS_ROUTER_TOKEN}} after creating the router in /control/wifi.
+# Upload the final portal to flash/hotspot and lbbs-sync.rsc + lbbs-heartbeat.rsc to flash/.
+# Replace ONLY {{LBBS_ROUTER_TOKEN}} after creating/regenerating the router in /control/wifi.
 
-:global LBBS_API_BASE_URL "https://app.labajaditabarberstudio.com"
-:global LBBS_ROUTER_TOKEN "{{LBBS_ROUTER_TOKEN}}"
-:global LBBS_HOTSPOT_SERVER_NAME "lbbs-hotspot"
-:global LBBS_HOTSPOT_USER_PROFILE "lbbs-client-profile"
+:global lbbsApiBaseUrl "https://app.labajaditabarberstudio.com"
+:global lbbsRouterToken "{{LBBS_ROUTER_TOKEN}}"
+:global lbbsHotspotServerName "lbbs-hotspot"
+:global lbbsHotspotUserProfile "lbbs-client-profile"
 
 :local serverId [/ip hotspot find where name="lbbs-hotspot"]
 :if ([:len $serverId] = 0) do={ :error "LBBS: lbbs-hotspot no existe" }
@@ -16,9 +16,14 @@
 :if ([:len $serverProfileId] = 0) do={ :error "LBBS: lbbs-hotspot-profile no existe" }
 /ip hotspot profile set $serverProfileId hotspot-address=10.10.10.1 dns-name="wifi.lbbs.test" login-by=http-chap,mac-cookie html-directory=hotspot use-radius=no
 
+# HotSpot hook variables only exist inside on-login/on-logout, so the lifecycle code
+# is stored directly in the user profile instead of calling another /system script.
+:local onLoginSource ":global lbbsApiBaseUrl;:global lbbsRouterToken;:local lbbsUser \$user;:local lbbsMac \$\"mac-address\";:local lbbsIp \$address;:local lbbsUserId [/ip hotspot user find where name=\$lbbsUser];:if ([:len \$lbbsUserId] > 0) do={:local lbbsTag [/ip hotspot user get \$lbbsUserId comment];:if ([:pick \$lbbsTag 0 5] = \"LBBS:\") do={:local lbbsVoucherId [:pick \$lbbsTag 5 [:len \$lbbsTag]];:local lbbsPayload {\"voucherId\"=\$lbbsVoucherId;\"mac\"=\$lbbsMac;\"ip\"=\$lbbsIp;\"event\"=\"LOGIN\";\"metadata\"={\"router\"=\"RouterOS\"}};:do {/tool fetch url=(\$lbbsApiBaseUrl . \"/api/wifi/router/session\") http-method=post http-header-field=(\"Content-Type: application/json,Authorization: Bearer \" . \$lbbsRouterToken) http-data=[:serialize to=json value=\$lbbsPayload] check-certificate=yes output=none} on-error={:log warning \"LBBS: LOGIN no enviado\"}}}}"
+:local onLogoutSource ":global lbbsApiBaseUrl;:global lbbsRouterToken;:local lbbsUser \$user;:local lbbsMac \$\"mac-address\";:local lbbsIp \$address;:local lbbsCause \$cause;:local lbbsUserId [/ip hotspot user find where name=\$lbbsUser];:if ([:len \$lbbsUserId] > 0) do={:local lbbsTag [/ip hotspot user get \$lbbsUserId comment];:if ([:pick \$lbbsTag 0 5] = \"LBBS:\") do={:local lbbsVoucherId [:pick \$lbbsTag 5 [:len \$lbbsTag]];/ip hotspot cookie remove [find where mac-address=\$lbbsMac];/ip hotspot user remove \$lbbsUserId;:local lbbsPayload {\"voucherId\"=\$lbbsVoucherId;\"mac\"=\$lbbsMac;\"ip\"=\$lbbsIp;\"event\"=\"LOGOUT\";\"metadata\"={\"reason\"=\$lbbsCause}};:do {/tool fetch url=(\$lbbsApiBaseUrl . \"/api/wifi/router/session\") http-method=post http-header-field=(\"Content-Type: application/json,Authorization: Bearer \" . \$lbbsRouterToken) http-data=[:serialize to=json value=\$lbbsPayload] check-certificate=yes output=none} on-error={:log warning \"LBBS: LOGOUT no enviado; acceso invalidado localmente\"}}}}"
+
 :local userProfileId [/ip hotspot user profile find where name="lbbs-client-profile"]
 :if ([:len $userProfileId] = 0) do={ :error "LBBS: lbbs-client-profile no existe" }
-/ip hotspot user profile set $userProfileId shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login="/system script run lbbs-session-login" on-logout="/system script run lbbs-session-logout"
+/ip hotspot user profile set $userProfileId shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login=$onLoginSource on-logout=$onLogoutSource
 
 # Remove the manual test credential before production use.
 /ip hotspot active remove [find where user="654321"]
@@ -33,23 +38,18 @@
   /ip hotspot walled-garden add dst-host="web.labajaditabarberstudio.com" action=allow comment="LBBS legal pages"
 }
 
-# Import/update runtime scripts. Re-importing a script file is safe after removing the old script.
-/system script remove [find where name="lbbs-sync"]
-/system script remove [find where name="lbbs-heartbeat"]
-/system script remove [find where name="lbbs-session-login"]
-/system script remove [find where name="lbbs-session-logout"]
-/import file-name=lbbs-sync.rsc
-/import file-name=lbbs-heartbeat.rsc
-/import file-name=lbbs-session-login.rsc
-/import file-name=lbbs-session-logout.rsc
+# The .rsc files install/update persistent /system script entries.
+/import file-name=flash/lbbs-sync.rsc
+/import file-name=flash/lbbs-heartbeat.rsc
 
 /system scheduler remove [find where name="lbbs-sync"]
 /system scheduler remove [find where name="lbbs-heartbeat"]
-/system scheduler add name="lbbs-sync" interval=5s on-event="/system script run lbbs-sync" comment="LBBS command pull"
-/system scheduler add name="lbbs-heartbeat" interval=30s on-event="/system script run lbbs-heartbeat" comment="LBBS router heartbeat"
+/system scheduler add name="lbbs-sync" interval=5s on-event="lbbs-sync" policy=ftp,read,write,policy,test,sensitive comment="LBBS command pull"
+/system scheduler add name="lbbs-heartbeat" interval=30s on-event="lbbs-heartbeat" policy=ftp,read,write,policy,test,sensitive comment="LBBS router heartbeat"
 
 # Manual smoke checks after import:
 # /system script run lbbs-heartbeat
 # /system script run lbbs-sync
 # /system scheduler print
 # /ip hotspot walled-garden print
+# /environment print
