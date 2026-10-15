@@ -11,6 +11,10 @@ describe("base RouterOS y portal HotSpot", () => {
     expect(template).not.toContain("reset-configuration");
     expect(template).toContain("shared-users=1");
     expect(template).toContain("http-chap,mac-cookie");
+    expect(template).toContain("keepalive-timeout=3m");
+    expect(template).toContain("session-timeout=3h");
+    expect(template).toContain("addresses-per-mac=1");
+    expect(template).toContain("find where name=$userProfile");
   });
 
   it("sincroniza por HTTPS, crea usuarios deshabilitados y confirma cada comando", async () => {
@@ -21,6 +25,9 @@ describe("base RouterOS y portal HotSpot", () => {
     expect(sync).toContain(":deserialize from=json");
     expect(sync).toContain("disabled=yes");
     expect(sync).toContain("CREATE_VOUCHER");
+    expect(sync).toContain("ACTIVATE_VOUCHER");
+    expect(sync).toContain("REVOKE_VOUCHER");
+    expect(sync).toContain("EXPIRE_VOUCHER");
     expect(sync).not.toContain(":log info $password");
   });
 
