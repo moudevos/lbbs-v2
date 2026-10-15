@@ -60,7 +60,12 @@ export async function POST(request: Request) {
   try {
     const commands = claimed.map((command) => {
       if (command.command_type !== "CREATE_VOUCHER") {
-        return { id: command.id, type: command.command_type, payload: command.payload ?? {} };
+        return {
+          id: command.id,
+          type: command.command_type,
+          voucherId: command.voucher_id,
+          payload: command.payload ?? {},
+        };
       }
       const ciphertext = command.voucher_id
         ? ciphertextByVoucher.get(command.voucher_id)
