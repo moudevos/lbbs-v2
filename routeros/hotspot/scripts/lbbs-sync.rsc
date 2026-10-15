@@ -81,9 +81,11 @@
       }
 
       :if ($lbbsOk) do={
-        $ack {"commandId"=$lbbsCommandId;"success"=true;"result"=$lbbsResult}
+        :local lbbsAckPayload {"commandId"=$lbbsCommandId;"success"=true;"result"=$lbbsResult}
+        $ack $lbbsAckPayload
       } else={
-        $ack {"commandId"=$lbbsCommandId;"success"=false;"errorCode"=$lbbsErrorCode;"errorMessage"=$lbbsErrorMessage}
+        :local lbbsAckPayload {"commandId"=$lbbsCommandId;"success"=false;"errorCode"=$lbbsErrorCode;"errorMessage"=$lbbsErrorMessage}
+        $ack $lbbsAckPayload
       }
     }
   } on-error={
