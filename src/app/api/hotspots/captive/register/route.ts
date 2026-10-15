@@ -32,7 +32,14 @@ export async function POST(request: Request) {
   ];
   const { error: consentError } = await admin.from("customer_consents").insert(requiredConsents);
   if (consentError) return NextResponse.json({ error: "No pudimos registrar tus consentimientos. Inténtalo nuevamente." }, { status: 500 });
-  await admin.from("wifi_access_vouchers").update({ customer_id: customer.id, device_mac: String(token.mac), device_ip: token.ip ?? null, claimed_at: new Date().toISOString(), status: "activation_pending" }).eq("id", voucher.id);
-  await admin.from("hotspot_router_commands").upsert({ router_id: voucher.router_id, voucher_id: voucher.id, command_type: "ACTIVATE_VOUCHER", payload: { mac: token.mac }, idempotency_key: `activate:${voucher.id}` }, { onConflict: "idempotency_key" });
+  const { error: activationError } = await admin.rpc("queue_hotspot_voucher_activation", {
+    p_voucher_id: voucher.id,
+    p_router_id: voucher.router_id,
+    p_branch_id: voucher.branch_id,
+    p_customer_id: customer.id,
+    p_mac: String(token.mac),
+    p_ip: token.ip ?? null,
+  });
+  if (activationError) return NextResponse.json({ error: "No pudimos preparar tu conexión. Inténtalo nuevamente." }, { status: 500 });
   return NextResponse.json({ status: "customer_created", firstName: customer.first_name || firstName, claimToken: signHotspotToken({ ...token, exp: Date.now() + 5 * 60_000 }) });
 }
