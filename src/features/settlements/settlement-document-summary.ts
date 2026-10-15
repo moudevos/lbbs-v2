@@ -146,7 +146,7 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
     { id: "other-deductions", label: "Otros descuentos", amount: numeric(detail.other_deduction_total) },
     {
       id: "mandatory-discount", label: "Descuento obligatorio",
-      detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre producción reconocida: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`,
+      detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre base comisionable: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`,
       amount: numeric(detail.mandatory_discount_amount),
     },
   ].filter((line) => line.amount > 0);
