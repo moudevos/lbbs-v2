@@ -21,21 +21,32 @@
 :local heartbeatInterval "{{HEARTBEAT_INTERVAL}}"
 
 # Prerequisite: upload portal/* as hotspot/lbbs-portal/* and scripts/*.rsc to Files.
-# No client portal file contains $routerToken or $apiBase.
+# The client portal never contains the router token. API base URL and router identifier are public portal configuration.
 :if ([:len [/ip pool find where name=$poolName]] = 0) do={
   /ip pool add name=$poolName ranges=$poolRange comment="LBBS HotSpot — surveyed client pool"
 }
 :if ([:len [/ip address find where address=$hotspotAddress]] = 0) do={ /ip address add address=$hotspotAddress interface=$hotspotInterface comment="LBBS HotSpot client gateway" }
 :if ([:len [/ip dhcp-server find where name=$dhcpName]] = 0) do={ /ip dhcp-server add name=$dhcpName interface=$hotspotInterface address-pool=$poolName disabled=no comment="LBBS HotSpot DHCP" }
 :if ([:len [/ip dhcp-server network find where address=$hotspotNetwork]] = 0) do={ /ip dhcp-server network add address=$hotspotNetwork gateway=[:pick $hotspotAddress 0 [:find $hotspotAddress "/"]] dns-server=[:pick $hotspotAddress 0 [:find $hotspotAddress "/"]] comment="LBBS HotSpot clients" }
-:if ([:len [/ip hotspot profile find where name=$profileName]] = 0) do={
+:local hotspotProfileId [/ip hotspot profile find where name=$profileName]
+:if ([:len $hotspotProfileId] = 0) do={
   /ip hotspot profile add name=$profileName hotspot-address=$hotspotAddress dns-name=$dnsName login-by=http-chap,mac-cookie html-directory="hotspot/lbbs-portal" comment="LBBS HotSpot server profile"
+} else={
+  /ip hotspot profile set $hotspotProfileId hotspot-address=$hotspotAddress dns-name=$dnsName login-by=http-chap,mac-cookie html-directory="hotspot/lbbs-portal"
 }
-:if ([:len [/ip hotspot user profile find where name=$profileName]] = 0) do={
+
+:local userProfileId [/ip hotspot user profile find where name=$userProfile]
+:if ([:len $userProfileId] = 0) do={
   /ip hotspot user profile add name=$userProfile shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login="/system script run lbbs-session-login" on-logout="/system script run lbbs-session-logout" comment="LBBS HotSpot lifecycle"
+} else={
+  /ip hotspot user profile set $userProfileId shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login="/system script run lbbs-session-login" on-logout="/system script run lbbs-session-logout"
 }
-:if ([:len [/ip hotspot find where name=$serverName]] = 0) do={
-  /ip hotspot add name=$serverName interface=$hotspotInterface address-pool=$poolName profile=$profileName disabled=no comment="LBBS HotSpot on surveyed client network"
+
+:local serverId [/ip hotspot find where name=$serverName]
+:if ([:len $serverId] = 0) do={
+  /ip hotspot add name=$serverName interface=$hotspotInterface address-pool=$poolName profile=$profileName idle-timeout=none keepalive-timeout=3m login-timeout=5m addresses-per-mac=1 disabled=no comment="LBBS HotSpot on surveyed client network"
+} else={
+  /ip hotspot set $serverId interface=$hotspotInterface address-pool=$poolName profile=$profileName idle-timeout=none keepalive-timeout=3m login-timeout=5m addresses-per-mac=1 disabled=no
 }
 
 # HTTPS API calls are RouterOS server-side only. Keep the token out of portal files.
