@@ -115,29 +115,77 @@ export function SettlementDetailPageClient({ settlementId }: { settlementId: str
       <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${data.status === "paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : data.status === "cancelled" ? "border-rose-200 bg-rose-50 text-rose-700" : data.status === "draft" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{getSettlementStatusLabel(data.status)}</span>
     </section>
 
-    {/* KPIs */}
-    <section className={`grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-4 ${data.status === "draft" ? "xl:grid-cols-8" : "xl:grid-cols-7"}`}>
-      {data.status === "draft" ? (
-        <article className="rounded-lg bg-white px-3 py-2.5 ring-1 ring-slate-300 focus-within:ring-emerald-500">
-          <label className="block">
-            <span className="block truncate text-[11px] font-medium uppercase tracking-wide text-slate-500">% Comisión</span>
-            <div className="mt-1 flex items-center gap-1">
-              <Input className="h-7 w-full min-w-0 px-2 text-right text-sm tabular-nums" type="number" min="0" max="100" step="0.01" value={rate} onChange={(event) => { setRate(event.target.value); markDraftDirty(); }} />
-              <span className="text-xs text-slate-400">%</span>
-            </div>
-          </label>
-          <span className={`mt-1 block truncate text-[10px] ${saveState === "error" ? "text-rose-600" : saveState === "unsaved" ? "text-amber-600" : "text-slate-400"}`}>
-            {saveState === "saving" ? "Guardando…" : saveState === "unsaved" ? "Cambios sin guardar" : saveState === "error" ? "Error al guardar" : "Guardado"}
-          </span>
-        </article>
-      ) : null}
+    {/* Resumen de pago */}
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Resumen de pago</p>
+          <p className="mt-0.5 text-sm text-slate-600">Base comisionable, descuentos y neto final del período.</p>
+        </div>
 
-      {[["Producción reconocida", summary.totalProduction], ["Aporte operativo", -summary.productionContribution], ["Base comisionable", summary.productionBase], ["Bruto del empleado", numeric(data.gross_pay_amount)], ["Descuento obligatorio", -numeric(data.mandatory_discount_amount)], ["Deudas aplicadas", -(data.status === "draft" ? draftFinancialPreview.selectedDebtTotal : numeric(data.debt_deduction_total))], ["Neto a pagar", draftPreview]].map(([label, value]) => (
-        <article key={String(label)} className={`rounded-lg px-3 py-2.5 ${label === "Neto a pagar" ? "bg-emerald-50 ring-1 ring-emerald-200" : "bg-slate-50"}`}>
-          <span className="block truncate text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</span>
-          <strong className={`mt-1 block text-sm tabular-nums ${label === "Neto a pagar" ? "text-base text-emerald-700" : "text-slate-900"}`}>{formatMoney(Number(value))}</strong>
-        </article>
-      ))}
+        {data.status === "draft" ? (
+          <article className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:w-[230px]">
+            <label className="block">
+              <span className="flex items-center justify-between gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                <span>% Comisión</span>
+                <span className={saveState === "error" ? "text-rose-600" : saveState === "unsaved" ? "text-amber-600" : "text-slate-400"}>
+                  {saveState === "saving" ? "Guardando…" : saveState === "unsaved" ? "Sin guardar" : saveState === "error" ? "Error" : "Guardado"}
+                </span>
+              </span>
+              <div className="mt-1.5 flex items-center gap-1">
+                <Input className="h-8 w-full min-w-0 px-2 text-right text-sm font-semibold tabular-nums" type="number" min="0" max="100" step="0.01" value={rate} onChange={(event) => { setRate(event.target.value); markDraftDirty(); }} />
+                <span className="text-xs font-medium text-slate-400">%</span>
+              </div>
+            </label>
+          </article>
+        ) : null}
+      </div>
+
+      <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          {
+            label: "Base comisionable",
+            value: summary.productionBase,
+            detail: "Base sujeta al porcentaje de comisión",
+            className: "bg-white",
+            amountClassName: "text-slate-950",
+          },
+          {
+            label: "Bruto a cobrar",
+            value: numeric(data.gross_pay_amount),
+            detail: "Comisiones, bonos y conceptos brutos",
+            className: "bg-white",
+            amountClassName: "text-slate-950",
+          },
+          {
+            label: "Descuento obligatorio",
+            value: -numeric(data.mandatory_discount_amount),
+            detail: `${numeric(data.mandatory_discount_rate).toFixed(2)} % sobre base comisionable`,
+            className: "bg-rose-50/40",
+            amountClassName: "text-rose-700",
+          },
+          {
+            label: "Deudas aplicadas",
+            value: -(data.status === "draft" ? draftFinancialPreview.selectedDebtTotal : numeric(data.debt_deduction_total)),
+            detail: "Importes descontados en esta liquidación",
+            className: "bg-amber-50/40",
+            amountClassName: "text-amber-800",
+          },
+          {
+            label: "Neto a pagar",
+            value: draftPreview,
+            detail: "Importe final a entregar al empleado",
+            className: "bg-emerald-50",
+            amountClassName: "text-emerald-700",
+          },
+        ].map((item) => (
+          <article key={item.label} className={`min-h-[116px] px-4 py-4 ${item.className}`}>
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{item.label}</span>
+            <strong className={`mt-2 block text-xl font-bold tabular-nums tracking-tight ${item.amountClassName}`}>{formatMoney(item.value)}</strong>
+            <span className="mt-1.5 block text-xs leading-4 text-slate-500">{item.detail}</span>
+          </article>
+        ))}
+      </div>
     </section>
 
     {/* Observación de autorización (solo si comisión > 60) */}
