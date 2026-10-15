@@ -21,10 +21,11 @@ describe("router hotspot pull y ACK", () => {
     expect(migration).toContain("make_interval(secs => greatest(p_processing_timeout_seconds, 1))");
   });
 
-  it("entrega CREATE con plaintext efímero y no lo registra", async () => {
+  it("entrega voucherId en todos los comandos y CREATE con plaintext efímero", async () => {
     const pull = await readFile(root("src/app/api/wifi/router/pull/route.ts"), "utf8");
     expect(pull).toContain("decryptVoucherCode(ciphertext)");
     expect(pull).toContain('type: "CREATE_VOUCHER"');
+    expect(pull).toContain("voucherId: command.voucher_id");
     expect(pull).toContain("username: code");
     expect(pull).toContain("password: code");
     expect(pull).not.toContain("console.log(code)");
