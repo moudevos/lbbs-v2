@@ -18,7 +18,16 @@ export async function POST(request: Request) {
   const base = { voucherId: voucher.id, routerId: router.id, branchId: router.branch_id, dni, mac: body.mac, ip: typeof body.ip === "string" ? body.ip : null, exp: Date.now() + 5 * 60_000 };
   if (!customers?.length) return NextResponse.json({ status: "registration_required", registrationToken: signHotspotToken(base) });
   const customer = customers[0];
-  await admin.from("wifi_access_vouchers").update({ customer_id: customer.id, device_mac: body.mac, device_ip: base.ip, claimed_at: new Date().toISOString(), status: "activation_pending" }).eq("id", voucher.id);
-  await admin.from("hotspot_router_commands").upsert({ router_id: router.id, voucher_id: voucher.id, command_type: "ACTIVATE_VOUCHER", payload: { mac: body.mac }, idempotency_key: `activate:${voucher.id}` }, { onConflict: "idempotency_key" });
+  const { error: activationError } = await admin.rpc("queue_hotspot_voucher_activation", {
+    p_voucher_id: voucher.id,
+    p_router_id: router.id,
+    p_branch_id: router.branch_id,
+    p_customer_id: customer.id,
+    p_mac: body.mac,
+    p_ip: base.ip,
+  });
+  if (activationError) {
+    return NextResponse.json({ error: "No pudimos preparar tu conexión. Inténtalo nuevamente." }, { status: 500 });
+  }
   return NextResponse.json({ status: "customer_found", firstName: customer.first_name || customer.full_name.split(" ")[0], claimToken: signHotspotToken(base) });
 }
