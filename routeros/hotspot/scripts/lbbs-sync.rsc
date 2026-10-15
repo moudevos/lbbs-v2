@@ -20,9 +20,19 @@
     :set result {"routerUserId"=$username}; :set ok true
    }
    :if ($type = "ACTIVATE_VOUCHER") do={ :local found [/ip hotspot user find where comment=$tag]; :local mac (($command->"payload")->"mac"); :if ([:len $found] = 0) do={ :error "voucher_missing" }; /ip hotspot user set $found mac-address=$mac disabled=no; :set ok true }
-   :if (($type = "REVOKE_VOUCHER") || ($type = "EXPIRE_VOUCHER")) do={ :local found [/ip hotspot user find where comment=$tag]; :foreach u in=$found do={ :local n [/ip hotspot user get $u name]; :local bound [/ip hotspot user get $u mac-address]; /ip hotspot active remove [find where user=$n]; :if ([:len $bound] > 0) do={ /ip hotspot cookie remove [find where mac-address=$bound] }; /ip hotspot user remove $u }; :set ok true }
+   :if (($type = "REVOKE_VOUCHER") || ($type = "EXPIRE_VOUCHER")) do={
+    :local found [/ip hotspot user find where comment=$tag]
+    :foreach u in=$found do={
+      :local n [/ip hotspot user get $u name]
+      :local bound [/ip hotspot user get $u mac-address]
+      /ip hotspot active remove [find where user=$n]
+      :if ([:len $bound] > 0) do={ /ip hotspot cookie remove [find where mac-address=$bound] }
+    }
+    :foreach u in=[/ip hotspot user find where comment=$tag] do={ /ip hotspot user remove $u }
+    :set ok true
+   }
    :if ($ok) do={ :set errorCode ""; :set errorMessage "" }
   } on-error={ :set errorCode "router_command_failed"; :set errorMessage "No se pudo aplicar el comando." }
   :if ($ok) do={ $ack {"commandId"=$id;"success"=true;"result"=$result} } else={ $ack {"commandId"=$id;"success"=false;"errorCode"=$errorCode;"errorMessage"=$errorMessage} }
  }
-} on-error={ :log warning "LBBS: sincronizaciÃ³n fallida" }
+} on-error={ :log warning "LBBS: sincronización fallida" }
