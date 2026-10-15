@@ -37,9 +37,9 @@
 
 :local userProfileId [/ip hotspot user profile find where name=$userProfile]
 :if ([:len $userProfileId] = 0) do={
-  /ip hotspot user profile add name=$userProfile shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login="/system script run lbbs-session-login" on-logout="/system script run lbbs-session-logout" comment="LBBS HotSpot lifecycle"
+  /ip hotspot user profile add name=$userProfile shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h  comment="LBBS HotSpot lifecycle"
 } else={
-  /ip hotspot user profile set $userProfileId shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login="/system script run lbbs-session-login" on-logout="/system script run lbbs-session-logout"
+  /ip hotspot user profile set $userProfileId shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h
 }
 
 :local serverId [/ip hotspot find where name=$serverName]
@@ -50,14 +50,14 @@
 }
 
 # HTTPS API calls are RouterOS server-side only. Keep the token out of portal files.
-:global LBBS_API_BASE_URL $apiBase
-:global LBBS_ROUTER_TOKEN $routerToken
-:global LBBS_HOTSPOT_SERVER_NAME $serverName
-:global LBBS_HOTSPOT_USER_PROFILE $userProfile
+:global lbbsApiBaseUrl $apiBase
+:global lbbsRouterToken $routerToken
+:global lbbsHotspotServerName $serverName
+:global lbbsHotspotUserProfile $userProfile
 :if ([:len [/system script find where name="lbbs-sync"]] = 0) do={ /import file-name=lbbs-sync.rsc }
 :if ([:len [/system script find where name="lbbs-heartbeat"]] = 0) do={ /import file-name=lbbs-heartbeat.rsc }
-:if ([:len [/system script find where name="lbbs-session-login"]] = 0) do={ /import file-name=lbbs-session-login.rsc }
-:if ([:len [/system script find where name="lbbs-session-logout"]] = 0) do={ /import file-name=lbbs-session-logout.rsc }
+# HotSpot lifecycle code must be stored directly in the user profile on-login/on-logout
+# fields because RouterOS exposes $user/$address/$"mac-address" only in that hook scope.
 :if ([:len [/system scheduler find where name="lbbs-sync"]] = 0) do={ /system scheduler add name=lbbs-sync interval=$syncInterval on-event="/system script run lbbs-sync" comment="LBBS command pull (recommended: 5s)" }
 :if ([:len [/system scheduler find where name="lbbs-heartbeat"]] = 0) do={ /system scheduler add name=lbbs-heartbeat interval=$heartbeatInterval on-event="/system script run lbbs-heartbeat" comment="LBBS heartbeat (recommended: 30s)" }
 
