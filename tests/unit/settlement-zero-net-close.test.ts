@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const detail = readFileSync(resolve(process.cwd(), "src/features/settlements/SettlementDetailPageClient.tsx"), "utf8");
-const migration = readFileSync(resolve(process.cwd(), "src/sql/20261016233000_allow_zero_net_settlement_close.sql"), "utf8");
+const migration = readFileSync(resolve(process.cwd(), "src/sql/20261016232914_allow_zero_net_settlement_close.sql"), "utf8");
 
 describe("zero-net settlement close", () => {
   it("allows an empty payment list only when the net is zero", () => {
