@@ -18,6 +18,8 @@ type Voucher = {
   device_mac: string | null;
   device_ip: string | null;
   customer_name: string | null;
+  revocation_requested_at: string | null;
+  revoke_command_status: string | null;
 };
 type Router = {
   id: string;
@@ -39,6 +41,7 @@ const date = (value: string | null) =>
 
 const effectiveVoucherStatus = (voucher: Voucher, now: number) => {
   if (voucher.status === "revoked" || voucher.status === "expired") return voucher.status;
+  if (voucher.revocation_requested_at) return voucher.revoke_command_status === "failed" ? "revocation_failed" : "revocation_pending";
   if (voucher.status === "active") {
     return voucher.session_expires_at && new Date(voucher.session_expires_at).getTime() <= now
       ? "expired"
@@ -71,6 +74,8 @@ const voucherStatus = (status: string) =>
     expired: "Expirado",
     revoked: "Revocado",
     sync_error: "Error de sincronización",
+    revocation_pending: "Revocación pendiente",
+    revocation_failed: "Error al desconectar",
   })[status] ?? status;
 
 function routerStatus(router: Router | null, now: number) {
@@ -106,6 +111,8 @@ const statusStyles: Record<string, string> = {
   expired: "border-slate-200 bg-slate-100 text-slate-600",
   revoked: "border-rose-200 bg-rose-50 text-rose-700",
   sync_error: "border-rose-200 bg-rose-50 text-rose-700",
+  revocation_pending: "border-amber-200 bg-amber-50 text-amber-800",
+  revocation_failed: "border-rose-200 bg-rose-50 text-rose-800",
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -165,6 +172,8 @@ export function WifiPageClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
 
   const selectedBranch = useMemo(
     () => branches.find((branch) => branch.id === branchId) ?? null,
@@ -176,12 +185,13 @@ export function WifiPageClient() {
     [rows, clock],
   );
   const connectedRows = derivedRows.filter((row) => row.effectiveStatus === "active");
+  const pendingDisconnects = derivedRows.filter((row) => ["revocation_pending", "revocation_failed"].includes(row.effectiveStatus) && Boolean(row.first_used_at));
   const awaitingConfirmation = derivedRows.filter(
     (row) => row.effectiveStatus === "activation_ready" && Boolean(row.device_mac),
   );
   const availableCount = derivedRows.filter((row) => row.effectiveStatus === "available").length;
   const processingCount = derivedRows.filter((row) =>
-    ["pending_sync", "registration_pending", "activation_pending", "activation_ready"].includes(row.effectiveStatus)
+    ["pending_sync", "registration_pending", "activation_pending", "activation_ready", "revocation_pending"].includes(row.effectiveStatus)
   ).length;
   const endedCount = derivedRows.filter((row) =>
     ["expired", "revoked"].includes(row.effectiveStatus)
@@ -191,7 +201,7 @@ export function WifiPageClient() {
       codeFilter === "all" ||
       (codeFilter === "available" && row.effectiveStatus === "available") ||
       (codeFilter === "in_progress" &&
-        ["pending_sync", "registration_pending", "activation_pending", "activation_ready", "active", "sync_error"].includes(row.effectiveStatus)) ||
+        ["pending_sync", "registration_pending", "activation_pending", "activation_ready", "active", "sync_error", "revocation_pending", "revocation_failed"].includes(row.effectiveStatus)) ||
       (codeFilter === "expired" && row.effectiveStatus === "expired") ||
       (codeFilter === "revoked" && row.effectiveStatus === "revoked");
     const needle = search.trim().toLowerCase();
@@ -340,6 +350,40 @@ export function WifiPageClient() {
   }
 
 
+  async function revokeVoucher(row: Voucher) {
+    if (!branchId || revokingId) return;
+    const disconnect = row.status === "active" || !!row.first_used_at;
+    const confirmed = window.confirm(
+      disconnect
+        ? "¿Desconectar este dispositivo ahora? El acceso quedará cancelado y no podrá volver a utilizarse."
+        : "¿Anular este código WiFi? No podrá volver a utilizarse y el código completo no se recuperará.",
+    );
+    if (!confirmed) return;
+    setError("");
+    setNotice("");
+    setRevokingId(row.id);
+    try {
+      const response = await fetch(`/api/admin/wifi/vouchers/${encodeURIComponent(row.id)}/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId, reason: disconnect ? "manual_disconnect" : "manual_revoke" }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "No se pudo solicitar la revocación.");
+      setNotice(payload.status === "revoked"
+        ? "Acceso revocado."
+        : "Solicitud enviada. MikroTik confirmará la revocación mediante ACK. Hasta entonces figurará como pendiente.");
+      if (code && row.code_last4 === code.slice(-4)) {
+        setCode(null);
+      }
+      await loadVouchers(branchId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo solicitar la revocación.");
+    } finally {
+      setRevokingId(null);
+    }
+  }
+
   async function refreshNow() {
     if (!branchId || refreshing) return;
     setRefreshing(true);
@@ -439,6 +483,10 @@ export function WifiPageClient() {
         ) : null}
       </header>
 
+      {notice ? (
+        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">{notice}</div>
+      ) : null}
+
       {error ? (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">{error}</div>
       ) : null}
@@ -492,6 +540,22 @@ export function WifiPageClient() {
               </span>
             </div>
 
+            {pendingDisconnects.length > 0 ? (
+              <div role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">Desconexiones en proceso: {pendingDisconnects.length}</p>
+                <div className="mt-2 space-y-2">
+                  {pendingDisconnects.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>{row.customer_name ?? `Acceso ••${row.code_last4}`} · {voucherStatus(row.effectiveStatus)}</span>
+                      {row.effectiveStatus === "revocation_failed" ? (
+                        <button type="button" disabled={revokingId !== null} onClick={() => void revokeVoucher(row)} className="rounded-md border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Reintentar</button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {awaitingConfirmation.length > 0 ? (
               <div className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                 <span className="shrink-0 font-bold" aria-hidden="true">!</span>
@@ -531,6 +595,7 @@ export function WifiPageClient() {
                       <th className="px-4 py-3">Inicio de conexión</th>
                       <th className="px-4 py-3">En línea</th>
                       <th className="px-4 py-3">Tiempo restante</th>
+                      <th className="px-4 py-3 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -554,6 +619,11 @@ export function WifiPageClient() {
                           </p>
                           <p className="mt-1 text-xs text-slate-500">Hasta {date(row.session_expires_at)}</p>
                         </td>
+                        <td className="px-4 py-4 text-right">
+                          <button type="button" disabled={revokingId !== null} onClick={() => void revokeVoucher(row)} className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50">
+                            {revokingId === row.id ? "Solicitando…" : "Desconectar"}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -561,7 +631,7 @@ export function WifiPageClient() {
               </div>
             )}
             <p className="mt-4 text-xs leading-5 text-slate-500">
-              El listado refleja los eventos confirmados por el router, no una consulta directa a su tabla de sesiones. La desconexión manual se habilitará en la siguiente fase.
+              El listado refleja los eventos confirmados por el router, no una consulta directa a su tabla de sesiones. Puedes solicitar la desconexión manual. El acceso quedará pendiente hasta recibir el ACK del MikroTik.
             </p>
           </section>
         ) : null}
@@ -662,6 +732,7 @@ export function WifiPageClient() {
                         <th className="px-4 py-3">Primer uso</th>
                         <th className="px-4 py-3">Vence</th>
                         <th className="px-4 py-3">Tiempo restante</th>
+                        <th className="px-4 py-3 text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -690,6 +761,16 @@ export function WifiPageClient() {
                             <td className="px-4 py-4 font-semibold tabular-nums text-slate-800">
                               {meaningfulCountdown ? duration(new Date(expiration).getTime() - clock) : "—"}
                             </td>
+                            <td className="px-4 py-4 text-right">
+                              {row.effectiveStatus !== "revoked" && row.effectiveStatus !== "expired" &&
+                               row.effectiveStatus !== "revocation_pending" ? (
+                                <button type="button" disabled={revokingId !== null} onClick={() => void revokeVoucher(row)} className="inline-flex h-9 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                                  {revokingId === row.id ? "Solicitando…" : row.effectiveStatus === "revocation_failed" ? "Reintentar" : row.effectiveStatus === "active" ? "Desconectar" : "Anular"}
+                                </button>
+                              ) : row.effectiveStatus === "revocation_pending" ? (
+                                <span className="text-xs font-medium text-amber-700">Esperando MikroTik</span>
+                              ) : <span className="text-xs text-slate-400">—</span>}
+                            </td>
                           </tr>
                         );
                       })}
@@ -697,7 +778,7 @@ export function WifiPageClient() {
                   </table>
                 </div>
               )}
-              <p className="mt-4 text-xs text-slate-500">Los códigos completos no pueden consultarse nuevamente. Las acciones de revocación y archivo se incorporarán en las siguientes fases.</p>
+              <p className="mt-4 text-xs text-slate-500">Los códigos completos no pueden consultarse nuevamente. Las anulaciones requieren confirmación del MikroTik. Archivar el historial se implementará en la siguiente fase.</p>
             </div>
           </section>
         ) : null}
