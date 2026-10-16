@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   let query = supabase
     .from("wifi_access_vouchers")
-    .select("id,branch_id,code_last4,status,created_at,unused_expires_at,first_used_at,session_expires_at,revoked_at,claimed_at,device_mac,device_ip")
+    .select("id,branch_id,code_last4,status,created_at,unused_expires_at,first_used_at,session_expires_at,revoked_at,claimed_at,device_mac,device_ip,customer_id")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -32,6 +32,28 @@ export async function GET(request: Request) {
   if (error) {
     return NextResponse.json({ error: "No se pudieron cargar accesos WiFi." }, { status: 500 });
   }
+
+  // Enrich only the already-authorized voucher rows with accessible customer names.
+  // The dashboard keeps working when customer visibility is restricted by RLS.
+  const customerIds = Array.from(
+    new Set((data ?? []).map((row) => row.customer_id).filter((id): id is string => typeof id === "string")),
+  );
+  const customerNames = new Map<string, string>();
+  if (customerIds.length > 0) {
+    const { data: customers, error: customersError } = await supabase
+      .from("customers")
+      .select("id,full_name")
+      .in("id", customerIds);
+    if (!customersError) {
+      for (const customer of customers ?? []) {
+        if (customer.full_name) customerNames.set(customer.id, customer.full_name);
+      }
+    }
+  }
+  const vouchers = (data ?? []).map((row) => ({
+    ...row,
+    customer_name: row.customer_id ? customerNames.get(row.customer_id) ?? null : null,
+  }));
 
   let router = null;
   if (branchId) {
@@ -47,7 +69,7 @@ export async function GET(request: Request) {
     router = routerData ?? null;
   }
 
-  return NextResponse.json({ data: data ?? [], router });
+  return NextResponse.json({ data: vouchers, router });
 }
 
 export async function POST(request: Request) {
