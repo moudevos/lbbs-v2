@@ -20,6 +20,7 @@ type Voucher = {
   customer_name: string | null;
   revocation_requested_at: string | null;
   revoke_command_status: string | null;
+  archived_at?: string | null;
 };
 type Router = {
   id: string;
@@ -98,7 +99,7 @@ function defaultIdentifier(branchName: string) {
 }
 
 
-type WifiTab = "connected" | "codes" | "router";
+type WifiTab = "connected" | "codes" | "history" | "router";
 type CodeFilter = "all" | "available" | "in_progress" | "expired" | "revoked";
 
 const statusStyles: Record<string, string> = {
@@ -174,6 +175,17 @@ export function WifiPageClient() {
   const [copied, setCopied] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [archiveWorkingId, setArchiveWorkingId] = useState<string | null>(null);
+  const [archiveWorkingBatch, setArchiveWorkingBatch] = useState(false);
+  const [history, setHistory] = useState<Voucher[]>([]);
+  const [historyMode, setHistoryMode] = useState<"archived" | "all">("archived");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyTerm, setHistoryTerm] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyDateFrom, setHistoryDateFrom] = useState("");
+  const [historyDateTo, setHistoryDateTo] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const selectedBranch = useMemo(
     () => branches.find((branch) => branch.id === branchId) ?? null,
@@ -196,6 +208,9 @@ export function WifiPageClient() {
   const endedCount = derivedRows.filter((row) =>
     ["expired", "revoked"].includes(row.effectiveStatus)
   ).length;
+  const archivableRows = derivedRows.filter((row) =>
+    row.effectiveStatus === "expired" || row.effectiveStatus === "revoked"
+  );
   const filteredRows = derivedRows.filter((row) => {
     const inCategory =
       codeFilter === "all" ||
@@ -254,6 +269,8 @@ export function WifiPageClient() {
         setCopied(false);
         setSearch("");
         setCodeFilter("all");
+        setHistoryPage(1);
+        setHistory([]);
         return loadVouchers(branchId, controller.signal);
       })
       .catch(() => !controller.signal.aborted && setError("No se pudo cargar Red Hotspot."))
@@ -270,6 +287,67 @@ export function WifiPageClient() {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [branchId, loadVouchers]);
+
+  const loadHistory = useCallback(async (selectedBranchId: string, page = 1) => {
+    const params = new URLSearchParams({
+      branchId: selectedBranchId,
+      page: String(page),
+      mode: historyMode,
+    });
+    if (historySearch) params.set("q", historySearch);
+    if (historyDateFrom) params.set("from", historyDateFrom);
+    if (historyDateTo) params.set("to", historyDateTo);
+    setHistoryLoading(true);
+    try {
+      const response = await fetch(`/api/admin/wifi/vouchers/history?${params}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "No se pudo consultar el archivo.");
+      setHistory(payload.data ?? []);
+      setHistoryTotal(payload.total ?? 0);
+      setHistoryPage(payload.page ?? page);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo consultar el archivo.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [historyMode, historySearch, historyDateFrom, historyDateTo]);
+
+  useEffect(() => {
+    if (tab !== "history" || !branchId) return;
+    void loadHistory(branchId, historyPage);
+  }, [tab, branchId, historyPage, loadHistory]);
+
+  async function archiveAccess(ids: string[], action: "archive" | "restore" | "archive_expired") {
+    if (!branchId || archiveWorkingId || archiveWorkingBatch) return;
+    if (action === "archive_expired" && !window.confirm("¿Archivar hasta 100 códigos expirados de esta sede? Podrás restaurarlos desde el historial.")) return;
+    if (action === "archive" && !window.confirm("¿Ocultar este acceso finalizado de la vista operativa? Se conservará su historial.")) return;
+
+    setError("");
+    setNotice("");
+    if (action === "archive_expired") setArchiveWorkingBatch(true);
+    else setArchiveWorkingId(ids[0] ?? null);
+    try {
+      const response = await fetch("/api/admin/wifi/vouchers/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId, action, voucherIds: ids }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "No se pudo actualizar el archivo.");
+      setNotice(
+        action === "restore"
+          ? `${payload.changed} acceso(s) restaurado(s) a la vista operativa.`
+          : `${payload.changed} acceso(s) archivado(s). No se eliminaron datos.`
+      );
+      await loadVouchers(branchId);
+      if (tab === "history") await loadHistory(branchId, historyPage);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo actualizar el archivo.");
+    } finally {
+      setArchiveWorkingId(null);
+      setArchiveWorkingBatch(false);
+    }
+  }
 
   useEffect(() => {
     if (!selectedBranch || router) return;
@@ -503,6 +581,7 @@ export function WifiPageClient() {
           {([
             { id: "connected" as const, label: "Conectados", number: connectedRows.length },
             { id: "codes" as const, label: "Códigos WiFi", number: derivedRows.length },
+            { id: "history" as const, label: "Historial y archivo", number: null },
             { id: "router" as const, label: "Configuración MikroTik", number: null },
           ]).map((item) => (
             <button
@@ -769,7 +848,11 @@ export function WifiPageClient() {
                                 </button>
                               ) : row.effectiveStatus === "revocation_pending" ? (
                                 <span className="text-xs font-medium text-amber-700">Esperando MikroTik</span>
-                              ) : <span className="text-xs text-slate-400">—</span>}
+                              ) : (
+                                <button type="button" disabled={archiveWorkingId !== null || archiveWorkingBatch} onClick={() => void archiveAccess([row.id], "archive")} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">
+                                  {archiveWorkingId === row.id ? "Archivando…" : "Archivar"}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -778,7 +861,107 @@ export function WifiPageClient() {
                   </table>
                 </div>
               )}
-              <p className="mt-4 text-xs text-slate-500">Los códigos completos no pueden consultarse nuevamente. Las anulaciones requieren confirmación del MikroTik. Archivar el historial se implementará en la siguiente fase.</p>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">Los códigos completos no se recuperan. Archivar solo oculta los accesos finalizados; no desconecta usuarios ni elimina registros.</p>
+                <button
+                  type="button"
+                  disabled={archiveWorkingBatch || archiveWorkingId !== null || archivableRows.length === 0}
+                  onClick={() => void archiveAccess([], "archive_expired")}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {archiveWorkingBatch ? "Archivando…" : "Archivar vencidos (hasta 100)"}
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+
+        {tab === "history" ? (
+          <section role="tabpanel" aria-label="Historial WiFi y accesos archivados" className="space-y-5 p-5 sm:p-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">Historial y archivo de accesos</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Consulta y restaura códigos archivados. Archivar nunca elimina registros ni modifica la conexión en el MikroTik.
+              </p>
+            </div>
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
+              <label className="text-xs font-semibold text-slate-600">
+                Vista
+                <Select className="mt-1 h-10" value={historyMode} onChange={(event) => { setHistoryMode(event.target.value as "archived" | "all"); setHistoryPage(1); }}>
+                  <option value="archived">Solo archivados</option>
+                  <option value="all">Todo el historial</option>
+                </Select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Desde (creación)
+                <input type="date" value={historyDateFrom} onChange={(event) => { setHistoryDateFrom(event.target.value); setHistoryPage(1); }} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Hasta (creación)
+                <input type="date" min={historyDateFrom || undefined} value={historyDateTo} onChange={(event) => { setHistoryDateTo(event.target.value); setHistoryPage(1); }} className="mt-1 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" />
+              </label>
+              <form className="text-xs font-semibold text-slate-600" onSubmit={(event) => { event.preventDefault(); setHistorySearch(historyTerm.trim()); setHistoryPage(1); }}>
+                <label htmlFor="wifi-history-query">Código (4 dígitos) o MAC</label>
+                <div className="mt-1 flex">
+                  <input id="wifi-history-query" type="search" value={historyTerm} onChange={(event) => setHistoryTerm(event.target.value)} maxLength={80} placeholder="Buscar…" className="h-10 min-w-0 flex-1 rounded-l-md border border-slate-300 bg-white px-3 text-sm" />
+                  <button type="submit" className="rounded-r-md bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-700">Buscar</button>
+                </div>
+              </form>
+            </div>
+            {historyLoading ? (
+              <p className="py-12 text-center text-sm text-slate-500">Consultando historial…</p>
+            ) : history.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+                <p className="font-semibold text-slate-700">Sin resultados en el historial</p>
+                <p className="mt-2 text-sm text-slate-500">Cambia los filtros o archiva accesos vencidos desde Códigos WiFi.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-[840px] w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Código</th>
+                      <th className="px-4 py-3">Cliente / dispositivo</th>
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3">Creación</th>
+                      <th className="px-4 py-3">Archivado</th>
+                      <th className="px-4 py-3 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {history.map((row) => {
+                      const effective = effectiveVoucherStatus(row, clock);
+                      return (
+                        <tr key={row.id} className="align-top hover:bg-slate-50">
+                          <td className="px-4 py-4 font-mono font-semibold text-slate-800">••{row.code_last4}</td>
+                          <td className="px-4 py-4">
+                            <p className="font-semibold text-slate-800">{row.customer_name ?? "Sin asignar"}</p>
+                            <p className="mt-1 font-mono text-xs text-slate-500">{row.device_mac ?? "Sin dispositivo"}</p>
+                          </td>
+                          <td className="px-4 py-4"><StatusPill status={effective} /></td>
+                          <td className="px-4 py-4 text-slate-600">{date(row.created_at)}</td>
+                          <td className="px-4 py-4 text-slate-600">{date(row.archived_at ?? null)}</td>
+                          <td className="px-4 py-4 text-right">
+                            {row.archived_at ? (
+                              <button type="button" disabled={archiveWorkingId !== null || archiveWorkingBatch} onClick={() => void archiveAccess([row.id], "restore")} className="h-9 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                                {archiveWorkingId === row.id ? "Restaurando…" : "Restaurar"}
+                              </button>
+                            ) : <span className="text-xs text-slate-400">Visible</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+              <p>{historyTotal} {historyTotal === 1 ? "registro" : "registros"} · Página {historyPage} de {Math.max(1, Math.ceil(historyTotal / 30))}</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={historyLoading || historyPage <= 1} onClick={() => setHistoryPage((page) => page - 1)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 disabled:opacity-40">Anterior</button>
+                <button type="button" disabled={historyLoading || historyPage * 30 >= historyTotal} onClick={() => setHistoryPage((page) => page + 1)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 disabled:opacity-40">Siguiente</button>
+              </div>
             </div>
           </section>
         ) : null}
