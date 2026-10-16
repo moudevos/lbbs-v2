@@ -13,13 +13,6 @@
 
   :local headers ("Content-Type: application/json,Authorization: Bearer " . $lbbsRouterToken)
   :local ackUrl ($lbbsApiBaseUrl . "/api/wifi/router/ack")
-  :local ack do={
-    :do {
-      /tool fetch url=$ackUrl http-method=post http-header-field=$headers http-data=[:serialize to=json value=$1] check-certificate=yes output=none
-    } on-error={
-      :log warning "LBBS: ACK pendiente"
-    }
-  }
 
   :do {
     :local fetched [/tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/pull") http-method=post http-header-field=$headers http-data="{}" check-certificate=yes output=user as-value]
@@ -80,12 +73,18 @@
         :set lbbsErrorMessage "No se pudo aplicar el comando."
       }
 
+      # Avoid RouterOS local-function scope: ACK uses variables from this script block.
+      :local lbbsAckPayload
       :if ($lbbsOk) do={
-        :local lbbsAckPayload {"commandId"=$lbbsCommandId;"success"=true;"result"=$lbbsResult}
-        $ack $lbbsAckPayload
+        :set lbbsAckPayload {"commandId"=$lbbsCommandId;"success"=true;"result"=$lbbsResult}
       } else={
-        :local lbbsAckPayload {"commandId"=$lbbsCommandId;"success"=false;"errorCode"=$lbbsErrorCode;"errorMessage"=$lbbsErrorMessage}
-        $ack $lbbsAckPayload
+        :set lbbsAckPayload {"commandId"=$lbbsCommandId;"success"=false;"errorCode"=$lbbsErrorCode;"errorMessage"=$lbbsErrorMessage}
+      }
+      :local lbbsAckJson [:serialize to=json options=json.no-string-conversion value=$lbbsAckPayload]
+      :onerror ackError in={
+        /tool fetch url=$ackUrl http-method=post http-header-field=$headers http-data=$lbbsAckJson check-certificate=yes output=none
+      } do={
+        :log warning ("LBBS: ACK pendiente: " . $ackError)
       }
     }
   } on-error={
