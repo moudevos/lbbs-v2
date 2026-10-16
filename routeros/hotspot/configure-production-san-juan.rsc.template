@@ -16,14 +16,10 @@
 :if ([:len $serverProfileId] = 0) do={ :error "LBBS: lbbs-hotspot-profile no existe" }
 /ip hotspot profile set $serverProfileId hotspot-address=10.10.10.1 dns-name="wifi.lbbs.test" login-by=http-chap,mac-cookie html-directory=hotspot use-radius=no
 
-# HotSpot hook variables only exist inside on-login/on-logout, so the lifecycle code
-# is stored directly in the user profile instead of calling another /system script.
-:local onLoginSource ":global lbbsApiBaseUrl;:global lbbsRouterToken;:local lbbsUser \$user;:local lbbsMac \$\"mac-address\";:local lbbsIp \$address;:local lbbsUserId [/ip hotspot user find where name=\$lbbsUser];:if ([:len \$lbbsUserId] > 0) do={:local lbbsTag [/ip hotspot user get \$lbbsUserId comment];:if ([:pick \$lbbsTag 0 5] = \"LBBS:\") do={:local lbbsVoucherId [:pick \$lbbsTag 5 [:len \$lbbsTag]];:local lbbsPayload {\"voucherId\"=\$lbbsVoucherId;\"mac\"=\$lbbsMac;\"ip\"=\$lbbsIp;\"event\"=\"LOGIN\";\"metadata\"={\"router\"=\"RouterOS\"}};:do {/tool fetch url=(\$lbbsApiBaseUrl . \"/api/wifi/router/session\") http-method=post http-header-field=(\"Content-Type: application/json,Authorization: Bearer \" . \$lbbsRouterToken) http-data=[:serialize to=json value=\$lbbsPayload] check-certificate=yes output=none} on-error={:log warning \"LBBS: LOGIN no enviado\"}}}}"
-:local onLogoutSource ":global lbbsApiBaseUrl;:global lbbsRouterToken;:local lbbsUser \$user;:local lbbsMac \$\"mac-address\";:local lbbsIp \$address;:local lbbsCause \$cause;:local lbbsUserId [/ip hotspot user find where name=\$lbbsUser];:if ([:len \$lbbsUserId] > 0) do={:local lbbsTag [/ip hotspot user get \$lbbsUserId comment];:if ([:pick \$lbbsTag 0 5] = \"LBBS:\") do={:local lbbsVoucherId [:pick \$lbbsTag 5 [:len \$lbbsTag]];/ip hotspot cookie remove [find where mac-address=\$lbbsMac];/ip hotspot user remove \$lbbsUserId;:local lbbsPayload {\"voucherId\"=\$lbbsVoucherId;\"mac\"=\$lbbsMac;\"ip\"=\$lbbsIp;\"event\"=\"LOGOUT\";\"metadata\"={\"reason\"=\$lbbsCause}};:do {/tool fetch url=(\$lbbsApiBaseUrl . \"/api/wifi/router/session\") http-method=post http-header-field=(\"Content-Type: application/json,Authorization: Bearer \" . \$lbbsRouterToken) http-data=[:serialize to=json value=\$lbbsPayload] check-certificate=yes output=none} on-error={:log warning \"LBBS: LOGOUT no enviado; acceso invalidado localmente\"}}}}"
-
-:local userProfileId [/ip hotspot user profile find where name="lbbs-client-profile"]
-:if ([:len $userProfileId] = 0) do={ :error "LBBS: lbbs-client-profile no existe" }
-/ip hotspot user profile set $userProfileId shared-users=1 idle-timeout=none keepalive-timeout=3m session-timeout=3h add-mac-cookie=yes mac-cookie-timeout=3h on-login=$onLoginSource on-logout=$onLogoutSource
+# Instala los hooks dentro del perfil: los valores $user, $address y $"mac-address"
+# solo están disponibles en on-login/on-logout, no en /system script run.
+# El archivo instalador no contiene credenciales: utiliza las variables globales del router.
+/import file-name=flash/lbbs-install-session-hooks.rsc
 
 # Remove the manual test credential before production use.
 /ip hotspot active remove [find where user="654321"]
