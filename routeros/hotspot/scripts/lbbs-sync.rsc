@@ -16,7 +16,8 @@
 
   :do {
     :local fetched [/tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/pull") http-method=post http-header-field=$headers http-data="{}" check-certificate=yes output=user as-value]
-    :local response [:deserialize from=json value=($fetched->"data")]
+    # IMPORTANT: JSON string "098497" MUST stay a string, not 98497.
+    :local response [:deserialize from=json options=json.no-string-conversion value=($fetched->"data")]
 
     :foreach lbbsCommand in=($response->"commands") do={
       :local lbbsCommandId ($lbbsCommand->"id")
@@ -32,6 +33,13 @@
         :if ($lbbsCommandType = "CREATE_VOUCHER") do={
           :local lbbsUsername ($lbbsCommand->"username")
           :local lbbsPassword ($lbbsCommand->"password")
+          # Guard against lost leading zero and accidental RouterOS JSON coercion.
+          :if ([:typeof $lbbsUsername] != "str" || [:len $lbbsUsername] != 6) do={
+            :error "voucher_username_format_invalid"
+          }
+          :if ([:typeof $lbbsPassword] != "str" || [:len $lbbsPassword] != 6 || $lbbsPassword != $lbbsUsername) do={
+            :error "voucher_password_format_invalid"
+          }
           :local found [/ip hotspot user find where comment=$lbbsTag]
 
           :if ([:len $found] = 0) do={
@@ -40,6 +48,15 @@
             /ip hotspot user set $found name=$lbbsUsername password=$lbbsPassword server=$lbbsHotspotServerName profile=$lbbsHotspotUserProfile disabled=yes comment=$lbbsTag
           }
 
+          # Never ACK a created voucher if RouterOS did not preserve all digits.
+          :local written [/ip hotspot user find where comment=$lbbsTag]
+          :if ([:len $written] != 1) do={ :error "voucher_user_missing_after_create" }
+          :if ([:tostr [/ip hotspot user get $written name]] != $lbbsUsername) do={
+            :error "voucher_username_changed_by_routeros"
+          }
+          :if ([:tostr [/ip hotspot user get $written password]] != $lbbsPassword) do={
+            :error "voucher_password_changed_by_routeros"
+          }
           :set lbbsResult {"routerUserId"=$lbbsUsername}
           :set lbbsOk true
         }
