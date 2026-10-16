@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conexión autorizada — LBBS WiFi</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">Acceso autorizado</p>
+  <h1>¡Ya estás conectado!</h1>
+  <p>El MikroTik confirmó el inicio de sesión de este dispositivo.</p>
+  <dl>
+    <dt>Dispositivo</dt><dd>$(ip)</dd>
+    <dt>Tiempo restante</dt><dd>$(session-time-left)</dd>
+  </dl>
+  <a class="button" href="https://www.google.com/" rel="noopener">Abrir Internet</a>
+  <a class="button secondary" href="$(link-status)">Ver estado de mi conexión</a>
+  <p class="hint">Si Internet no abre, comunícalo en recepción. No necesitas compartir tu código.</p>
+</main>
+</body>
+</html>
