@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
 <title>Acceso no autorizado — LBBS WiFi</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -10,11 +11,15 @@
 <main class="card">
   <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
   <p class="eyebrow">Autenticación del router</p>
+  <div class="badge err" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </div>
   <h1>No se pudo conectar</h1>
   <p>El MikroTik rechazó el inicio de sesión. La validación del DNI no significa que el dispositivo haya sido autorizado.</p>
   $(if error)<p class="notice" role="alert">Detalle: $(error)</p>$(endif)
   <a class="button" href="$(link-login-only)">Intentar nuevamente</a>
   <p class="hint">Si no puedes continuar, informa el mensaje a recepción. No compartas tu código.</p>
+  <p class="brand-foot">La Bajadita Barber Studio</p>
 </main>
 </body>
 </html>
