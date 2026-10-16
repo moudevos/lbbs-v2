@@ -17,6 +17,7 @@ type Voucher = {
   claimed_at: string | null;
   device_mac: string | null;
   device_ip: string | null;
+  customer_name: string | null;
 };
 type Router = {
   id: string;
@@ -46,7 +47,7 @@ const effectiveVoucherStatus = (voucher: Voucher, now: number) => {
   if (
     !voucher.first_used_at &&
     new Date(voucher.unused_expires_at).getTime() <= now &&
-    ["pending_sync", "available", "registration_pending", "activation_pending", "activation_ready"].includes(voucher.status)
+    ["pending_sync", "available", "registration_pending"].includes(voucher.status)
   ) {
     return "expired";
   }
@@ -72,10 +73,10 @@ const voucherStatus = (status: string) =>
     sync_error: "Error de sincronización",
   })[status] ?? status;
 
-function routerStatus(router: Router | null) {
+function routerStatus(router: Router | null, now: number) {
   if (!router) return "Sin configurar";
   if (!router.is_active || router.status === "disabled") return "Fuera de línea";
-  return router.last_seen_at && Date.now() - new Date(router.last_seen_at).getTime() <= ONLINE_WINDOW_MS
+  return router.last_seen_at && now - new Date(router.last_seen_at).getTime() <= ONLINE_WINDOW_MS
     ? "En línea"
     : "Fuera de línea";
 }
@@ -89,6 +90,59 @@ function defaultIdentifier(branchName: string) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 50);
   return `lbbs-${normalized || "sede"}`;
+}
+
+
+type WifiTab = "connected" | "codes" | "router";
+type CodeFilter = "all" | "available" | "in_progress" | "expired" | "revoked";
+
+const statusStyles: Record<string, string> = {
+  active: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  available: "border-sky-200 bg-sky-50 text-sky-800",
+  activation_ready: "border-amber-200 bg-amber-50 text-amber-900",
+  activation_pending: "border-amber-200 bg-amber-50 text-amber-900",
+  registration_pending: "border-amber-200 bg-amber-50 text-amber-900",
+  pending_sync: "border-amber-200 bg-amber-50 text-amber-900",
+  expired: "border-slate-200 bg-slate-100 text-slate-600",
+  revoked: "border-rose-200 bg-rose-50 text-rose-700",
+  sync_error: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+function StatusPill({ status }: { status: string }) {
+  return (
+    <span className={"inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold " + (statusStyles[status] ?? "border-slate-200 bg-slate-50 text-slate-700")}>
+      {voucherStatus(status)}
+    </span>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  helper,
+  variant,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  variant: "green" | "blue" | "amber" | "slate";
+}) {
+  const marker = {
+    green: "bg-emerald-500",
+    blue: "bg-sky-500",
+    amber: "bg-amber-500",
+    slate: "bg-slate-400",
+  }[variant];
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className={"h-2 w-2 rounded-full " + marker} aria-hidden="true" />
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      </div>
+      <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{helper}</p>
+    </article>
+  );
 }
 
 export function WifiPageClient() {
@@ -105,12 +159,48 @@ export function WifiPageClient() {
   const [routerIdentifier, setRouterIdentifier] = useState("");
   const [error, setError] = useState("");
   const [clock, setClock] = useState(() => Date.now());
+  const [tab, setTab] = useState<WifiTab>("connected");
+  const [codeFilter, setCodeFilter] = useState<CodeFilter>("all");
+  const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const selectedBranch = useMemo(
     () => branches.find((branch) => branch.id === branchId) ?? null,
     [branches, branchId],
   );
-  const currentRouterStatus = routerStatus(router);
+  const currentRouterStatus = routerStatus(router, clock);
+  const derivedRows = useMemo(
+    () => rows.map((row) => ({ ...row, effectiveStatus: effectiveVoucherStatus(row, clock) })),
+    [rows, clock],
+  );
+  const connectedRows = derivedRows.filter((row) => row.effectiveStatus === "active");
+  const awaitingConfirmation = derivedRows.filter(
+    (row) => row.effectiveStatus === "activation_ready" && Boolean(row.device_mac),
+  );
+  const availableCount = derivedRows.filter((row) => row.effectiveStatus === "available").length;
+  const processingCount = derivedRows.filter((row) =>
+    ["pending_sync", "registration_pending", "activation_pending", "activation_ready"].includes(row.effectiveStatus)
+  ).length;
+  const endedCount = derivedRows.filter((row) =>
+    ["expired", "revoked"].includes(row.effectiveStatus)
+  ).length;
+  const filteredRows = derivedRows.filter((row) => {
+    const inCategory =
+      codeFilter === "all" ||
+      (codeFilter === "available" && row.effectiveStatus === "available") ||
+      (codeFilter === "in_progress" &&
+        ["pending_sync", "registration_pending", "activation_pending", "activation_ready", "active", "sync_error"].includes(row.effectiveStatus)) ||
+      (codeFilter === "expired" && row.effectiveStatus === "expired") ||
+      (codeFilter === "revoked" && row.effectiveStatus === "revoked");
+    const needle = search.trim().toLowerCase();
+    const matches = !needle ||
+      [row.code_last4, row.customer_name, row.device_mac, row.device_ip]
+        .filter(Boolean)
+        .some((part) => String(part).toLowerCase().includes(needle));
+    return inCategory && matches;
+  });
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 30_000);
@@ -127,6 +217,7 @@ export function WifiPageClient() {
     if (!response.ok) throw new Error("wifi-load-failed");
     setRows(payload.data ?? []);
     setRouter(payload.router ?? null);
+    setLastRefresh(Date.now());
   }, []);
 
   useEffect(() => {
@@ -150,6 +241,9 @@ export function WifiPageClient() {
         setLoading(true);
         setCode(null);
         setRouterToken(null);
+        setCopied(false);
+        setSearch("");
+        setCodeFilter("all");
         return loadVouchers(branchId, controller.signal);
       })
       .catch(() => !controller.signal.aborted && setError("No se pudo cargar Red Hotspot."))
@@ -175,6 +269,7 @@ export function WifiPageClient() {
 
   async function generate() {
     if (!branchId) return;
+    if (code && !window.confirm("El código anterior dejará de verse en esta pantalla. ¿Ya lo copiaste o anotaste?")) return;
     setWorking(true);
     setError("");
     try {
@@ -186,6 +281,8 @@ export function WifiPageClient() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "No se pudo generar el acceso.");
       setCode(payload.data.code);
+      setCopied(false);
+      setTab("codes");
       await loadVouchers(branchId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo generar el acceso.");
@@ -211,6 +308,7 @@ export function WifiPageClient() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "No se pudo registrar el MikroTik.");
       setRouterToken(payload.token);
+      setTab("router");
       await loadVouchers(branchId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo registrar el MikroTik.");
@@ -233,10 +331,36 @@ export function WifiPageClient() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "No se pudo regenerar el token.");
       setRouterToken(payload.token);
+      setTab("router");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo regenerar el token.");
     } finally {
       setRouterWorking(false);
+    }
+  }
+
+
+  async function refreshNow() {
+    if (!branchId || refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadVouchers(branchId);
+      setClock(Date.now());
+      setError("");
+    } catch {
+      setError("No se pudieron actualizar los datos WiFi. Intenta nuevamente.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function copyCode() {
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+    } catch {
+      setError("No se pudo copiar automáticamente. Anota el código antes de cerrar.");
     }
   }
 
@@ -251,226 +375,420 @@ export function WifiPageClient() {
     );
   }
 
+
   return (
-    <section className="space-y-5">
-      <header>
-        <p className="text-xs font-bold tracking-widest text-emerald-700">RED HOTSPOT</p>
-        <h1 className="text-2xl font-bold">Accesos WiFi para clientes</h1>
-        <label className="mt-4 block max-w-md text-sm font-medium">
-          Sede
-          <Select
-            className="mt-1 w-full"
-            value={branchId}
-            disabled={branches.length === 1}
-            onChange={(event) => setBranchId(event.target.value)}
-          >
-            <option value="">Selecciona una sede</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </Select>
-        </label>
+    <section className="space-y-5 pb-8">
+      <header className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                <path d="M2 8.8a15.5 15.5 0 0 1 20 0" />
+                <path d="M5 12a10.5 10.5 0 0 1 14 0" />
+                <path d="M8.5 15.3a5.8 5.8 0 0 1 7 0" />
+                <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">Control de red</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">WiFi de clientes</h1>
+              <p className="mt-1 text-sm text-slate-500">Gestiona las conexiones y los accesos temporales de cada sede.</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="block min-w-0 text-xs font-semibold text-slate-600 sm:w-64">
+              Sede
+              <Select
+                className="mt-1 h-10"
+                value={branchId}
+                disabled={branches.length === 1}
+                onChange={(event) => setBranchId(event.target.value)}
+              >
+                <option value="">Selecciona una sede</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </Select>
+            </label>
+            <button
+              type="button"
+              disabled={!branchId || refreshing}
+              onClick={() => void refreshNow()}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M20 11a8 8 0 0 0-14.6-4.5L3 9" />
+                <path d="M3 4v5h5" />
+                <path d="M4 13a8 8 0 0 0 14.6 4.5L21 15" />
+                <path d="M21 20v-5h-5" />
+              </svg>
+              {refreshing ? "Actualizando…" : "Actualizar"}
+            </button>
+          </div>
+        </div>
+        {router ? (
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
+            <span className={"inline-flex items-center gap-2 font-semibold " + (currentRouterStatus === "En línea" ? "text-emerald-700" : "text-amber-700")}>
+              <span className={"h-2 w-2 rounded-full " + (currentRouterStatus === "En línea" ? "bg-emerald-500" : "bg-amber-500")} aria-hidden="true" />
+              MikroTik · {currentRouterStatus}
+            </span>
+            <span>{router.name}</span>
+            <span>Última comunicación: {date(router.last_seen_at)}</span>
+            {lastRefresh ? <span className="sm:ml-auto">Datos actualizados: {date(new Date(lastRefresh).toISOString())}</span> : null}
+          </div>
+        ) : null}
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        {[
-          ["Router", currentRouterStatus],
-          ["Clientes activos", rows.filter((row) => effectiveVoucherStatus(row, clock) === "active").length],
-          ["Disponibles", rows.filter((row) => effectiveVoucherStatus(row, clock) === "available").length],
-          ["Expirados", rows.filter((row) => effectiveVoucherStatus(row, clock) === "expired").length],
-        ].map(([label, value]) => (
-          <article key={String(label)} className="rounded-xl border bg-white p-4">
-            <p className="text-xs text-slate-500">{label}</p>
-            <strong>{value}</strong>
-          </article>
-        ))}
+      {error ? (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">{error}</div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Conexiones confirmadas" value={connectedRows.length} helper="Inicio de sesión registrado" variant="green" />
+        <Metric label="Códigos disponibles" value={availableCount} helper="Vigentes y sin utilizar" variant="blue" />
+        <Metric label="En preparación" value={processingCount} helper="Pendientes de completar acceso" variant="amber" />
+        <Metric label="Finalizados" value={endedCount} helper="Vencidos o revocados" variant="slate" />
       </div>
 
-      <article className="rounded-2xl border bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Configuración MikroTik</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Un router activo por sede. El token secreto se muestra únicamente al crearlo o regenerarlo.
-            </p>
-          </div>
-          {router ? (
-            <span className="rounded-full border px-3 py-1 text-xs font-semibold">
-              {currentRouterStatus}
-            </span>
-          ) : null}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div role="tablist" aria-label="Administración WiFi" className="flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/60 px-3 pt-2 sm:px-5">
+          {([
+            { id: "connected" as const, label: "Conectados", number: connectedRows.length },
+            { id: "codes" as const, label: "Códigos WiFi", number: derivedRows.length },
+            { id: "router" as const, label: "Configuración MikroTik", number: null },
+          ]).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => setTab(item.id)}
+              className={"inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition " +
+                (tab === item.id
+                  ? "border-emerald-600 text-emerald-800"
+                  : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800")}
+            >
+              {item.label}
+              {item.number !== null ? (
+                <span className={"rounded-md px-2 py-0.5 text-xs tabular-nums " + (tab === item.id ? "bg-emerald-50 text-emerald-800" : "bg-slate-200/70 text-slate-600")}>
+                  {item.number}
+                </span>
+              ) : null}
+            </button>
+          ))}
         </div>
 
-        {router ? (
-          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-xs text-slate-500">Nombre</p>
-              <strong>{router.name}</strong>
+        {tab === "connected" ? (
+          <section role="tabpanel" aria-label="Conexiones confirmadas" className="p-5 sm:p-6">
+            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Dispositivos conectados</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Sesiones confirmadas por MikroTik. La información se consulta cada 30 segundos, sin interrumpir la conexión.
+                </p>
+              </div>
+              <span className="inline-flex w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                {connectedRows.length} {connectedRows.length === 1 ? "sesión confirmada" : "sesiones confirmadas"}
+              </span>
             </div>
-            <div>
-              <p className="text-xs text-slate-500">Identifier</p>
-              <strong className="font-mono">{router.identifier}</strong>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">RouterOS / modelo</p>
-              <strong>{[router.routeros_version, router.model].filter(Boolean).join(" · ") || "—"}</strong>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Último heartbeat</p>
-              <strong>{date(router.last_seen_at)}</strong>
-            </div>
-            <div className="sm:col-span-2 lg:col-span-4">
-              <Button disabled={routerWorking} onClick={() => void regenerateRouterToken()}>
-                {routerWorking ? "Procesando…" : "Regenerar token"}
-              </Button>
-            </div>
-          </div>
-        ) : branchId ? (
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-medium">
-              Nombre
-              <input
-                className="mt-1 w-full rounded-lg border px-3 py-2"
-                value={routerName}
-                onChange={(event) => setRouterName(event.target.value)}
-                maxLength={120}
-              />
-            </label>
-            <label className="text-sm font-medium">
-              Identifier
-              <input
-                className="mt-1 w-full rounded-lg border px-3 py-2 font-mono"
-                value={routerIdentifier}
-                onChange={(event) =>
-                  setRouterIdentifier(
-                    event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
-                  )
-                }
-                maxLength={63}
-              />
-            </label>
-            <div className="md:col-span-2">
-              <Button disabled={routerWorking} onClick={() => void registerRouter()}>
-                {routerWorking ? "Registrando…" : "Registrar MikroTik"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-slate-500">Selecciona una sede para configurar su router.</p>
-        )}
-      </article>
 
-      {routerToken ? (
-        <article className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
-          <p className="font-semibold">Token del MikroTik — cópialo ahora</p>
-          <p className="mt-1 text-sm text-amber-900">
-            No volverá a mostrarse. Guárdalo únicamente en RouterOS.
-          </p>
-          <code className="mt-3 block overflow-x-auto rounded-lg bg-white p-3 text-sm">
-            {routerToken}
-          </code>
-          <Button className="mt-3" onClick={() => void navigator.clipboard.writeText(routerToken)}>
-            Copiar token
-          </Button>
-        </article>
-      ) : null}
+            {awaitingConfirmation.length > 0 ? (
+              <div className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <span className="shrink-0 font-bold" aria-hidden="true">!</span>
+                <div>
+                  <p className="font-semibold">{awaitingConfirmation.length} {awaitingConfirmation.length === 1 ? "acceso habilitado" : "accesos habilitados"} sin confirmación de inicio de sesión.</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                    El dispositivo ya fue autorizado, pero aún no recibimos su evento LOGIN. Revisa los eventos on-login/on-logout del perfil lbbs-client-profile. Los verás en Códigos WiFi.
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
-      <article className="rounded-2xl border bg-white p-5">
-        <h2 className="font-semibold">Generar acceso WiFi</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Crea un código temporal de 6 dígitos para un cliente de esta sede.
-        </p>
-        {router && currentRouterStatus !== "En línea" ? (
-          <p className="mt-3 text-sm text-amber-700">
-            El MikroTik debe estar en línea antes de generar un código.
-          </p>
+            {loading ? (
+              <p className="py-10 text-center text-sm text-slate-500">Cargando conexiones…</p>
+            ) : connectedRows.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm">
+                  <svg width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" aria-hidden="true">
+                    <rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" />
+                  </svg>
+                </div>
+                <p className="mt-4 font-semibold text-slate-900">Todavía no hay conexiones confirmadas</p>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+                  Cuando el MikroTik informe un inicio de sesión, aparecerá aquí el cliente, su dispositivo y el tiempo disponible.
+                </p>
+                <button type="button" onClick={() => setTab("codes")} className="mt-4 text-sm font-semibold text-emerald-700 hover:text-emerald-800">
+                  Ver códigos WiFi →
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-[800px] w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Cliente</th>
+                      <th className="px-4 py-3">Dispositivo</th>
+                      <th className="px-4 py-3">Inicio de conexión</th>
+                      <th className="px-4 py-3">En línea</th>
+                      <th className="px-4 py-3">Tiempo restante</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {connectedRows.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50/70">
+                        <td className="px-4 py-4">
+                          <p className="font-semibold text-slate-900">{row.customer_name ?? "Cliente registrado"}</p>
+                          <p className="mt-1 font-mono text-xs text-slate-500">Acceso ·••{row.code_last4}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="font-mono text-xs font-semibold text-slate-800">{row.device_mac ?? "MAC no disponible"}</p>
+                          <p className="mt-1 text-xs text-slate-500">IP: {row.device_ip ?? "No disponible"}</p>
+                        </td>
+                        <td className="px-4 py-4 text-slate-700">{date(row.first_used_at)}</td>
+                        <td className="px-4 py-4 font-medium text-slate-700">
+                          {row.first_used_at ? duration(clock - new Date(row.first_used_at).getTime()) : "—"}
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="font-bold tabular-nums text-emerald-700">
+                            {row.session_expires_at ? duration(new Date(row.session_expires_at).getTime() - clock) : "—"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">Hasta {date(row.session_expires_at)}</p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              El listado refleja los eventos confirmados por el router, no una consulta directa a su tabla de sesiones. La desconexión manual se habilitará en la siguiente fase.
+            </p>
+          </section>
         ) : null}
-        <Button
-          className="mt-4"
-          disabled={!branchId || working || !router || currentRouterStatus !== "En línea"}
-          onClick={() => void generate()}
-        >
-          {working ? "Generando acceso…" : "Generar acceso"}
-        </Button>
-      </article>
 
-      {code ? (
-        <article className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <p>Acceso WiFi</p>
-          <strong className="font-mono text-3xl tracking-widest">{code}</strong>
-          <p className="mt-2 text-sm">
-            1 dispositivo · 30 min para primer uso · 3 horas desde primera conexión
-          </p>
-          <p role="alert" className="mt-3 max-w-2xl rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-            Guarda o anota el código ahora: es de un solo uso y no se volverá a mostrar.
-            Si lo extravías, tendrás que anular este acceso y generar otro.
-          </p>
-          <Button className="mt-3" onClick={() => void navigator.clipboard.writeText(code)}>
-            Copiar código
-          </Button>
-        </article>
-      ) : null}
+        {tab === "codes" ? (
+          <section role="tabpanel" aria-label="Gestión de códigos WiFi" className="space-y-5 p-5 sm:p-6">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Códigos de acceso</h2>
+                <p className="mt-1 text-sm text-slate-500">Emite un código temporal para un único dispositivo y consulta su estado.</p>
+              </div>
+              <Button
+                className="h-10 shrink-0 rounded-lg"
+                disabled={!branchId || working || !router || currentRouterStatus !== "En línea"}
+                onClick={() => void generate()}
+              >
+                {working ? "Generando…" : "+ Generar acceso"}
+              </Button>
+            </div>
+            {router && currentRouterStatus !== "En línea" ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                El MikroTik debe estar en línea antes de generar accesos.
+              </p>
+            ) : null}
 
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+            {code ? (
+              <article className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-800">Nuevo código WiFi</p>
+                    <p className="mt-2 font-mono text-4xl font-bold tracking-[0.17em] text-slate-950 sm:text-5xl">{code}</p>
+                    <p className="mt-3 text-xs text-slate-600">Un dispositivo · 30 minutos para usarlo · 3 horas de conexión</p>
+                  </div>
+                  <Button onClick={() => void copyCode()} className="h-10 shrink-0 rounded-lg">
+                    {copied ? "Copiado" : "Copiar código"}
+                  </Button>
+                </div>
+                <div role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+                  <strong>Guárdalo ahora.</strong> Este código se muestra una sola vez y no se puede recuperar. Si se pierde, tendrás que anular ese acceso y crear uno nuevo.
+                </div>
+              </article>
+            ) : (
+              <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Código de uso único</p>
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Anota o copia el código al generarlo: por seguridad, después solo se muestran sus últimos cuatro dígitos.</p>
+                </div>
+              </div>
+            )}
 
-      <section className="overflow-x-auto rounded-2xl border bg-white p-5">
-        <h2 className="font-semibold">Accesos recientes</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Los tiempos se actualizan automáticamente. Los códigos vencidos se muestran como expirados aunque el cierre en el router siga pendiente.
-        </p>
-        {loading ? (
-          <p className="mt-3 text-sm text-slate-500">Cargando accesos…</p>
-        ) : (
-          <table className="mt-3 min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500">
-                <th className="py-2 pr-4">Código</th>
-                <th className="py-2 pr-4">Estado</th>
-                <th className="py-2 pr-4">Dispositivo / IP</th>
-                <th className="py-2 pr-4">Primer acceso</th>
-                <th className="py-2 pr-4">Expira</th>
-                <th className="py-2">Tiempo restante</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const status = effectiveVoucherStatus(row, clock);
-                const expiresAt = row.session_expires_at ?? row.unused_expires_at;
-                return (
-                  <tr className="border-t align-top" key={row.id}>
-                    <td className="py-3 pr-4 font-mono">***{row.code_last4}</td>
-                    <td className="py-3 pr-4">{voucherStatus(status)}</td>
-                    <td className="py-3 pr-4">
-                      {row.device_mac ? (
-                        <>
-                          <span className="block font-mono text-xs">{row.device_mac}</span>
-                          <span className="block text-xs text-slate-500">{row.device_ip ?? "IP no disponible"}</span>
-                        </>
-                      ) : "—"}
-                    </td>
-                    <td className="py-3 pr-4">
-                      {date(row.first_used_at)}
-                      {status === "active" && row.first_used_at ? (
-                        <span className="block text-xs text-slate-500">
-                          Hace {duration(clock - new Date(row.first_used_at).getTime())}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="py-3 pr-4">{date(expiresAt)}</td>
-                    <td className="py-3">
-                      {status === "expired" || status === "revoked"
-                        ? "—"
-                        : duration(new Date(expiresAt).getTime() - clock)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+            <div className="border-t border-slate-100 pt-5">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+                <div>
+                  <h3 className="font-bold text-slate-900">Historial de accesos</h3>
+                  <p className="mt-1 text-xs text-slate-500">Se muestran los 100 registros más recientes. El estado vencido considera la fecha real de expiración.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="sr-only" htmlFor="wifi-filter">Filtrar por estado</label>
+                  <Select
+                    id="wifi-filter"
+                    className="h-10 w-full sm:w-44"
+                    value={codeFilter}
+                    onChange={(event) => setCodeFilter(event.target.value as CodeFilter)}
+                  >
+                    <option value="all">Todos los estados</option>
+                    <option value="available">Disponibles</option>
+                    <option value="in_progress">En proceso / uso</option>
+                    <option value="expired">Expirados</option>
+                    <option value="revoked">Revocados</option>
+                  </Select>
+                  <label className="sr-only" htmlFor="wifi-search">Buscar código o dispositivo</label>
+                  <input
+                    id="wifi-search"
+                    type="search"
+                    placeholder="Código, cliente, MAC o IP"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-60"
+                  />
+                </div>
+              </div>
+              {loading ? (
+                <p className="py-10 text-center text-sm text-slate-500">Cargando códigos…</p>
+              ) : filteredRows.length === 0 ? (
+                <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-12 text-center">
+                  <p className="font-semibold text-slate-700">No hay accesos para estos filtros</p>
+                  <p className="mt-2 text-sm text-slate-500">Prueba otro estado o término de búsqueda.</p>
+                </div>
+              ) : (
+                <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-[920px] w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Código</th>
+                        <th className="px-4 py-3">Estado</th>
+                        <th className="px-4 py-3">Cliente / dispositivo</th>
+                        <th className="px-4 py-3">Creado</th>
+                        <th className="px-4 py-3">Primer uso</th>
+                        <th className="px-4 py-3">Vence</th>
+                        <th className="px-4 py-3">Tiempo restante</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRows.map((row) => {
+                        const expiration = row.session_expires_at ?? row.unused_expires_at;
+                        const completed = row.effectiveStatus === "expired" || row.effectiveStatus === "revoked";
+                        const meaningfulCountdown = !completed &&
+                          (row.effectiveStatus === "available" || row.effectiveStatus === "active") &&
+                          (row.effectiveStatus !== "active" || Boolean(row.session_expires_at));
+                        return (
+                          <tr key={row.id} className="align-top hover:bg-slate-50/70">
+                            <td className="px-4 py-4 font-mono font-semibold text-slate-800">••{row.code_last4}</td>
+                            <td className="px-4 py-4"><StatusPill status={row.effectiveStatus} /></td>
+                            <td className="px-4 py-4">
+                              <p className="font-medium text-slate-800">{row.customer_name ?? (row.device_mac ? "Dispositivo identificado" : "Sin asignar")}</p>
+                              {row.device_mac ? (
+                                <p className="mt-1 font-mono text-xs text-slate-500">{row.device_mac}</p>
+                              ) : null}
+                              {row.device_ip ? (
+                                <p className="mt-1 text-xs text-slate-500">IP: {row.device_ip}</p>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-4 text-slate-600">{date(row.created_at)}</td>
+                            <td className="px-4 py-4 text-slate-600">{date(row.first_used_at)}</td>
+                            <td className="px-4 py-4 text-slate-600">{date(expiration)}</td>
+                            <td className="px-4 py-4 font-semibold tabular-nums text-slate-800">
+                              {meaningfulCountdown ? duration(new Date(expiration).getTime() - clock) : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="mt-4 text-xs text-slate-500">Los códigos completos no pueden consultarse nuevamente. Las acciones de revocación y archivo se incorporarán en las siguientes fases.</p>
+            </div>
+          </section>
+        ) : null}
+
+        {tab === "router" ? (
+          <section role="tabpanel" aria-label="Configuración del MikroTik" className="space-y-5 p-5 sm:p-6">
+            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Configuración MikroTik</h2>
+                <p className="mt-1 text-sm text-slate-500">Información técnica y credenciales de vinculación de la sede.</p>
+              </div>
+              {router ? (
+                <span className={"inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold " +
+                  (currentRouterStatus === "En línea"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800")}>
+                  {currentRouterStatus}
+                </span>
+              ) : null}
+            </div>
+            {router ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    ["Nombre del router", router.name],
+                    ["Identificador", router.identifier],
+                    ["Modelo", router.model || "—"],
+                    ["Versión RouterOS", router.routeros_version || "—"],
+                    ["Última conexión", date(router.last_seen_at)],
+                    ["Tiempo encendido", router.uptime || "—"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-xs font-medium text-slate-500">{label}</p>
+                      <p className="mt-2 break-all text-sm font-semibold text-slate-900">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-950">Seguridad del router</p>
+                  <p className="mt-1 max-w-3xl text-xs leading-6 text-amber-900">
+                    Regenerar el token invalida inmediatamente la credencial anterior. Después deberás actualizar el token en el MikroTik para que vuelva a sincronizarse.
+                  </p>
+                  <Button disabled={routerWorking} onClick={() => void regenerateRouterToken()} className="mt-4 h-10 rounded-lg bg-slate-900 hover:bg-slate-800">
+                    {routerWorking ? "Procesando…" : "Regenerar token de conexión"}
+                  </Button>
+                </div>
+              </>
+            ) : branchId ? (
+              <div className="max-w-2xl space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+                <p className="font-semibold text-slate-900">Registrar MikroTik para esta sede</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Nombre del router
+                    <input
+                      className="mt-2 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                      value={routerName}
+                      onChange={(event) => setRouterName(event.target.value)}
+                      maxLength={120}
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Identificador
+                    <input
+                      className="mt-2 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 font-mono text-sm"
+                      value={routerIdentifier}
+                      onChange={(event) => setRouterIdentifier(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                      maxLength={63}
+                    />
+                  </label>
+                </div>
+                <Button disabled={routerWorking} onClick={() => void registerRouter()} className="h-10 rounded-lg">
+                  {routerWorking ? "Registrando…" : "Registrar MikroTik"}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Selecciona una sede para revisar su configuración.</p>
+            )}
+
+            {routerToken ? (
+              <article className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                <p className="font-bold text-amber-950">Token secreto: cópialo ahora</p>
+                <p className="mt-1 text-xs text-amber-900">Esta credencial se muestra una única vez. Guárdala exclusivamente en RouterOS.</p>
+                <code className="mt-3 block max-w-full overflow-x-auto rounded-lg border border-amber-200 bg-white p-3 text-sm text-slate-800">
+                  {routerToken}
+                </code>
+                <Button className="mt-3 h-10 rounded-lg" onClick={() => void navigator.clipboard.writeText(routerToken)}>Copiar token</Button>
+              </article>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
     </section>
   );
 }
