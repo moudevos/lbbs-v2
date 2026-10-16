@@ -14,6 +14,9 @@ type Voucher = {
   first_used_at: string | null;
   unused_expires_at: string;
   session_expires_at: string | null;
+  claimed_at: string | null;
+  device_mac: string | null;
+  device_ip: string | null;
 };
 type Router = {
   id: string;
@@ -32,6 +35,29 @@ const date = (value: string | null) =>
   value
     ? new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(new Date(value))
     : "—";
+
+const effectiveVoucherStatus = (voucher: Voucher, now: number) => {
+  if (voucher.status === "revoked" || voucher.status === "expired") return voucher.status;
+  if (voucher.status === "active") {
+    return voucher.session_expires_at && new Date(voucher.session_expires_at).getTime() <= now
+      ? "expired"
+      : "active";
+  }
+  if (
+    !voucher.first_used_at &&
+    new Date(voucher.unused_expires_at).getTime() <= now &&
+    ["pending_sync", "available", "registration_pending", "activation_pending", "activation_ready"].includes(voucher.status)
+  ) {
+    return "expired";
+  }
+  return voucher.status;
+};
+
+function duration(milliseconds: number) {
+  const minutes = Math.max(0, Math.ceil(milliseconds / 60_000));
+  const hours = Math.floor(minutes / 60);
+  return hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+}
 
 const voucherStatus = (status: string) =>
   ({
@@ -78,12 +104,18 @@ export function WifiPageClient() {
   const [routerName, setRouterName] = useState("MikroTik");
   const [routerIdentifier, setRouterIdentifier] = useState("");
   const [error, setError] = useState("");
+  const [clock, setClock] = useState(() => Date.now());
 
   const selectedBranch = useMemo(
     () => branches.find((branch) => branch.id === branchId) ?? null,
     [branches, branchId],
   );
   const currentRouterStatus = routerStatus(router);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadVouchers = useCallback(async (selectedBranchId: string, signal?: AbortSignal) => {
     if (!selectedBranchId) return;
@@ -123,13 +155,15 @@ export function WifiPageClient() {
       .catch(() => !controller.signal.aborted && setError("No se pudo cargar Red Hotspot."))
       .finally(() => !controller.signal.aborted && setLoading(false));
 
-    const interval = window.setInterval(
-      () => void loadVouchers(branchId).catch(() => undefined),
-      12_000,
-    );
+    const refresh = () => {
+      if (!document.hidden) void loadVouchers(branchId).catch(() => undefined);
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       controller.abort();
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
     };
   }, [branchId, loadVouchers]);
 
@@ -243,9 +277,9 @@ export function WifiPageClient() {
       <div className="grid gap-3 sm:grid-cols-4">
         {[
           ["Router", currentRouterStatus],
-          ["Clientes activos", rows.filter((row) => row.status === "active").length],
-          ["Disponibles", rows.filter((row) => row.status === "available").length],
-          ["Expirados", rows.filter((row) => row.status === "expired").length],
+          ["Clientes activos", rows.filter((row) => effectiveVoucherStatus(row, clock) === "active").length],
+          ["Disponibles", rows.filter((row) => effectiveVoucherStatus(row, clock) === "available").length],
+          ["Expirados", rows.filter((row) => effectiveVoucherStatus(row, clock) === "expired").length],
         ].map(([label, value]) => (
           <article key={String(label)} className="rounded-xl border bg-white p-4">
             <p className="text-xs text-slate-500">{label}</p>
@@ -369,6 +403,10 @@ export function WifiPageClient() {
           <p className="mt-2 text-sm">
             1 dispositivo · 30 min para primer uso · 3 horas desde primera conexión
           </p>
+          <p role="alert" className="mt-3 max-w-2xl rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+            Guarda o anota el código ahora: es de un solo uso y no se volverá a mostrar.
+            Si lo extravías, tendrás que anular este acceso y generar otro.
+          </p>
           <Button className="mt-3" onClick={() => void navigator.clipboard.writeText(code)}>
             Copiar código
           </Button>
@@ -379,29 +417,56 @@ export function WifiPageClient() {
 
       <section className="overflow-x-auto rounded-2xl border bg-white p-5">
         <h2 className="font-semibold">Accesos recientes</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Los tiempos se actualizan automáticamente. Los códigos vencidos se muestran como expirados aunque el cierre en el router siga pendiente.
+        </p>
         {loading ? (
           <p className="mt-3 text-sm text-slate-500">Cargando accesos…</p>
         ) : (
           <table className="mt-3 min-w-full text-sm">
             <thead>
               <tr className="text-left text-slate-500">
-                <th>Código</th>
-                <th>Estado</th>
-                <th>Creado</th>
-                <th>Primer uso</th>
-                <th>Expira</th>
+                <th className="py-2 pr-4">Código</th>
+                <th className="py-2 pr-4">Estado</th>
+                <th className="py-2 pr-4">Dispositivo / IP</th>
+                <th className="py-2 pr-4">Primer acceso</th>
+                <th className="py-2 pr-4">Expira</th>
+                <th className="py-2">Tiempo restante</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr className="border-t" key={row.id}>
-                  <td>***{row.code_last4}</td>
-                  <td>{voucherStatus(row.status)}</td>
-                  <td>{date(row.created_at)}</td>
-                  <td>{date(row.first_used_at)}</td>
-                  <td>{date(row.session_expires_at ?? row.unused_expires_at)}</td>
-                </tr>
-              ))}
+              {rows.map((row) => {
+                const status = effectiveVoucherStatus(row, clock);
+                const expiresAt = row.session_expires_at ?? row.unused_expires_at;
+                return (
+                  <tr className="border-t align-top" key={row.id}>
+                    <td className="py-3 pr-4 font-mono">***{row.code_last4}</td>
+                    <td className="py-3 pr-4">{voucherStatus(status)}</td>
+                    <td className="py-3 pr-4">
+                      {row.device_mac ? (
+                        <>
+                          <span className="block font-mono text-xs">{row.device_mac}</span>
+                          <span className="block text-xs text-slate-500">{row.device_ip ?? "IP no disponible"}</span>
+                        </>
+                      ) : "—"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      {date(row.first_used_at)}
+                      {status === "active" && row.first_used_at ? (
+                        <span className="block text-xs text-slate-500">
+                          Hace {duration(clock - new Date(row.first_used_at).getTime())}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="py-3 pr-4">{date(expiresAt)}</td>
+                    <td className="py-3">
+                      {status === "expired" || status === "revoked"
+                        ? "—"
+                        : duration(new Date(expiresAt).getTime() - clock)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
