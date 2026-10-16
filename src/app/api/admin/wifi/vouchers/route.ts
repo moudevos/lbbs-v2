@@ -22,7 +22,8 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   let query = supabase
     .from("wifi_access_vouchers")
-    .select("id,branch_id,code_last4,status,created_at,unused_expires_at,first_used_at,session_expires_at,revoked_at,claimed_at,device_mac,device_ip,customer_id,revocation_requested_at")
+    .select("id,branch_id,code_last4,status,created_at,unused_expires_at,first_used_at,session_expires_at,revoked_at,claimed_at,device_mac,device_ip,customer_id,revocation_requested_at,archived_at")
+    .is("archived_at", null)
     .order("created_at", { ascending: false })
     .limit(100);
 
