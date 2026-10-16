@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acceso no autorizado — LBBS WiFi</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">Autenticación del router</p>
+  <h1>No se pudo conectar</h1>
+  <p>El MikroTik rechazó el inicio de sesión. La validación del DNI no significa que el dispositivo haya sido autorizado.</p>
+  $(if error)<p class="notice" role="alert">Detalle: $(error)</p>$(endif)
+  <a class="button" href="$(link-login-only)">Intentar nuevamente</a>
+  <p class="hint">Si no puedes continuar, informa el mensaje a recepción. No compartas tu código.</p>
+</main>
+</body>
+</html>
