@@ -58,6 +58,13 @@ const effectiveVoucherStatus = (voucher: Voucher, now: number) => {
   return voucher.status;
 };
 
+function isArchivableVoucher(row: Voucher, now: number) {
+  if (row.revocation_requested_at && row.status !== "revoked") return false;
+  return row.status === "expired" || row.status === "revoked" ||
+    (["available", "registration_pending"].includes(row.status) &&
+      !row.first_used_at && new Date(row.unused_expires_at).getTime() <= now);
+}
+
 function duration(milliseconds: number) {
   const minutes = Math.max(0, Math.ceil(milliseconds / 60_000));
   const hours = Math.floor(minutes / 60);
@@ -208,9 +215,7 @@ export function WifiPageClient() {
   const endedCount = derivedRows.filter((row) =>
     ["expired", "revoked"].includes(row.effectiveStatus)
   ).length;
-  const archivableRows = derivedRows.filter((row) =>
-    row.effectiveStatus === "expired" || row.effectiveStatus === "revoked"
-  );
+  const archivableRows = derivedRows.filter((row) => isArchivableVoucher(row, clock));
   const filteredRows = derivedRows.filter((row) => {
     const inCategory =
       codeFilter === "all" ||
@@ -848,11 +853,11 @@ export function WifiPageClient() {
                                 </button>
                               ) : row.effectiveStatus === "revocation_pending" ? (
                                 <span className="text-xs font-medium text-amber-700">Esperando MikroTik</span>
-                              ) : (
+                              ) : isArchivableVoucher(row, clock) ? (
                                 <button type="button" disabled={archiveWorkingId !== null || archiveWorkingBatch} onClick={() => void archiveAccess([row.id], "archive")} className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50">
                                   {archiveWorkingId === row.id ? "Archivando…" : "Archivar"}
                                 </button>
-                              )}
+                              ) : <span className="text-xs text-slate-400">—</span>}
                             </td>
                           </tr>
                         );
@@ -865,7 +870,7 @@ export function WifiPageClient() {
                 <p className="text-xs text-slate-500">Los códigos completos no se recuperan. Archivar solo oculta los accesos finalizados; no desconecta usuarios ni elimina registros.</p>
                 <button
                   type="button"
-                  disabled={archiveWorkingBatch || archiveWorkingId !== null || archivableRows.length === 0}
+                  disabled={archiveWorkingBatch || archiveWorkingId !== null}
                   onClick={() => void archiveAccess([], "archive_expired")}
                   className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                 >
