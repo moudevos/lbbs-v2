@@ -119,7 +119,7 @@ export async function POST(request: Request) {
   }
 
   for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
-    const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const code = randomInt(100_000, 1_000_000).toString();
     const { data, error } = await supabase.rpc("generate_wifi_access_voucher", {
       p_branch_id: body.branchId,
       p_code_hash: hashCode(code),
