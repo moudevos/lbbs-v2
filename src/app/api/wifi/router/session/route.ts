@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!authenticated.ok) return NextResponse.json({ error: "Router no autorizado." }, { status: authenticated.status });
   const body = await request.json().catch(() => null);
   if (!uuid.test(body?.voucherId ?? "") || !mac.test(body?.mac ?? "") || !["LOGIN", "LOGOUT"].includes(body?.event)) {
-    return NextResponse.json({ error: "Evento invÃ¡lido." }, { status: 400 });
+    return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
   }
   const ip = typeof body.ip === "string" && body.ip.length <= 45 ? body.ip : null;
   const metadata = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : {};
@@ -19,7 +19,13 @@ export async function POST(request: Request) {
     p_router_id: authenticated.router.id, p_voucher_id: body.voucherId, p_event: body.event,
     p_mac: body.mac, p_ip: ip, p_payload: metadata,
   });
-  if (error) return NextResponse.json({ error: "No se pudo registrar el evento." }, { status: 400 });
+  if (error) {
+    console.error("[hotspot/router/session] Error al registrar LOGIN/LOGOUT", {
+      code: error.code,
+      event: body.event,
+    });
+    return NextResponse.json({ error: "No se pudo registrar el evento." }, { status: 400 });
+  }
   const event = Array.isArray(data) ? data[0] : null;
   return NextResponse.json({ status: event?.status, sessionExpiresAt: event?.session_expires_at });
 }
