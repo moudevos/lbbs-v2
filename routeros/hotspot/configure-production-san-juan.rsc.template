@@ -44,8 +44,8 @@
 
 /system scheduler remove [find where name="lbbs-sync"]
 /system scheduler remove [find where name="lbbs-heartbeat"]
-/system scheduler add name="lbbs-sync" interval=5s on-event="lbbs-sync" policy=ftp,read,write,policy,test,sensitive comment="LBBS command pull"
-/system scheduler add name="lbbs-heartbeat" interval=30s on-event="lbbs-heartbeat" policy=ftp,read,write,policy,test,sensitive comment="LBBS router heartbeat"
+/system scheduler add name="lbbs-sync" interval=15s on-event="lbbs-sync" policy=ftp,read,write,policy,test,sensitive comment="LBBS command pull"
+/system scheduler add name="lbbs-heartbeat" interval=45s on-event="lbbs-heartbeat" policy=ftp,read,write,policy,test,sensitive comment="LBBS router heartbeat"
 
 # Manual smoke checks after import:
 # /system script run lbbs-heartbeat
