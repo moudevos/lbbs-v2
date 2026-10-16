@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   let query = supabase
     .from("wifi_access_vouchers")
-    .select("id,branch_id,code_last4,status,created_at,unused_expires_at,first_used_at,session_expires_at,revoked_at,claimed_at,device_mac,device_ip,customer_id")
+    .select("id,branch_id,code_last4,status,created_at,unused_expires_at,first_used_at,session_expires_at,revoked_at,claimed_at,device_mac,device_ip,customer_id,revocation_requested_at")
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -50,9 +50,24 @@ export async function GET(request: Request) {
       }
     }
   }
+  const pendingRevocations = (data ?? []).filter((row) => row.revocation_requested_at && row.status !== "revoked").map((row) => row.id);
+  const { data: revocationCommands, error: revocationError } = pendingRevocations.length
+    ? await supabase
+        .from("hotspot_router_commands")
+        .select("voucher_id,status,error_message")
+        .eq("command_type", "REVOKE_VOUCHER")
+        .in("voucher_id", pendingRevocations)
+    : { data: [], error: null };
+  if (revocationError) {
+    console.error("[wifi/vouchers] No se pudo consultar estado de revocaciones", { code: revocationError.code });
+    return NextResponse.json({ error: "No se pudieron cargar estados de revocación." }, { status: 500 });
+  }
+  const revocationMap = new Map((revocationCommands ?? []).map((cmd) => [cmd.voucher_id, cmd]));
+
   const vouchers = (data ?? []).map((row) => ({
     ...row,
     customer_name: row.customer_id ? customerNames.get(row.customer_id) ?? null : null,
+    revoke_command_status: revocationMap.get(row.id)?.status ?? null,
   }));
 
   let router = null;
