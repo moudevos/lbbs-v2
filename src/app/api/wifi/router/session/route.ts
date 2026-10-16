@@ -8,9 +8,17 @@ const mac = /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
 
 export async function POST(request: Request) {
   const authenticated = await authenticateRouter(request);
-  if (!authenticated.ok) return NextResponse.json({ error: "Router no autorizado." }, { status: authenticated.status });
+  if (!authenticated.ok) {
+    console.warn("[hotspot/router/session] Router no autenticado", { status: authenticated.status });
+    return NextResponse.json({ error: "Router no autorizado." }, { status: authenticated.status });
+  }
   const body = await request.json().catch(() => null);
   if (!uuid.test(body?.voucherId ?? "") || !mac.test(body?.mac ?? "") || !["LOGIN", "LOGOUT"].includes(body?.event)) {
+    console.warn("[hotspot/router/session] Evento rechazado", {
+      event: typeof body?.event === "string" ? body.event.slice(0, 12) : null,
+      voucherIdValid: uuid.test(body?.voucherId ?? ""),
+      macValid: mac.test(body?.mac ?? ""),
+    });
     return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
   }
   const ip = typeof body.ip === "string" && body.ip.length <= 45 ? body.ip : null;
