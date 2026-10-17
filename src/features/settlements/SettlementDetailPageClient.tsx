@@ -121,7 +121,7 @@ export function SettlementDetailPageClient({ settlementId }: { settlementId: str
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Resumen de pago</p>
-          <p className="mt-0.5 text-sm text-slate-600">Base comisionable, descuentos y neto final del período.</p>
+          <p className="mt-0.5 text-sm text-slate-600">Producción bruta, base comisionable, descuentos y neto final del período.</p>
         </div>
 
         {data.status === "draft" ? (
@@ -142,8 +142,15 @@ export function SettlementDetailPageClient({ settlementId }: { settlementId: str
         ) : null}
       </div>
 
-      <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-6">
         {[
+          {
+            label: "Total producido",
+            value: summary.grossProduction,
+            detail: "Servicios y productos atribuidos, sin descontar nada",
+            className: "bg-slate-50/60",
+            amountClassName: "text-slate-950",
+          },
           {
             label: "Base comisionable",
             value: summary.productionBase,
@@ -161,7 +168,7 @@ export function SettlementDetailPageClient({ settlementId }: { settlementId: str
           {
             label: "Descuento obligatorio",
             value: -numeric(data.mandatory_discount_amount),
-            detail: `${numeric(data.mandatory_discount_rate).toFixed(2)} % sobre base comisionable`,
+            detail: `${numeric(data.mandatory_discount_rate).toFixed(2)} % sobre total producido`,
             className: "bg-rose-50/40",
             amountClassName: "text-rose-700",
           },
