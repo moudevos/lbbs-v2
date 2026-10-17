@@ -1,25 +1,52 @@
 export type PaymentSimulationInput = {
-  gross: number;
-  previousDeductions: number;
+  totalProduced: number;
+  commissionableBase: number;
+  commissionRate: number;
+  additionalIncome: number;
   mandatoryDiscountRate: number;
+  mandatoryDiscountEnabled: boolean;
+  debtAmount: number;
+  otherDeductions?: number;
 };
 
+const safe = (value: number) =>
+  Number.isFinite(value) ? Math.max(0, value) : 0;
+
 export function calculatePaymentSimulation(input: PaymentSimulationInput) {
-  const gross = Number.isFinite(input.gross) ? Math.max(0, input.gross) : 0;
-  const previousDeductions = Number.isFinite(input.previousDeductions)
-    ? Math.max(0, input.previousDeductions)
+  const totalProduced = safe(input.totalProduced);
+  const commissionableBase = safe(input.commissionableBase);
+  const commissionRate = safe(input.commissionRate);
+  const additionalIncome = safe(input.additionalIncome);
+  const mandatoryDiscountRate = safe(input.mandatoryDiscountRate);
+  const debtRequested = safe(input.debtAmount);
+  const otherDeductions = safe(input.otherDeductions ?? 0);
+
+  const commission = commissionableBase * commissionRate / 100;
+  const grossPay = commission + additionalIncome;
+  const mandatoryDiscount = input.mandatoryDiscountEnabled
+    ? totalProduced * mandatoryDiscountRate / 100
     : 0;
-  const rate = Number.isFinite(input.mandatoryDiscountRate)
-    ? Math.max(0, input.mandatoryDiscountRate)
-    : 0;
-  const beforeDiscount = Math.max(0, gross - previousDeductions);
-  // El descuento obligatorio pertenece a la producción generada, no al
-  // saldo que queda luego de descontar deudas u otros conceptos.
-  const mandatoryDiscount = gross * rate / 100;
+
+  const beforeDebt = Math.max(
+    0,
+    grossPay - mandatoryDiscount - otherDeductions,
+  );
+  const debtApplied = Math.min(debtRequested, beforeDebt);
+  const estimatedNet = Math.max(0, beforeDebt - debtApplied);
 
   return {
-    beforeDiscount,
+    totalProduced,
+    commissionableBase,
+    commissionRate,
+    commission,
+    additionalIncome,
+    grossPay,
+    mandatoryDiscountRate,
     mandatoryDiscount,
-    estimatedNet: Math.max(0, beforeDiscount - mandatoryDiscount),
+    otherDeductions,
+    debtRequested,
+    debtApplied,
+    beforeDebt,
+    estimatedNet,
   };
 }
