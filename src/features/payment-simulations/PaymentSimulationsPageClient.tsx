@@ -40,7 +40,7 @@ type SystemReference = {
   periodId: string;
   totalProduced: number;
   commissionableBase: number;
-  commissionRate: number;
+  commissionRate: number | null;
   additionalIncome: number;
   mandatoryDiscountEnabled: boolean;
   mandatoryDiscountRate: number;
@@ -107,7 +107,9 @@ export function PaymentSimulationsPageClient() {
   const applySystemReference = useCallback((reference: SystemReference) => {
     setTotalProduced(String(reference.totalProduced));
     setCommissionableBase(String(reference.commissionableBase));
-    setCommissionRate(String(reference.commissionRate));
+    setCommissionRate(
+      reference.commissionRate === null ? "" : String(reference.commissionRate),
+    );
     setAdditionalIncome(String(reference.additionalIncome));
     setMandatoryDiscountEnabled(reference.mandatoryDiscountEnabled);
     setMandatoryDiscountRate(String(reference.mandatoryDiscountRate));
@@ -505,7 +507,9 @@ export function PaymentSimulationsPageClient() {
               />
               <span className="block text-[11px] text-slate-400">
                 {system
-                  ? `Sistema: ${system.commissionRate.toFixed(2)} %`
+                  ? system.commissionRate === null
+                    ? "Sin % configurado · ingrésalo manualmente"
+                    : `Sistema: ${system.commissionRate.toFixed(2)} %`
                   : "Ingreso manual"}
               </span>
             </label>
