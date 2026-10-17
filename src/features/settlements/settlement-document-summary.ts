@@ -92,7 +92,7 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
       productName: String(line.product_name_snapshot ?? "Producto atribuido"),
       family: familyLabels[String(line.business_line_snapshot ?? line.business_line ?? "other")] ?? "Sin clasificar",
       quantity: numeric(line.quantity_snapshot ?? line.quantity ?? 1),
-      salesGross: numeric(line.sales_gross_snapshot ?? line.sales_gross),
+      salesGross: numeric(line.commercial_amount_snapshot ?? line.sales_gross_snapshot ?? line.sales_gross),
       recognized: numeric(line.recognized_production_amount_snapshot ?? line.recognized_production_amount),
       bonus: numeric(line.bonus_amount_snapshot ?? line.bonus_amount),
       origin: sourceLabel[String(line.origin_snapshot ?? "")] ?? String(line.origin_snapshot ?? "Venta de producto"),
@@ -104,6 +104,8 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
   const grossServices = services.reduce((total, line) => {
     return total + numeric(line.original_line_total_snapshot);
   }, 0);
+  const grossProducts = productLines.reduce((total, line) => total + line.salesGross, 0);
+  const grossProduction = numeric(detail.gross_production_total) || grossServices + grossProducts;
   const recognizedServices = serviceLines.reduce((total, line) => total + line.recognized, 0);
   const totalProduction = numeric(detail.recognized_production_total) || numeric(detail.total_production_amount) || recognizedServices;
   const recognizedProducts = productLines.reduce((total, line) => total + line.recognized, 0) || Math.max(0, totalProduction - recognizedServices);
@@ -146,7 +148,7 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
     { id: "other-deductions", label: "Otros descuentos", amount: numeric(detail.other_deduction_total) },
     {
       id: "mandatory-discount", label: "Descuento obligatorio",
-      detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre base comisionable: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`,
+      detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre total producido: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`,
       amount: numeric(detail.mandatory_discount_amount),
     },
   ].filter((line) => line.amount > 0);
@@ -156,6 +158,8 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
     productCount,
     rewardCount,
     grossServices,
+    grossProducts,
+    grossProduction,
     recognizedServices,
     recognizedProducts,
     totalProduction,
