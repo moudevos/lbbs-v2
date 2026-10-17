@@ -168,7 +168,7 @@ export function SettlementDetailPageClient({ settlementId }: { settlementId: str
           {
             label: "Descuento obligatorio",
             value: -numeric(data.mandatory_discount_amount),
-            detail: `${numeric(data.mandatory_discount_rate).toFixed(2)} % sobre total producido`,
+            detail: `${numeric(data.mandatory_discount_rate).toFixed(2)} % sobre ${summary.mandatoryDiscountBasisLabel}`,
             className: "bg-rose-50/40",
             amountClassName: "text-rose-700",
           },
