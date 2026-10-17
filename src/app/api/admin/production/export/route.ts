@@ -23,6 +23,7 @@ type ProductionRow = {
   commissionable_amount: number | string;
   fixed_commission_amount: number | string;
   status: string;
+  is_live_preview?: boolean;
   employee: Relation;
   branch: Relation;
   service: Relation;
@@ -36,6 +37,7 @@ type BonusRow = {
   unit_bonus_amount: number | string;
   total_bonus_amount: number | string;
   status: string;
+  is_live_preview?: boolean;
   employee: Relation;
   branch: Relation;
   product: Relation;
@@ -188,20 +190,36 @@ export async function GET(request: Request) {
     .neq("status", "cancelled");
   if (employeeId) settlementsQuery = settlementsQuery.eq("employee_id", employeeId);
 
-  const [productionResult, bonusesResult, debtsResult, settlementsResult] = await Promise.all([
+  const [productionResult, bonusesResult, livePreviewResult, debtsResult, settlementsResult] = await Promise.all([
     productionQuery,
     bonusesQuery,
+    supabase.rpc("get_live_production_preview", {
+      p_period_id: periodId,
+      p_branch_id: branchId || null,
+      p_employee_id: employeeId || null,
+      p_source: source || null,
+    }),
     debtsQuery,
     settlementsQuery,
   ]);
-  const error = productionResult.error ?? bonusesResult.error ?? debtsResult.error ?? settlementsResult.error;
+  const error = productionResult.error ?? bonusesResult.error ?? livePreviewResult.error ?? debtsResult.error ?? settlementsResult.error;
   if (error) {
     console.error("[production/export] Error al cargar datos", { message: error.message, code: error.code });
     return NextResponse.json({ error: "No se pudo preparar la exportación." }, { status: 500 });
   }
 
-  const rows = (productionResult.data ?? []) as unknown as ProductionRow[];
-  const bonuses = (bonusesResult.data ?? []) as unknown as BonusRow[];
+  const livePreview = (livePreviewResult.data ?? {}) as {
+    services?: ProductionRow[];
+    bonuses?: BonusRow[];
+  };
+  const rows = [
+    ...((productionResult.data ?? []) as unknown as ProductionRow[]),
+    ...(livePreview.services ?? []),
+  ];
+  const bonuses = [
+    ...((bonusesResult.data ?? []) as unknown as BonusRow[]),
+    ...(livePreview.bonuses ?? []),
+  ];
   const debts = (debtsResult.data ?? []) as unknown as DebtRow[];
   const settlements = (settlementsResult.data ?? []) as unknown as SettlementRow[];
   const summary = new Map<string, Record<string, string | number>>();
@@ -267,10 +285,10 @@ export async function GET(request: Request) {
   const detailHeaders = ["Fecha contable", "Tipo", "Empleado", "Sede", "Venta", "Concepto", "Origen", "Estado", "Cantidad", "Bruto", "Descuentos", "Cobrado", "Aporte", "Base", "Comisión fija", "Bono unitario", "Bono total"];
   addSheetTitle(detailSheet, "Producción — Detalle", subtitle, detailHeaders);
   for (const row of rows) {
-    detailSheet.addRow([toDate(row.accounting_date), "Servicio", relationLabel(row.employee, "full_name"), relationLabel(row.branch, "name"), `VTA-${row.sale_id.slice(0, 8).toUpperCase()}`, relationLabel(row.service, "name"), sourceLabel[row.production_source] ?? row.production_source, row.status, money(row.quantity), money(row.original_line_total), money(row.commercial_discount_amount) + money(row.reward_discount_amount) + money(row.courtesy_discount_amount), money(row.collected_amount), money(row.operational_contribution_amount), money(row.commissionable_amount), money(row.fixed_commission_amount), null, null]);
+    detailSheet.addRow([toDate(row.accounting_date), "Servicio", relationLabel(row.employee, "full_name"), relationLabel(row.branch, "name"), `VTA-${row.sale_id.slice(0, 8).toUpperCase()}`, relationLabel(row.service, "name"), sourceLabel[row.production_source] ?? row.production_source, row.is_live_preview ? "En vivo" : row.status, money(row.quantity), money(row.original_line_total), money(row.commercial_discount_amount) + money(row.reward_discount_amount) + money(row.courtesy_discount_amount), money(row.collected_amount), money(row.operational_contribution_amount), money(row.commissionable_amount), money(row.fixed_commission_amount), null, null]);
   }
   for (const bonus of bonuses) {
-    detailSheet.addRow([toDate(bonus.accounting_date), "Producto", relationLabel(bonus.employee, "full_name"), relationLabel(bonus.branch, "name"), `VTA-${bonus.sale_id.slice(0, 8).toUpperCase()}`, relationLabel(bonus.product, "name") || single(bonus.sale_item)?.description_snapshot || "Producto", "Bono de producto", bonus.status, money(bonus.quantity), money(single(bonus.sale_item)?.total), 0, money(single(bonus.sale_item)?.total), 0, 0, 0, money(bonus.unit_bonus_amount), money(bonus.total_bonus_amount)]);
+    detailSheet.addRow([toDate(bonus.accounting_date), "Producto", relationLabel(bonus.employee, "full_name"), relationLabel(bonus.branch, "name"), `VTA-${bonus.sale_id.slice(0, 8).toUpperCase()}`, relationLabel(bonus.product, "name") || single(bonus.sale_item)?.description_snapshot || "Producto", "Bono de producto", bonus.is_live_preview ? "En vivo" : bonus.status, money(bonus.quantity), money(single(bonus.sale_item)?.total), 0, money(single(bonus.sale_item)?.total), 0, 0, 0, money(bonus.unit_bonus_amount), money(bonus.total_bonus_amount)]);
   }
   detailSheet.columns = [14, 12, 23, 22, 15, 28, 22, 16, 11, 14, 14, 14, 14, 14, 16, 16, 14].map((width) => ({ width }));
   formatDataRows(detailSheet, [10, 11, 12, 13, 14, 15, 16, 17], [1]);
