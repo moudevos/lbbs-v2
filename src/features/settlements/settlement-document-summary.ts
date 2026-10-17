@@ -105,7 +105,9 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
     return total + numeric(line.original_line_total_snapshot);
   }, 0);
   const grossProducts = productLines.reduce((total, line) => total + line.salesGross, 0);
+  const hasGrossProductionSnapshot = detail.gross_production_total !== null && detail.gross_production_total !== undefined;
   const grossProduction = numeric(detail.gross_production_total) || grossServices + grossProducts;
+  const mandatoryDiscountBasisLabel = hasGrossProductionSnapshot ? "total producido" : "base histórica registrada";
   const recognizedServices = serviceLines.reduce((total, line) => total + line.recognized, 0);
   const totalProduction = numeric(detail.recognized_production_total) || numeric(detail.total_production_amount) || recognizedServices;
   const recognizedProducts = productLines.reduce((total, line) => total + line.recognized, 0) || Math.max(0, totalProduction - recognizedServices);
@@ -148,7 +150,7 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
     { id: "other-deductions", label: "Otros descuentos", amount: numeric(detail.other_deduction_total) },
     {
       id: "mandatory-discount", label: "Descuento obligatorio",
-      detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre total producido: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`,
+      detail: `${numeric(detail.mandatory_discount_rate).toFixed(2)} % sobre ${mandatoryDiscountBasisLabel}: S/ ${numeric(detail.mandatory_discount_base_amount).toFixed(2)}`,
       amount: numeric(detail.mandatory_discount_amount),
     },
   ].filter((line) => line.amount > 0);
@@ -160,6 +162,7 @@ export function buildSettlementFinancialSummary(detail: Row, services: Row[], de
     grossServices,
     grossProducts,
     grossProduction,
+    mandatoryDiscountBasisLabel,
     recognizedServices,
     recognizedProducts,
     totalProduction,
