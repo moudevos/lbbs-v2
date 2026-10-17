@@ -123,6 +123,7 @@ export async function GET(request: Request) {
   const [
     productionResult,
     bonusesResult,
+    livePreviewResult,
     branchesResult,
     employeesResult,
     settlementsResult,
@@ -130,6 +131,12 @@ export async function GET(request: Request) {
   ] = await Promise.all([
     productionQuery,
     bonusesQuery,
+    supabase.rpc("get_live_production_preview", {
+      p_period_id: periodId,
+      p_branch_id: branchId || null,
+      p_employee_id: employeeId || null,
+      p_source: source || null,
+    }),
     auth.role === "reception"
       ? supabase
           .from("branches")
@@ -167,6 +174,7 @@ export async function GET(request: Request) {
   const error =
     productionResult.error ??
     bonusesResult.error ??
+    livePreviewResult.error ??
     branchesResult.error ??
     employeesResult.error ??
     settlementsResult.error ??
@@ -182,9 +190,26 @@ export async function GET(request: Request) {
     );
   }
 
+  const livePreview = (livePreviewResult.data ?? {}) as {
+    services?: Array<Record<string, unknown>>;
+    bonuses?: Array<Record<string, unknown>>;
+    pending_sales?: number;
+  };
+
   return NextResponse.json({
-    data: productionResult.data ?? [],
-    bonuses: bonusesResult.data ?? [],
+    data: [
+      ...(productionResult.data ?? []),
+      ...(livePreview.services ?? []),
+    ],
+    bonuses: [
+      ...(bonusesResult.data ?? []),
+      ...(livePreview.bonuses ?? []),
+    ],
+    livePreview: {
+      pendingSales: Number(livePreview.pending_sales ?? 0),
+      serviceRows: livePreview.services?.length ?? 0,
+      bonusRows: livePreview.bonuses?.length ?? 0,
+    },
     debts: debtsResult.data ?? [],
     settlements: settlementsResult.data ?? [],
     filters: {
