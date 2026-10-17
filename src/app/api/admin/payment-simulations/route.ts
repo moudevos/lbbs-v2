@@ -288,9 +288,12 @@ export async function GET(request: Request) {
 
   const terms = termsResult.data;
   const settlement = settlementResult.data;
-  const commissionRate = numeric(
-    settlement?.commission_rate ?? terms?.commission_rate,
-  );
+  const configuredCommissionRate =
+    settlement?.commission_rate ?? terms?.commission_rate ?? null;
+  const commissionRate =
+    configuredCommissionRate === null
+      ? null
+      : Number(numeric(configuredCommissionRate).toFixed(4));
   const mandatoryDiscountEnabled =
     settlement?.mandatory_discount_enabled_snapshot ??
     terms?.mandatory_discount_enabled ??
@@ -312,7 +315,7 @@ export async function GET(request: Request) {
       periodId,
       totalProduced: Number(totalProduced.toFixed(2)),
       commissionableBase: Number(commissionableBase.toFixed(2)),
-      commissionRate: Number(commissionRate.toFixed(4)),
+      commissionRate,
       additionalIncome: Number(additionalIncome.toFixed(2)),
       mandatoryDiscountEnabled,
       mandatoryDiscountRate: Number(mandatoryDiscountRate.toFixed(4)),
