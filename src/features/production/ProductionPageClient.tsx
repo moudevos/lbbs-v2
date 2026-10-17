@@ -45,6 +45,8 @@ type ProductionRow = {
   status: "active" | "reversed";
   reversed_at?: string | null;
   reversed_reason?: string | null;
+  is_live_preview?: boolean;
+  pos_session_status?: string;
   employee: Relation;
   branch: Relation;
   service: Relation;
@@ -70,6 +72,8 @@ type BonusRow = {
   unit_bonus_amount: number | string;
   total_bonus_amount: number | string;
   status: string;
+  is_live_preview?: boolean;
+  pos_session_status?: string;
   employee: Relation;
   branch: Relation;
   product: Relation;
@@ -133,6 +137,7 @@ export function ProductionPageClient() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [canGenerate, setCanGenerate] = useState(true);
+  const [livePendingSales, setLivePendingSales] = useState(0);
   const [detailEmployeeId, setDetailEmployeeId] = useState<string | null>(null);
 
   const loadData = useCallback(
@@ -159,6 +164,7 @@ export function ProductionPageClient() {
         setBranches(payload.filters?.branches ?? []);
         setEmployees(payload.filters?.employees ?? []);
         setCanGenerate(payload.permissions?.canGenerate !== false);
+        setLivePendingSales(Number(payload.livePreview?.pendingSales ?? 0));
         if (!nextPeriodId && payload.selectedPeriodId)
           setPeriodId(payload.selectedPeriodId);
       } catch (error) {
@@ -330,7 +336,7 @@ export function ProductionPageClient() {
     const confirmation = await Swal.fire({
       icon: "question",
       title: "Generar producción acumulada",
-      text: "Se consolidarán únicamente ventas completadas de sesiones POS cerradas hasta ayer. Las ventas del día actual y la sesión POS activa no se incluyen.",
+      text: "Este botón consolida únicamente la producción oficial de sesiones POS cerradas hasta ayer. El visor de Producción ya muestra en vivo las ventas completadas del día actual, incluso si la sesión POS sigue abierta.",
       showCancelButton: true,
       confirmButtonText: "Generar",
       cancelButtonText: "Cancelar",
@@ -408,6 +414,7 @@ export function ProductionPageClient() {
   }
 
   const metricCards = [
+    ["Ventas pendientes de consolidar", String(livePendingSales)],
     ["Servicios realizados", String(summary.services)],
     ["Bruto de servicios", formatMoney(summary.serviceGross)],
     ["Aportes operativos", formatMoney(summary.contribution)],
@@ -427,7 +434,7 @@ export function ProductionPageClient() {
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-        Esta vista muestra únicamente producción de ventas completadas en sesiones POS cerradas. Los registros sin liquidación siguen visibles aquí como producción pendiente de liquidar.
+        Esta vista incluye todas las ventas completadas del período, también las del día actual y las de sesiones POS todavía abiertas. Los registros marcados como <strong>En vivo</strong> son solo informativos en este módulo y no pasan a liquidaciones hasta su consolidación oficial.
       </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -749,7 +756,14 @@ export function ProductionPageClient() {
                       </td>
                       <td>VTA-{row.sale_id.slice(0, 8).toUpperCase()}</td>
                       <td>{relationLabel(row.service, "name")}</td>
-                      <td>{sourceLabels[row.production_source]}</td>
+                      <td>
+                        <span>{sourceLabels[row.production_source]}</span>
+                        {row.is_live_preview ? (
+                          <span className="ml-1.5 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                            En vivo
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="text-right">
                         {formatMoney(money(row.original_line_total))}
                       </td>
@@ -794,6 +808,11 @@ export function ProductionPageClient() {
                     <span>
                       {relationLabel(row.product, "name")} x
                       {money(row.quantity)}
+                      {row.is_live_preview ? (
+                        <span className="ml-1.5 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                          En vivo
+                        </span>
+                      ) : null}
                     </span>
                     <span>
                       Bruto {formatMoney(money(single(row.sale_item)?.total))} -
