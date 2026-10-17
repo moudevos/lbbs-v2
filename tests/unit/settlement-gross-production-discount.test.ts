@@ -46,13 +46,13 @@ describe("gross production mandatory discount", () => {
     expect(detail).toContain('label: "Total producido"');
     expect(detail).toContain("value: summary.grossProduction");
     expect(detail).toContain("xl:grid-cols-6");
-    expect(detail).toContain("% sobre total producido");
+    expect(detail).toContain("summary.mandatoryDiscountBasisLabel");
   });
 
   it("uses commercial product snapshots and readable gross-production labels", () => {
     expect(summary).toContain("commercial_amount_snapshot");
     expect(summary).toContain("grossProduction");
-    expect(summary).toContain("% sobre total producido");
+    expect(summary).toContain('"total producido" : "base histórica registrada"');
     expect(pdf).toContain('["Total producido", summary.grossProduction]');
   });
 });
