@@ -87,7 +87,23 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname === "/login" && userData.user) {
-    return redirectToControl(request, response);
+    const { data: role, error: roleError } =
+      await supabase.rpc("current_user_role");
+
+    if (roleError) {
+      console.warn("[auth/proxy] No se pudo resolver el rol para redirigir desde login", {
+        code: roleError.code,
+        message: roleError.message,
+      });
+      return response;
+    }
+
+    // Una sesión válida de Supabase no implica acceso válido a LBBS.
+    // Si el usuario no está vinculado a un empleado/rol activo, dejamos
+    // renderizar /login para evitar el bucle /login -> /control -> /login.
+    if (role) {
+      return redirectToControl(request, response);
+    }
   }
 
   return response;
