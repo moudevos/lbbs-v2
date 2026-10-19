@@ -1,4 +1,4 @@
-import { scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, scryptSync, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { authenticateRouter } from "@/lib/hotspot/router-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
@@ -16,7 +16,7 @@ function verify(code: string, stored: string): boolean {
 const deny = () => NextResponse.json({ error: "Acceso Staff no autorizado." }, { status: 403 });
 
 export async function POST(request: Request) {
-  // Fail closed until durable per-document/device rate limits and lockout are installed.
+  // Disabled until router-side Staff captive installer is explicitly enabled.
   if (process.env.LBBS_STAFF_ROUTER_AUTH_ENABLED !== "true") {
     return NextResponse.json({ error: "Autenticación Staff aún no habilitada." }, { status: 503 });
   }
@@ -40,7 +40,14 @@ export async function POST(request: Request) {
   const { data: credential } = await admin.from("hotspot_staff_credentials")
     .select("id,code_hash,is_enabled").eq("employee_id", employee.id)
     .eq("branch_id", auth.router.branch_id).maybeSingle();
-  if (!credential?.is_enabled || !verify(code, credential.code_hash)) return deny();
+  const valid = Boolean(credential?.is_enabled && verify(code, credential.code_hash));
+  const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+  // Both identity and MAC are independently rate-limited per authenticated router.
+  const [byDocument, byDevice] = await Promise.all([
+    admin.rpc("staff_auth_attempt", { p_router: auth.router.id, p_subject: hash(type + ":" + document), p_valid: valid }),
+    admin.rpc("staff_auth_attempt", { p_router: auth.router.id, p_subject: hash("MAC:" + mac), p_valid: valid }),
+  ]);
+  if (byDocument.error || byDevice.error || !byDocument.data || !byDevice.data || !valid || !credential) return deny();
 
   const { data, error } = await admin.rpc("authorize_hotspot_staff_device", {
     p_credential_id: credential.id, p_mac: mac,
