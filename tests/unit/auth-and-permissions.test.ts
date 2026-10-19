@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { validatePasswordPolicy } from "@/lib/auth/password-policy";
-import { getSafeAuthRedirect } from "@/lib/auth/public-url";
+import { getSafeAuthRedirect, resolvePublicAppUrl } from "@/lib/auth/public-url";
 import { canAccessModule, getVisibleModules } from "@/lib/auth/module-permissions";
 
 describe("política de contraseña", () => {
@@ -19,6 +19,34 @@ describe("política de contraseña", () => {
 });
 
 describe("redirecciones de autenticación", () => {
+
+  it("fuerza el dominio canónico en producción aunque la variable apunte a localhost", () => {
+    expect(
+      resolvePublicAppUrl({
+        configured: "http://localhost:3000",
+        nodeEnv: "production",
+      }),
+    ).toBe("https://app.labajaditabarberstudio.com");
+  });
+
+  it("mantiene localhost únicamente fuera de producción", () => {
+    expect(
+      resolvePublicAppUrl({
+        configured: "http://localhost:3000",
+        nodeEnv: "development",
+      }),
+    ).toBe("http://localhost:3000");
+  });
+
+  it("no permite que otro host reemplace el dominio canónico de producción", () => {
+    expect(
+      resolvePublicAppUrl({
+        configured: "https://preview-invalido.example.com",
+        nodeEnv: "production",
+      }),
+    ).toBe("https://app.labajaditabarberstudio.com");
+  });
+
   it("acepta únicamente rutas internas autorizadas", () => {
     expect(getSafeAuthRedirect("/control")).toBe("/control");
     expect(getSafeAuthRedirect("/restablecer-contrasena")).toBe(
