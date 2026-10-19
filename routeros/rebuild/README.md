@@ -6,7 +6,7 @@ Esta carpeta NO importa scripts HotSpot antiguos. Los componentes actuales de St
 
 ## 00-lbbs-bootstrap.rsc
 
-Usar únicamente como **Configure script** en Netinstall sobre RouterOS limpio, sin **Keep old configuration** ni configuración predeterminada adicional. No contiene credenciales. Establece **ether2 y ether3** como Administración (192.168.88.1/24), DHCP y WinBox/IP-MAC limitado a Administración. Bloquea enrutamiento y entradas no administrativas. Es un script de una sola instalación, no una actualización idempotente.
+Usar únicamente como **Configure script** en Netinstall sobre RouterOS limpio, con **Keep old configuration** desactivado. El comportamiento exacto del selector **Apply Default Config** al usar **Configure Script** se validará con la interfaz de Netinstall antes de instalar; no proceder hasta confirmarlo. No contiene credenciales. Establece **ether2 y ether3** como Administración (192.168.88.1/24), DHCP y WinBox/IP-MAC limitado a Administración. Bloquea enrutamiento y entradas no administrativas. Es un script de una sola instalación, no una actualización idempotente.
 
 Requisito: contar con copia externa del .rsc, .backup cifrado, la carpeta HotSpot antigua y scripts históricos; WinBox por MAC ya verificado; disponer de plan Netinstall para volver a configuración predeterminada si el bootstrap falla.
 
