@@ -16,6 +16,10 @@ function verify(code: string, stored: string): boolean {
 const deny = () => NextResponse.json({ error: "Acceso Staff no autorizado." }, { status: 403 });
 
 export async function POST(request: Request) {
+  // Fail closed until durable per-document/device rate limits and lockout are installed.
+  if (process.env.LBBS_STAFF_ROUTER_AUTH_ENABLED !== "true") {
+    return NextResponse.json({ error: "Autenticación Staff aún no habilitada." }, { status: 503 });
+  }
   const auth = await authenticateRouter(request);
   if (!auth.ok) return NextResponse.json({ error: "Router no autorizado." }, { status: auth.status });
   const body = await request.json().catch(() => null);
