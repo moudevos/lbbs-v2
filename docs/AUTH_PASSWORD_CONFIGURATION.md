@@ -2,12 +2,14 @@
 
 ## URL base
 
-La aplicacion obtiene la URL publica solo desde `NEXT_PUBLIC_APP_URL`.
+La aplicación usa una URL canónica para los enlaces externos de recuperación.
 
-- Local: `http://localhost:3000`
-- Produccion: la URL final de Vercel, por ejemplo `https://dominio-produccion`
+- Local: `NEXT_PUBLIC_APP_URL` si está configurada; de lo contrario `http://localhost:3000`.
+- Producción: `https://app.labajaditabarberstudio.com`.
 
-No se debe construir la URL de redireccion desde headers no validados.
+En producción el código ignora cualquier `NEXT_PUBLIC_APP_URL` que apunte a localhost o a otro host. Esto evita que una variable heredada de desarrollo vuelva a generar enlaces de recuperación inválidos.
+
+No se debe construir la URL de redirección desde headers no validados.
 
 ## Redirect URLs que debes autorizar
 
@@ -22,7 +24,7 @@ Si se usan previews de Vercel, autoriza solo los dominios preview que tu equipo 
 
 ## Site URL
 
-Configura la Site URL de Supabase con el dominio principal de produccion. En desarrollo local, `NEXT_PUBLIC_APP_URL` sigue resolviendo la redireccion solicitada por la aplicacion.
+Configura la Site URL de Supabase como `https://app.labajaditabarberstudio.com`. En desarrollo local, `NEXT_PUBLIC_APP_URL` puede seguir apuntando a `http://localhost:3000` para pruebas locales.
 
 ## Flujo usado
 
