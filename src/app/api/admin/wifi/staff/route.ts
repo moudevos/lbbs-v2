@@ -27,6 +27,10 @@ export async function GET(request: Request) {
     .select("id,employee_id,branch_id,code_last2,is_enabled,created_at,updated_at,revoked_at")
     .eq("branch_id", branchId).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "No se pudieron consultar las credenciales Staff." }, { status: 500 });
+  const { data: eligibleEmployees, error: eligibleError } = await db().from("employees")
+    .select("id,full_name,document_type,document_number,status")
+    .eq("branch_id", branchId).eq("status", "active").order("full_name");
+  if (eligibleError) return NextResponse.json({ error: "No se pudo consultar el personal de la sede." }, { status: 500 });
   const employeeIds = (credentials ?? []).map(row => row.employee_id);
   const credentialIds = (credentials ?? []).map(row => row.id);
   const [employees, devices] = await Promise.all([
@@ -34,7 +38,7 @@ export async function GET(request: Request) {
     credentialIds.length ? db().from("hotspot_staff_devices").select("id,credential_id,mac_address,is_authorized,registered_at,revoked_at").in("credential_id", credentialIds) : Promise.resolve({ data: [], error: null }),
   ]);
   if (employees.error || devices.error) return NextResponse.json({ error: "No se pudieron consultar los datos Staff." }, { status: 500 });
-  return NextResponse.json({ data: (credentials ?? []).map(row => ({
+  return NextResponse.json({ employees: (eligibleEmployees ?? []).filter(e => e.document_number && ["DNI", "CE"].includes((e.document_type ?? "").toUpperCase())), data: (credentials ?? []).map(row => ({
     ...row, employee: (employees.data ?? []).find(e => e.id === row.employee_id) ?? null,
     devices: (devices.data ?? []).filter(d => d.credential_id === row.id),
   })) });
