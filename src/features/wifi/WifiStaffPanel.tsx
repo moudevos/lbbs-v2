@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 
 type Employee = { id: string; full_name: string; document_type: string | null; document_number: string | null };
 type Device = { id: string; mac_address: string; is_authorized: boolean; registered_at: string };
+type StaffSession = { id: string; employee_name: string; started_at: string; ended_at: string | null };
 type Credential = {
   id: string; employee_id: string; code_last2: string; is_enabled: boolean;
   employee: Employee | null; devices: Device[];
 };
 
 export function WifiStaffPanel({ branchId }: { branchId: string }) {
+  const [sessions, setSessions] = useState<StaffSession[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [employeeId, setEmployeeId] = useState("");
@@ -29,6 +31,11 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
       if (signal?.aborted) return;
       setEmployees(payload.employees ?? []);
       setCredentials(payload.data ?? []);
+      const historyResponse = await fetch("/api/admin/wifi/staff/sessions?branchId=" + encodeURIComponent(branchId), { cache: "no-store", signal });
+      if (historyResponse.ok) {
+        const history = await historyResponse.json();
+        if (!signal?.aborted) setSessions(history.data ?? []);
+      }
       setError("");
     } catch (cause) {
       if (!signal?.aborted) setError(cause instanceof Error ? cause.message : "No se pudo cargar WiFi Staff.");
@@ -135,6 +142,26 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
         </table>
         {!loading && credentials.length === 0 ? <p className="p-5 text-center text-sm text-slate-500">Todavía no hay credenciales Staff para esta sede.</p> : null}
         {loading ? <p className="p-3 text-sm text-slate-500">Cargando personal…</p> : null}
+      </div>
+      <div className="rounded-xl border border-slate-200 p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-slate-950">Sesiones Staff</h3>
+          <button type="button" className="text-sm text-emerald-700" onClick={() => void load()}>Actualizar</button>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[550px] text-left text-sm">
+            <thead><tr><th className="py-2">Empleado</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr></thead>
+            <tbody>{sessions.map(session => (
+              <tr key={session.id} className="border-t border-slate-100">
+                <td className="py-2">{session.employee_name}</td>
+                <td>{new Date(session.started_at).toLocaleString("es-PE")}</td>
+                <td>{session.ended_at ? new Date(session.ended_at).toLocaleString("es-PE") : "—"}</td>
+                <td>{session.ended_at ? "Finalizada" : "Sin cierre reportado"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {!sessions.length ? <p className="py-3 text-sm text-slate-500">Sin sesiones reportadas.</p> : null}
+        </div>
       </div>
     </section>
   );
