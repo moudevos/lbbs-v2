@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="-1">
+$(if refresh-timeout)<meta http-equiv="refresh" content="$(refresh-timeout-secs)">$(endif)
+<title>Estado de sesión</title>
+<style>
+:root{--bg:#0f1419;--card:#171d25;--line:#263040;--text:#e8edf3;--muted:#8a97a8;--accent:#2dd4bf;--accent-ink:#06201c;--danger:#f87171;--ok:#4ade80;--radius:14px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:var(--bg);color:var(--text);font-family:var(--font)}
+.card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.logo{width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:18px}
+h1{font-size:20px;margin:0}
+.sub{color:var(--muted);font-size:14px;margin:4px 0 0}
+.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(74,222,128,.12);color:var(--ok);border:1px solid var(--ok);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;margin-bottom:18px}
+.badge:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+dl{margin:0;border-top:1px solid var(--line)}
+.r{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.r dt{color:var(--muted)}
+.r dd{margin:0;font-weight:600;text-align:right;word-break:break-all}
+.btn{width:100%;margin-top:22px;padding:14px;border:0;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn.main{background:var(--accent);color:var(--accent-ink);display:block;text-align:center;text-decoration:none}
+.btn.out{background:transparent;color:var(--text);border:1px solid var(--line);margin-top:10px}
+.btn.out:hover{border-color:var(--danger);color:var(--danger)}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand">
+    <div class="logo">S</div>
+    <div><h1>Acceso Staff</h1><p class="sub">Red interna · solo personal autorizado</p></div>
+  </div>
+
+  <span class="badge">Conectado</span>
+
+  <dl>
+    <div class="r"><dt>Documento</dt><dd>$(username)</dd></div>
+    <div class="r"><dt>Dirección IP</dt><dd>$(ip)</dd></div>
+    <div class="r"><dt>Dirección MAC</dt><dd>$(mac)</dd></div>
+    <div class="r"><dt>Tiempo conectado</dt><dd>$(uptime)</dd></div>
+    $(if session-time-left)<div class="r"><dt>Tiempo restante</dt><dd>$(session-time-left)</dd></div>$(endif)
+    <div class="r"><dt>Descargado</dt><dd>$(bytes-in-nice)</dd></div>
+    <div class="r"><dt>Subido</dt><dd>$(bytes-out-nice)</dd></div>
+  </dl>
+
+  $(if link-redirect)<a class="btn main" href="$(link-redirect)">Continuar navegando</a>$(endif)
+
+  <form action="$(link-logout)" method="post">
+    <button class="btn out" type="submit">Cerrar sesión</button>
+  </form>
+</main>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="-1">
+<title>No se pudo conectar</title>
+<style>
+:root{--bg:#0f1419;--card:#171d25;--line:#263040;--text:#e8edf3;--muted:#8a97a8;--accent:#2dd4bf;--accent-ink:#06201c;--danger:#f87171;--ok:#4ade80;--radius:14px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:var(--bg);color:var(--text);font-family:var(--font)}
+.card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.logo{width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:18px}
+h1{font-size:20px;margin:0}
+.sub{color:var(--muted);font-size:14px;margin:4px 0 0}
+.icon{width:56px;height:56px;border-radius:50%;background:rgba(248,113,113,.12);border:2px solid var(--danger);display:grid;place-items:center;margin:6px auto 14px;font-size:28px;color:var(--danger);font-weight:700}
+.center{text-align:center;margin-bottom:18px}
+.alert{background:rgba(248,113,113,.12);border:1px solid var(--danger);color:var(--danger);padding:12px 14px;border-radius:10px;font-size:14px;word-break:break-word}
+.btn{display:block;width:100%;margin-top:22px;padding:14px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-size:16px;font-weight:700;text-align:center;text-decoration:none}
+.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand">
+    <div class="logo">S</div>
+    <div><h1>Acceso Staff</h1><p class="sub">Red interna · solo personal autorizado</p></div>
+  </div>
+
+  <div class="center">
+    <div class="icon">!</div>
+    <h1>No se pudo conectar</h1>
+    <p class="sub">Ocurrió un problema al validar tu acceso.</p>
+  </div>
+
+  <div class="alert">$(error)</div>
+
+  <a class="btn" href="$(link-login)">Volver a intentar</a>
+  <p class="foot">Si el problema continúa, consulta con administración.</p>
+</main>
+</body>
+</html>
