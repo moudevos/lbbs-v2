@@ -1,24 +1,15 @@
-import { randomInt, scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomInt, scryptSync, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const macPattern = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
-const codePattern = /^\d{6}$/;
 const db = () => getSupabaseAdmin();
 
 function hashCode(code: string) {
   const salt = randomBytes(16).toString("hex");
   return `scrypt:${salt}:${scryptSync(code, salt, 64).toString("hex")}`;
-}
-
-export function verifyStaffCode(code: string, stored: string) {
-  if (!codePattern.test(code)) return false;
-  const [algorithm, salt, expected] = stored.split(":");
-  if (algorithm !== "scrypt" || !salt || !expected || !/^[0-9a-f]{128}$/.test(expected)) return false;
-  const actual = scryptSync(code, salt, 64);
-  return timingSafeEqual(actual, Buffer.from(expected, "hex"));
 }
 
 async function authenticate() {
