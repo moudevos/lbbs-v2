@@ -87,6 +87,29 @@ export async function PATCH(request: Request) {
     }).eq("id", current.id);
     return error ? NextResponse.json({ error: "No se pudo actualizar el acceso." }, { status: 500 }) : NextResponse.json({ ok: true });
   }
+  if (body.action === "register_device") {
+    const mac = typeof body.mac === "string" ? body.mac.trim().toUpperCase() : "";
+    if (!macPattern.test(mac)) return NextResponse.json({ error: "Dirección MAC inválida." }, { status: 400 });
+    const { data: credential } = await db().from("hotspot_staff_credentials")
+      .select("is_enabled,employee_id").eq("id", current.id).single();
+    if (!credential?.is_enabled) return NextResponse.json({ error: "La credencial está deshabilitada." }, { status: 409 });
+    const { data: employee } = await db().from("employees").select("status,branch_id")
+      .eq("id", credential.employee_id).maybeSingle();
+    if (!employee || employee.status !== "active" || employee.branch_id !== current.branch_id) {
+      return NextResponse.json({ error: "Empleado inactivo o fuera de sede." }, { status: 409 });
+    }
+    const { data: previous } = await db().from("hotspot_staff_devices").select("id,is_authorized")
+      .eq("credential_id", current.id).eq("mac_address", mac).maybeSingle();
+    const result = previous
+      ? await db().from("hotspot_staff_devices").update({ is_authorized: true, revoked_at: null })
+          .eq("id", previous.id).select("id").single()
+      : await db().from("hotspot_staff_devices").insert({ credential_id: current.id, mac_address: mac })
+          .select("id").single();
+    if (result.error) return NextResponse.json({
+      error: result.error.code === "23514" ? "Se alcanzó el máximo de dos dispositivos o la credencial está inactiva." : "No se pudo registrar el dispositivo.",
+    }, { status: result.error.code === "23514" ? 409 : 500 });
+    return NextResponse.json({ ok: true, deviceId: result.data.id, warning: "Dispositivo registrado en Dashboard; pendiente de sincronización con MikroTik." });
+  }
   if (body.action === "revoke_device") {
     const mac = typeof body.mac === "string" ? body.mac.toUpperCase() : "";
     if (!macPattern.test(mac)) return NextResponse.json({ error: "MAC inválida." }, { status: 400 });
