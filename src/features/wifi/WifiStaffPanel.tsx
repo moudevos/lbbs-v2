@@ -64,7 +64,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "No se pudo guardar el cambio.");
       if (typeof payload.code === "string") setIssuedCode(payload.code);
-      setNotice(payload.warning ?? "Cambio guardado en el Dashboard. La sincronización con MikroTik aún no está habilitada.");
+      setNotice(payload.warning ?? "Cambio guardado en el Dashboard. La activación de red requiere la instalación y validación del portal Staff en MikroTik.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo guardar el cambio.");
@@ -80,7 +80,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
     <section role="tabpanel" aria-label="WiFi Staff" className="space-y-5 p-5 sm:p-6">
       <div>
         <h2 className="text-lg font-bold text-slate-950">WiFi Staff</h2>
-        <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. El acceso al MikroTik se habilitará en la fase de integración.</p>
+        <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. La autorización y las sesiones se preparan en el backend; el portal Staff todavía no está activado en MikroTik.</p>
       </div>
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         Las credenciales creadas aquí todavía no permiten conectarse al WiFi Staff. No se modifican los vouchers de clientes.
