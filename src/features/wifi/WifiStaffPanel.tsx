@@ -111,20 +111,20 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
                 <td className="p-3">
                   <span>{c.devices.filter(d => d.is_authorized).length} / 2</span>
                   {c.devices.filter(d => d.is_authorized).map(d => (
-                    <div key={d.id} className="mt-1 flex items-center gap-1 whitespace-nowrap text-xs text-slate-500">
+                    <div key={d.id} className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                       <span className="font-mono">{d.mac_address}</span>
-                      <button type="button" disabled={working || !c.is_enabled || c.devices.filter(d => d.is_authorized).length >= 2} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => {
-                      const mac = window.prompt("Dirección MAC del dispositivo (AA:BB:CC:DD:EE:FF):");
-                      if (mac) void mutate("PATCH", { credentialId: c.id, action: "register_device", mac });
-                    }}>Añadir dispositivo</button>
-                    <button type="button" disabled={working} className="text-rose-700 underline disabled:opacity-50" onClick={() => {
+                      <button type="button" disabled={working} className="text-rose-700 underline" onClick={() => {
                         if (window.confirm("¿Revocar este dispositivo?")) void mutate("PATCH", { credentialId: c.id, action: "revoke_device", mac: d.mac_address });
                       }}>Revocar</button>
                     </div>
                   ))}
                 </td>
                 <td className="p-3">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={working || !c.is_enabled || c.devices.filter(d => d.is_authorized).length >= 2} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => {
+                      const mac = window.prompt("Dirección MAC del dispositivo (AA:BB:CC:DD:EE:FF):");
+                      if (mac) void mutate("PATCH", { credentialId: c.id, action: "register_device", mac });
+                    }}>Añadir dispositivo</button>
                     <button type="button" disabled={working} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => { if (window.confirm("¿Generar un nuevo código? El anterior dejará de ser válido en el backend.")) void mutate("PATCH", { credentialId: c.id, action: "rotate" }); }}>Rotar</button>
                     <button type="button" disabled={working} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => void mutate("PATCH", { credentialId: c.id, action: c.is_enabled ? "disable" : "enable" })}>{c.is_enabled ? "Deshabilitar" : "Habilitar"}</button>
                   </div>
