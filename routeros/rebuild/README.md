@@ -6,7 +6,7 @@ Esta carpeta NO importa scripts HotSpot antiguos. Los componentes actuales de St
 
 ## 00-lbbs-bootstrap.rsc
 
-Usar como **Configure Script** en Netinstall sobre RouterOS limpio. Desactivar **Keep Old Configuration** y activar **Apply Default Config**: RouterOS aplicará el script personalizado en lugar de la configuración de fábrica. El script personalizado persiste en futuros resets. Nunca cargarlo como Mode Script. No contiene credenciales. Establece **ether2 y ether3** como Administración (192.168.88.1/24), DHCP y WinBox/IP-MAC limitado a Administración. Bloquea enrutamiento y entradas no administrativas. Es un script de una sola instalación, no una actualización idempotente.
+Usar como **Configure Script** en Netinstall sobre RouterOS limpio. Desactivar **Keep Old Configuration**. Con **Configure Script** marcado, Netinstall 7.23.8 deshabilita **Apply Default Config** en la interfaz; no intentar forzarlo. RouterOS aplica el script personalizado en vez de la configuración de fábrica. El script personalizado persiste en futuros resets. Nunca cargarlo como Mode Script. No contiene credenciales. Establece **ether2 y ether3** como Administración (192.168.88.1/24), DHCP y WinBox/IP-MAC limitado a Administración. Bloquea enrutamiento y entradas no administrativas. Es un script de una sola instalación, no una actualización idempotente.
 
 Requisito: contar con copia externa del .rsc, .backup cifrado, la carpeta HotSpot antigua y scripts históricos; WinBox por MAC ya verificado; disponer de plan Netinstall para volver a configuración predeterminada si el bootstrap falla.
 
@@ -40,7 +40,7 @@ Nunca incluir tokens, contraseñas, vouchers ni credenciales en GitHub, Netinsta
 3. Netinstall Win64 como Administrador: habilitar Net booting, Client IP 192.168.88.3.
 4. Apagar hEX, retirar Starlink y AP de puertos; conectar PC directo a ether1.
 5. Presionar RESET durante arranque hasta detectar hEX en Netinstall; verificar el modelo antes de proceder.
-6. Seleccionar routeros-7.23.8-mmips.npk. Keep Old Configuration: OFF; Configure Script: 00-lbbs-bootstrap.rsc; Apply Default Config: ON.
+6. Seleccionar routeros-7.23.8-mmips.npk. Keep Old Configuration: OFF; Configure Script: 00-lbbs-bootstrap.rsc; Apply Default Config: deshabilitado automáticamente al seleccionar Configure Script.
 7. Instalar y esperar confirmación de éxito. Cambiar el PC a ether2 y entrar WinBox a 192.168.88.1 o por MAC. Asegurar de inmediato cuenta admin.
 8. Verificar firewall, DHCP y bridge-admin; importar 10-lbbs-base.rsc desde WinBox. Solo después conectar Starlink a ether1; validar DNS y salida a Internet desde administración.
 9. Clientes y Staff permanecen SIN salida a Internet hasta probar sus HotSpots y el backend, nunca habilitar LBBS-GATE como simple bypass.
