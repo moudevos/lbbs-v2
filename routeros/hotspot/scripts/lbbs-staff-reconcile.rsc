@@ -39,6 +39,6 @@
     }
   } on-error={
     # Fail closed for new access elsewhere; never act on partial/failed snapshots.
-    :log warning "LBBS Staff: reconciliation failed, no changes applied"
+    :log warning "LBBS Staff: reconciliation interrupted; review applied revocations"
   }
 }
