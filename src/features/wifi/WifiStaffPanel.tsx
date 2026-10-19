@@ -150,12 +150,13 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[550px] text-left text-sm">
-            <thead><tr><th className="py-2">Empleado</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr></thead>
+            <thead><tr><th className="py-2">Empleado</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Estado</th></tr></thead>
             <tbody>{sessions.map(session => (
               <tr key={session.id} className="border-t border-slate-100">
                 <td className="py-2">{session.employee_name}</td>
                 <td>{new Date(session.started_at).toLocaleString("es-PE")}</td>
                 <td>{session.ended_at ? new Date(session.ended_at).toLocaleString("es-PE") : "—"}</td>
+                <td>{Math.max(0, (new Date(session.ended_at ?? Date.now()).getTime() - new Date(session.started_at).getTime()) / 3600000).toFixed(2)} h</td>
                 <td>{session.ended_at ? "Finalizada" : "Sin cierre reportado"}</td>
               </tr>
             ))}</tbody>
