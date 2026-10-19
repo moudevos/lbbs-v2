@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { WifiStaffPanel } from "./WifiStaffPanel";
 import { Select } from "@/components/ui/select";
 
 type Branch = { id: string; name: string; is_active: boolean };
@@ -611,49 +612,7 @@ export function WifiPageClient() {
           ))}
         </div>
 
-        {tab === "staff" ? (
-          <section role="tabpanel" aria-label="WiFi Staff" className="space-y-5 p-5 sm:p-6">
-            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">WiFi Staff</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Acceso independiente para el personal de la sede, sin alterar el portal ni los vouchers de clientes.
-                </p>
-              </div>
-              <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                Pendiente de configuración
-              </span>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-xs font-medium text-slate-500">Identificación</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">DNI o Carné de Extranjería</p>
-                <p className="mt-1 text-xs text-slate-500">Documento vinculado al registro del empleado.</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-xs font-medium text-slate-500">Credencial</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">Código personal de 6 dígitos</p>
-                <p className="mt-1 text-xs text-slate-500">Permanente hasta su rotación o revocación.</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <p className="text-xs font-medium text-slate-500">Dispositivos</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">Máximo 2 por empleado</p>
-                <p className="mt-1 text-xs text-slate-500">Registro y sesiones simultáneas controladas.</p>
-              </div>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-bold text-slate-950">Administración de accesos Staff</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                La pestaña está preparada visualmente. La emisión de credenciales, consulta de sesiones,
-                historial de horas conectadas y revocación se habilitarán al integrar el módulo Staff
-                con Supabase y el HotSpot independiente del MikroTik.
-              </p>
-              <p className="mt-3 text-xs text-slate-500">
-                No se han creado accesos Staff ni se ha modificado la configuración del router.
-              </p>
-            </div>
-          </section>
-        ) : null}
+        {tab === "staff" ? <WifiStaffPanel branchId={branchId} /> : null}
 
         {tab === "connected" ? (
           <section role="tabpanel" aria-label="Conexiones confirmadas" className="p-5 sm:p-6">
