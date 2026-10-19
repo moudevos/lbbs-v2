@@ -14,8 +14,25 @@ export default async function LoginPage() {
   // login error to the operator.
 
   if (!userError && userData.user) {
-    const { data: employee } = await supabase.from("employees").select("must_change_password").eq("user_id", userData.user.id).maybeSingle();
-    redirect(employee?.must_change_password ? "/cambiar-contrasena-obligatoria" : "/control");
+    const { data: role, error: roleError } =
+      await supabase.rpc("current_user_role");
+
+    // Solo redirigimos a /control cuando la sesión autenticada también
+    // pertenece a un usuario LBBS activo. Una cuenta Auth huérfana debe
+    // poder permanecer en /login para iniciar sesión con otra cuenta.
+    if (!roleError && role) {
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("must_change_password")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+
+      redirect(
+        employee?.must_change_password
+          ? "/cambiar-contrasena-obligatoria"
+          : "/control",
+      );
+    }
   }
   const verse = await getDailyVerse();
 
