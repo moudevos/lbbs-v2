@@ -30,6 +30,7 @@ import type {
 import {
   buildProductCartItem,
   buildProductCartItemWithPrice,
+  repriceProductCartItem,
   buildServiceCartItem,
   canAddProductQuantity,
   cartRequiresBarber,
@@ -499,14 +500,7 @@ export function usePosWorkspace() {
           if (item.item_type !== "product") return item;
           const product = activeProducts.find((candidate) => candidate.id === item.catalog_id);
           if (!product) return item;
-          return {
-            ...item,
-            unit_price: Number(product.effective_price),
-            retail_price: Number(product.retail_price),
-            employee_price: product.employee_price === null ? null : Number(product.employee_price),
-            price_source: product.price_source,
-            visibility_scope: product.visibility_scope,
-          };
+          return repriceProductCartItem(item, product);
         }));
       });
     }, 0);

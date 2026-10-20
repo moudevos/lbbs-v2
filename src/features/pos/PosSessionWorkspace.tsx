@@ -714,7 +714,7 @@ export function PosSessionWorkspace() {
       title: "Precio personalizado",
       input: "number",
       inputLabel: "Ingresa el precio del item personalizado.",
-      inputValue: product.final_sale_price,
+      inputValue: product.effective_price,
       inputAttributes: {
         min: "0.01",
         step: "0.01",
