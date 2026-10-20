@@ -10,7 +10,7 @@ const router = read("routeros/rebuild/35-lbbs-clientes-presence-v2.rsc");
 describe("LBBS WiFi Clientes v2 - staged observation and no instant expiry", () => {
   it("locks the broad observer in no-enforcement mode", () => {
     expect(api).toContain("authenticateRouter(request)");
-    expect(api).toContain("body?.enforce !== false");
+    expect(api).toContain("body?.enforce !== undefined && body.enforce !== false");
     expect(api).toContain("p_enforce: false");
     expect(api).toContain('mode: "observe"');
     expect(api).not.toContain("HOTSPOT_RECONCILE_V2_ENFORCE");
