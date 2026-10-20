@@ -95,7 +95,8 @@
 
 <script>
 (function () {
-  "use strict";
+  // RouterOS expande $(chap-id) / $(chap-challenge) usando escapes octales de JavaScript.
+  // No usar modo estricto en este bloque: causaria SyntaxError antes de registrar eventos.
   var api = "https://app.labajaditabarberstudio.com";
   var legalBase = "https://web.labajaditabarberstudio.com/legal";
   var router = "lbbs-la-bajadita-san-juan";
