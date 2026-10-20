@@ -4,12 +4,18 @@ import { describe, expect, it } from "vitest";
 
 const read = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
 const sql = read("supabase/migrations/20261020162500_hotspot_general_reconcile_v21.sql");
+const hotfix = read("supabase/migrations/20261020164500_hotspot_general_v21_fix_42702.sql");
 const routerApi = read("src/app/api/wifi/router/reconcile/route.ts");
 const dashboardApi = read("src/app/api/admin/wifi/vouchers/route.ts");
 const dashboard = read("src/features/wifi/WifiPageClient.tsx");
 const observer = read("routeros/rebuild/35-lbbs-clientes-presence-v2.rsc");
 
 describe("LBBS Clientes WiFi final v2.1 safety contract", () => {
+  it("uses a non-shadowed voucher table alias in the deployed SQL hotfix (42702)", () => {
+    expect(hotfix).toContain("from public.wifi_access_vouchers w");
+    expect(hotfix).toContain("where w.id = any(p_active_voucher_ids) and w.router_id = p_router_id");
+    expect(hotfix).not.toContain("from public.wifi_access_vouchers v\\n       where v.id");
+  });
   it("keeps the original 35 wire protocol and SQL v2 observer entirely read-only", () => {
     expect(routerApi).toContain('mode: "observe"');
     expect(routerApi).toContain("p_enforce: false");
