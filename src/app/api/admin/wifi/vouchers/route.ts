@@ -6,7 +6,6 @@ import { isRouterOnline } from "@/lib/hotspot/router-auth";
 import { encryptVoucherCode } from "@/lib/hotspot/voucher-crypto";
 import { requireAdminSession } from "@/lib/supabase/route-auth";
 import { createClient } from "@/lib/supabase/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_CODE_ATTEMPTS = 8;
@@ -82,7 +81,7 @@ export async function GET(request: Request) {
 
   // Count ONLY sessions confirmed by recent /ip hotspot active snapshots,
   // not every DB voucher still marked active. The service-role read is
-  // restricted to rows already visible to this admin through voucher RLS.
+  // restricted to authenticated admins via presence RLS (is_admin()).
   // Fail closed (zero connections) if the snapshot cannot be read.
   const now = Date.now();
   const routerOnline = Boolean(
@@ -102,7 +101,7 @@ export async function GET(request: Request) {
   };
   const presenceMap = new Map<string, Presence>();
   if (routerOnline && router && ids.length > 0) {
-    const { data: presence, error: presenceError } = await getSupabaseAdmin()
+    const { data: presence, error: presenceError } = await supabase
       .from("hotspot_client_presence_v2")
       .select("voucher_id,router_id,last_present_at,last_snapshot_at,missing_since")
       .eq("router_id", router.id)
