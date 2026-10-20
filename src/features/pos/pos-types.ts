@@ -141,6 +141,7 @@ export type PosCartItem = {
   price_source?: "retail" | "employee" | "retail_fallback" | "internal";
   visibility_scope?: "pos" | "internal" | "both";
   allow_custom_price?: boolean;
+  custom_price_applied?: boolean;
   discount_amount: number;
   is_courtesy: boolean;
   courtesy_reason: string;
