@@ -114,3 +114,34 @@ Comprobación real 19 Oct 2026: cliente HotSpot con `/ip hotspot active print co
 5. Rollback inmediato SIN deshacer Netinstall: `/ip firewall filter disable [find where comment="LBBS-CLIENTES-WAN-AUTH-ONLY"]`. Dejar los gateways amplios deshabilitados.
 
 **No habilitar la red Clientes para público todavía**: esto es un piloto de tráfico AUTH-only, NO completa el requisito de 3h absolutas contando reconexiones ni la gracia de 3min. Mientras on-logout esté deliberadamente deshabilitado, el Dashboard puede mostrar sesiones históricas como aún conectadas. Necesitamos un reconciliador de estado a prueba de reinicio, desvinculación + expiración y pruebas de fallos de red antes de producción general.
+
+## 33 - Cierre de sesiones Clientes y vencimiento (staging; NO importar todavía en producción sin API)
+
+Validación física 19 oct 2026:
+- A: otro cliente SIN voucher no puede navegar.
+- B: al reconectar dentro de ~3min RouterOS conserva autenticación.
+- C: tras >3min RouterOS cierra la sesión. **El cierre local no implica necesariamente revocación en Supabase**.
+- La regla WAN `LBBS-CLIENTES-WAN-AUTH-ONLY` permite Internet al único cliente autorizado (135+ paquetes); no abrir la regla general de Clientes ni Staff.
+
+Nueva API **POST /api/wifi/router/reconcile** (token secreto en encabezado HTTPS, solo router autenticado):
+- El script `lbbs-reconcile` envía cada 30 segundos un inventario completo de UUID de vouchers de las sesiones **realmente activas** en RouterOS (sin código, contraseña ni MAC).
+- El backend compara dicho inventario con vouchers `active` del router; si falta una sesión porque terminó `keepalive-timeout=3m`, registra el LOGOUT auténtico por el RPC existente y encola `EXPIRE_VOUCHER`.
+- Si la fecha fija `session_expires_at` desde el primer LOGIN venció, encola `EXPIRE_VOUCHER` aun si sigue activo; `lbbs-sync` retira sesión y usuario por el flujo normal ACK.
+- Los comandos fallidos de expiración se vuelven a poner pendientes con enfriamiento de 90 segundos, incluso si el voucher ya fue marcado expirado. No se agrega SQL nuevo; utiliza las tablas/RPC actuales.
+- **No alcanza precisión de reloj al segundo:** ventanas de polling de 30s + procesamiento por sync de 20s. Debe probarse tolerancia y respuesta a desconexiones, caídas HTTPS y reinicio antes de anunciar una política estricta 3h/3min.
+
+ORDEN DE DESPLIEGUE ESTRICTO:
+1. Probar los tests en el checkout: `npx vitest run tests/unit/hotspot-client-session-reconcile.test.ts`, `npx tsc --noEmit`, ejecutar lint según scripts en package.json.
+2. Publicar ANTES el backend de esta rama a un entorno accesible por `app.labajaditabarberstudio.com` (por ejemplo después de promoción revisada a producción). No asumir que un push a rama actualiza Vercel prod. NO desplegar directamente la rama principal sin revisión ni autorización.
+3. Comprobar que el endpoint esté desplegado y RouterOS pueda llegar por TLS válido. **Si devuelve 404, no importar**.
+4. Cargar `routeros/rebuild/33-lbbs-clientes-session-reconcile.rsc` en `flash/` y ejecutar una sola vez `/import file-name=flash/33-lbbs-clientes-session-reconcile.rsc`. En error detener; no repetir a ciegas.
+5. Verificar sin exponer secretos: `/system scheduler print where name="lbbs-reconcile"`, `/log print where message~"LBBS33"` (evitar logs generales), `/ip hotspot active print count-only` y estados en Dashboard.
+6. Prueba controlada: voucher activo, 1 minuto desconectado/reconectar (seguir autenticado), 4 minutos desconectado (se debe expirar y remover usuario), manual desconectar desde Dashboard, prueba de vencimiento 3h con acceso real. Comprobar que dispositivos SIN login nunca navegan.
+
+Rollback del nuevo reconciliador (sin afectar clientes autenticados existentes):
+`/system scheduler disable [find where name="lbbs-reconcile"]`
+Si se requiere bloquear inmediatamente todas las salidas de Clientes durante la investigación:
+`/ip firewall filter disable [find where comment="LBBS-CLIENTES-WAN-AUTH-ONLY"]`
+Nunca habilitar `LBBS-GATE customer WAN OFF until captive proven`.
+
+**Límite del modelo actual**: el cierre a los ~3m depende del temporizador HotSpot RouterOS y de cuándo identifica pérdida de conectividad, no de un evento 802.11 del AP TP-Link. El Dashboard deja de mostrar accesos desconectados luego de reconciliarse, no instantáneamente. Staff permanece sin tocar.
