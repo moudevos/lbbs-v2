@@ -124,12 +124,13 @@ export function buildServiceCartItem(service: PosServiceRecord): PosCartItem {
 }
 
 export function buildProductCartItem(product: PosProductRecord): PosCartItem {
-  return buildProductCartItemWithPrice(product, Number(product.effective_price));
+  return buildProductCartItemWithPrice(product, Number(product.effective_price), false);
 }
 
 export function buildProductCartItemWithPrice(
   product: PosProductRecord,
   unitPrice: number,
+  customPriceApplied = true,
 ): PosCartItem {
   return {
     id: crypto.randomUUID(),
@@ -146,6 +147,7 @@ export function buildProductCartItemWithPrice(
     price_source: product.price_source,
     visibility_scope: product.visibility_scope,
     allow_custom_price: product.allow_custom_price,
+    custom_price_applied: customPriceApplied,
     discount_amount: 0,
     is_courtesy: false,
     courtesy_reason: "",
@@ -154,6 +156,22 @@ export function buildProductCartItemWithPrice(
     is_courtesy_allowed: product.is_courtesy_allowed,
     responsible_employee_id: null,
     business_line: product.business_line,
+  };
+}
+
+export function repriceProductCartItem(item: PosCartItem, product: PosProductRecord): PosCartItem {
+  // Never overwrite a price chosen explicitly by the cashier when permitted.
+  // A regular price (including a branch override) still follows the selected buyer/sede.
+  const keepCustomPrice = product.allow_custom_price && item.custom_price_applied === true;
+  return {
+    ...item,
+    unit_price: keepCustomPrice ? item.unit_price : Number(product.effective_price),
+    retail_price: Number(product.retail_price),
+    employee_price: product.employee_price === null ? null : Number(product.employee_price),
+    price_source: product.price_source,
+    visibility_scope: product.visibility_scope,
+    allow_custom_price: product.allow_custom_price,
+    custom_price_applied: keepCustomPrice,
   };
 }
 
