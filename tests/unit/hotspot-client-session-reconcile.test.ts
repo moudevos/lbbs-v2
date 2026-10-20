@@ -43,10 +43,13 @@ describe("LBBS Clientes: expiración segura mediante inventario RouterOS", () =>
     const route = readFileSync(path.resolve("src/app/api/wifi/router/reconcile/route.ts"), "utf8");
     const installer = readFileSync(path.resolve("routeros/rebuild/33-lbbs-clientes-session-reconcile.rsc"), "utf8");
     expect(route).toContain("authenticateRouter(request)");
-    expect(route).toContain('p_event: "LOGOUT"');
+    expect(route).not.toContain('p_event: "LOGOUT"');
+    expect(route).toContain('if (reason === "session_missing")');
+    expect(route).toContain("deferredMissing++");
     expect(route).toContain('"EXPIRE_VOUCHER"');
     expect(route).toContain('idempotency_key: "expire:"');
-    expect(route).toContain('"router_active_snapshot"');
+    expect(route).not.toContain('"router_active_snapshot"');
+    expect(route).toContain('reason: "absolute_deadline"');
     expect(installer).toContain("activeVoucherIds");
     expect(installer).toContain("/api/wifi/router/reconcile");
     expect(installer).toContain('interval=30s');
