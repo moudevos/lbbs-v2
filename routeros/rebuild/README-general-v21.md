@@ -2,6 +2,8 @@
 
 **Despliegue realizado:** Supabase migraciones `20261020162500` y `20261020163500` aplicadas. API y Dashboard publicados selectivamente en `main` commit `35c3abe127d0254799efba8a805e73cb0d03d232`; Vercel producción `dpl_2N8TxfsyYB6gJgFMjF5YvyPm51oj` READY. Configuración `hotspot_general_reconcile_config_v21` habilitada SOLO en router `lbbs-la-bajadita-san-juan` a las **2026-10-20 21:24:57 UTC (16:24:57 Perú)**. Primera lectura posterior: router online, 1 presencia activa verificada, 1 voucher histórico ausente, 0 órdenes generales encoladas. El voucher histórico no se revoca retroactivamente sin nueva presencia real.
 
+**Corrección posterior al despliegue:** la prueba con logs reales detectó PostgreSQL `42702` en la validación de inventario del RPC general (alias `v` colisionaba con variable PL/pgSQL). Hotfix aplicado y versionado en `supabase/migrations/20261020164500_hotspot_general_v21_fix_42702.sql`: se renombró el alias SQL a `w`. Prueba SQL de RPC con router inexistente devolvió `disabled,0`; Vercel dejó de registrar errores 42702, y a las 21:32:14 UTC el router estaba en línea, los snapshots se actualizaban (<12s), 1 sesión verificada y 0 expiraciones generales incorrectas. **No ejecutar otra vez el SQL a mano.**
+
 **Pendiente de ensayo físico final:** apagar/reactivar WiFi en un voucher nuevo posterior a habilitación y comprobar `EXPIRE_VOUCHER` con `source=general_v21` en status `applied`, Dashboard `Expirado` y rechazo de código. Sin ese ensayo, considerar desplegado y habilitado, **no verificado todavía extremo a extremo en modo general**; la lógica canaria sí fue validada end-to-end.
 
 ## Alcance verificado y cambio
