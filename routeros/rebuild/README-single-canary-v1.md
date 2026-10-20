@@ -5,6 +5,8 @@ Fecha: 20 octubre 2026. Rama: `infra/wifi-netinstall-rebuild`.
 ## Estado real y protección
 
 - Migración `20261020145000_hotspot_reconcile_one_voucher_canary.sql` aplicada en Supabase `db_lbbs_v2`. Tabla privada `hotspot_reconcile_canary_v1` creada con **cero filas** y RLS.
+- Despliegue **main** verificado: `a5de34632c78736cfcc0972c314615bdbcb2efc5`, Vercel producción READY (`dpl_9GVSUDjG91zkkFGrj83mvE2HHfBC`). La ruta habitual y la canaria devuelven GET=405 en el dominio oficial (son POST). Sin POST autenticado aún.
+- Comprobación SQL tras deploy: `canary_rows=0`, `armed_canaries=0`, `canary_commands=0`, `active_vouchers=1`. El voucher activo existente **no** fue armado automáticamente.
 - La API normal `/api/wifi/router/reconcile` se ha fijado en **observe-only** (sin opción de revocación masiva), con publicación selectiva a `main`.
 - API independiente `POST /api/wifi/router/reconcile/canary`: acepta inventario autenticado del router y `{canary:true,enforce:false,activeVoucherIds:[...]}`. No acepta ID objetivo desde MikroTik. Lee el único ID autorizado por operador en Supabase.
 - El instalador `36-lbbs-clientes-single-canary.rsc` es independiente de LBBS35, se instala con scheduler **deshabilitado**, jamás selecciona vouchers ni modifica red, perfiles ni portal.
