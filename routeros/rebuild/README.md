@@ -159,3 +159,15 @@ Hotfix independiente publicado en `main` (`f478aca8a82dcc5eeb875c26730d02f4a7f75
 - las sesiones de RouterOS siguen limitadas por su perfil, pero las tres horas absolutas entre reconexiones todavía necesitan una prueba de extremo a extremo.
 
 Para contener: `/system scheduler disable [find where name="lbbs-reconcile"]`. No deshabilitar `lbbs-sync` ni `lbbs-heartbeat`; la red Clientes sigue protegida por `hotspot=auth`.
+
+## 20 oct 2026 — Captive Clientes: HTTP-CHAP challenge missing tras autorización
+
+Prueba real: Dashboard queda en `activation_ready` (**Listo para conectar**, sin `first_used_at`) mientras `flogin.html` informa `web browser did not send challenge response (try again, enable JavaScript)`. Este mensaje **proviene de RouterOS**: no equivale a fallo de DNI/Supabase, ni a voucher expirado. El portal inicial hace peticiones al backend y espera ACK antes de invocar el POST CHAP; durante esa espera el desafío original podría quedar inválido ante los cambios de estado del host y navegador. Otras posibles causas son HTML almacenado en caché o el motor JS del portal. No declarar causa inequívoca sin captura de red.
+
+Parche de portal: `routeros/hotspot/portal/lbbs-cautive-clients/login.html`. Inmediatamente después del estado `activation_ready`, solicita una página nueva de `$(link-login-only)` con `cache: no-store`, extrae `chap-id` y `chap-challenge` del HTML retornado SIN ejecutarlo, decodifica bytes octales de RouterOS y calcula la respuesta CHAP MD5 con el código del formulario original; no cambia HTTP-CHAP a PAP, no almacena código/contraseña/hash y no modifica los scripts/router. Pruebas de sintaxis/decodificación de byte CHAP exitosas por inspección de V8; falta prueba E2E en MikroTik.
+
+Despliegue **solo manual por WinBox / Files**:
+- confirmar que `lbbs-reconcile` esté deshabilitado y que `lbbs-hotspot-profile login-by=http-chap`.
+- actualizar a esta rama y copiar **solo** `login.html` al directorio actual `flash/lbbs-clients/login.html` sustituyendo el archivo anterior. No importes `20-lbbs-clientes.rsc`; no reinstales HotSpot, no toques la carpeta Staff.
+- cerrar el navegador/popup cautivo y abrir una página HTTP nueva para cargar HTML fresco; usar voucher `activation_ready` dentro de 30min (la API permite retry del mismo DNI+MAC mientras `first_used_at` sea nulo).
+- validar `/ip hotspot active print count-only` y Dashboard `Activo`. Si vuelve a aparecer `chap-missing`, no habilitar PAP; pedir estado sin secretos de perfil, historial de host/sesión y resultados, y revisar el HTML servido/errores de JS.
