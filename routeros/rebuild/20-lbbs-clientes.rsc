@@ -21,7 +21,10 @@
 # is implemented end-to-end in RouterOS and Supabase.
 /ip hotspot profile add name="lbbs-hotspot-profile" hotspot-address=10.10.10.1 dns-name="wifi.lbbs.test" login-by=http-chap html-directory="flash/lbbs-clients" use-radius=no
 /ip hotspot user profile add name="lbbs-client-profile" shared-users=1 session-timeout=3h keepalive-timeout=3m idle-timeout=none add-mac-cookie=no
-/ip hotspot add name="lbbs-hotspot" interface=bridge-hotspot address-pool=pool-hotspot profile=lbbs-hotspot-profile keepalive-timeout=3m idle-timeout=none login-timeout=5m addresses-per-mac=1 disabled=no
+# DHCP (dhcp-hotspot) owns IP allocation. HotSpot Universal NAT pool=none prevents
+# duplicate address mappings; addresses-per-mac=2 tolerates transitional IPs
+# belonging to one MAC while shared-users=1 + user.mac-address restrict voucher.
+/ip hotspot add name="lbbs-hotspot" interface=bridge-hotspot address-pool=none profile=lbbs-hotspot-profile keepalive-timeout=3m idle-timeout=none login-timeout=5m addresses-per-mac=2 disabled=no
 
 # Frontend API requests and privacy pages are the ONLY permitted external hosts.
 # IP list entries below are DNS-resolved; the HotSpot's walled garden performs
