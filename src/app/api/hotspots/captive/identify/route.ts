@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   hashCode,
   normalizeCode,
-  normalizeDni,
+  normalizeCaptiveDocument,
   publicError,
   signHotspotToken,
 } from "@/lib/hotspot/captive";
@@ -22,11 +22,12 @@ const candidateStatuses = [
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
-  const dni = normalizeDni(body?.dni);
+  // Keep DNI-only legacy portal compatible while the new local HTML is deployed.
+  const document = normalizeCaptiveDocument(body?.documentType ?? "DNI", body?.documentNumber ?? body?.dni);
   const code = normalizeCode(body?.code);
   const mac = typeof body?.mac === "string" ? body.mac.trim().toUpperCase() : "";
 
-  if (!dni) return NextResponse.json({ error: "Ingresa un DNI válido de 8 dígitos." }, { status: 400 });
+  if (!document) return NextResponse.json({ error: "Selecciona DNI o CE e ingresa un documento válido." }, { status: 400 });
   if (!code || !/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac) ||
       typeof body?.routerIdentifier !== "string") {
     return NextResponse.json({ error: publicError }, { status: 400 });
@@ -62,8 +63,8 @@ export async function POST(request: Request) {
   const { data: customers, error: customerError } = await admin
     .from("customers")
     .select("id,first_name,full_name")
-    .eq("document_type", "DNI")
-    .eq("document_number", dni)
+    .eq("document_type", document.type)
+    .eq("document_number", document.number)
     .eq("is_active", true);
 
   if (customerError) {
@@ -77,7 +78,8 @@ export async function POST(request: Request) {
     voucherId: voucher.id,
     routerId: router.id,
     branchId: router.branch_id,
-    dni,
+    documentType: document.type,
+    documentNumber: document.number,
     mac,
     ip: typeof body.ip === "string" ? body.ip : null,
     exp: Date.now() + 5 * 60_000,
