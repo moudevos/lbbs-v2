@@ -74,6 +74,19 @@ export async function POST(request: Request) {
     const reason = customerExpiryReason(voucher, activeIds, now);
     if (!reason) continue;
 
+    // Existing lbbs-sync supports EXPIRE_VOUCHER, removing local user/cookie
+    // and active session. Idempotency prevents duplicate commands across polls.
+    const { error: queueError } = await admin.from("hotspot_router_commands").upsert({
+      router_id: auth.router.id,
+      voucher_id: voucher.id,
+      command_type: "EXPIRE_VOUCHER",
+      payload: { source: "router_reconciliation", reason },
+      idempotency_key: "expire:" + voucher.id,
+    }, { onConflict: "idempotency_key", ignoreDuplicates: true });
+    if (queueError) {
+      console.error("[wifi/reconcile] No se pudo programar expiración.", { code: queueError.code });
+      return NextResponse.json({ error: "No se pudo programar la desconexión." }, { status: 503 });
+    }
     // For absent RouterOS sessions: use the existing signed-router LOGOUT RPC.
     // It records the genuine state transition, so Dashboard no longer reports
     // disconnected devices as online. Reconciliation never fabricates a LOGIN.
@@ -97,19 +110,6 @@ export async function POST(request: Request) {
       loggedOut++;
     }
 
-    // Existing lbbs-sync supports EXPIRE_VOUCHER, removing local user/cookie
-    // and active session. Idempotency prevents duplicate commands across polls.
-    const { error: queueError } = await admin.from("hotspot_router_commands").upsert({
-      router_id: auth.router.id,
-      voucher_id: voucher.id,
-      command_type: "EXPIRE_VOUCHER",
-      payload: { source: "router_reconciliation", reason },
-      idempotency_key: "expire:" + voucher.id,
-    }, { onConflict: "idempotency_key", ignoreDuplicates: true });
-    if (queueError) {
-      console.error("[wifi/reconcile] No se pudo programar expiración.", { code: queueError.code });
-      return NextResponse.json({ error: "No se pudo programar la desconexión." }, { status: 503 });
-    }
     queued++;
   }
   return NextResponse.json({ ok: true, queued, loggedOut });
