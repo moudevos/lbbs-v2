@@ -74,3 +74,18 @@ Newly installed Clients HotSpot currently displays the portal, but lacks RouterO
 7. DO NOT install `lbbs-install-session-hooks.rsc` in its old form: it removes Client voucher on every LOGOUT and contradicts the 3-minute reconnect policy. DO NOT enable `LBBS-GATE customer WAN OFF until captive proven` yet.
 
 This staged integration does NOT fulfill the complete Customer three-minute grace rule or Staff automatic reconnection. Type-of-document support for Clients and max-one-device Staff policy also require backend changes.
+
+
+## Clientes - Rediseño DNI/CE e intermediario (Oct 19, 2026)
+
+El portal físico instalado originalmente en `flash/lbbs-clients/` sigue mostrando los HTML subidos anteriormente hasta que se reemplacen manualmente; un commit GitHub NO actualiza RouterOS.
+
+- Nuevo flujo en `routeros/hotspot/portal/lbbs-cautive-clients/login.html`: bienvenida → DNI/CE + código → registro, si procede → espera **real** del ACK de activación → HTTP-CHAP contra MikroTik → `alogin.html` confirma y transiciona a estado.
+- `rlogin.html` y `redirect.html` encauzan peticiones HTTP cautivas al nuevo login. `api.json` está incluido, pero no garantiza popup por sí solo.
+- `src/lib/hotspot/captive.ts` y ambos endpoints `identify`/`register` ahora aceptan DNI y CE (número 6-12 alfanumérico para CE). DNI anterior sin tipo sigue aceptado. **No requiere SQL nuevo.**
+- ORDEN IMPORTANTE: publicar primero la API en producción para habilitar CE; el HTML nuevo conserva compatibilidad de DNI con el endpoint viejo durante el despliegue, pero CE no funcionará hasta publicar el backend.
+- Después de publicar API, actualizar por WinBox **todo el contenido** de `routeros/hotspot/portal/lbbs-cautive-clients/` en `flash/lbbs-clients/`, sobreescribiendo todos los HTML/CSS existentes y copiando `assets/lbbs-logo.svg` dentro de la subcarpeta assets. NO reimportar el instalador 20.
+- Comprobar tras subir: abrir `http://10.10.10.1/login` desde el móvil sin datos y confirmar bienvenida/selector; probar DNI y CE únicamente con voucher de prueba en ambiente seguro, no asumir Internet todavía.
+- La apertura automática del miniportal en Android/iOS depende también de los probes del sistema y/o RFC7710; RouterOS sólo anuncia el endpoint DHCP automáticamente si el HotSpot tiene **DNS válido más certificado SSL válido**. `wifi.lbbs.test` no dispone actualmente de certificado público validable. No forzar DHCP option 114 HTTP ni abrir WAN para disfrazar el estado.
+- **SEGURIDAD**: tokens de router aparecieron en `/system script print` y `/log print` del historial; rotar en Dashboard, actualizar exclusivamente `lbbs-env` (sin eliminarlo), y nunca imprimir script source/log entries que contengan secretos. Eliminar el instalador 30 personalizado del RouterOS una vez instalado.
+- No habilitar `LBBS-GATE customer WAN OFF until captive proven` antes de auditar activación, hook de LOGIN, expiración absoluta (3h) y gracia desconectado (3min). Estado actual: voucher CREATE sincroniza, pero no prueba acceso final.
