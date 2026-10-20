@@ -33,7 +33,7 @@ Este parche **no modifica POS, Staff, Starlink, NAT, firewall, DHCP ni el portal
 
 1. Revisar backup y aplicar **primero** la migración de Supabase LBBS. En 20/10/2026 fue aplicada desde la rama `infra/wifi-netinstall-rebuild`; la tabla y RLS se confirmaron mediante herramientas de Supabase. No ejecutar otra vez por inercia.
 2. Probar `npx vitest run tests/unit/hotspot-client-reconcile-v2-contract.test.ts`, `npm run typecheck` y la compilación del branch. La rama infra contiene cambios adicionales, **NO promoverla íntegra a main**.
-3. Desplegar en producción **solo** `src/app/api/wifi/router/reconcile/route.ts` sobre la `main` actual después de QA en Vercel preview. Garantizar que `HOTSPOT_RECONCILE_V2_ENFORCE` NO esté activa. Validar GET=>405 y la prueba POST autenticada desde RouterOS `version=2,mode=observe,queued=0`.
+3. **REALIZADO 20/10/2026**: API v2 publicada en producción por commit `cd3eeb522d8a1a0bb403607fcc67e8b33d9ea37f` en `main`, únicamente `src/app/api/wifi/router/reconcile/route.ts`. Preview y producción Vercel READY; GET al dominio real devuelve 405 y corresponde a `/api/wifi/router/reconcile`. **Pendiente**: prueba POST autenticada desde RouterOS para confirmar `version=2, mode=observe, queued=0`. La lectura de variables de entorno del proyecto Vercel fue denegada (403): mantener doble switch en código, el script siempre envía `enforce=false`; nunca activar flag por intuición.
 4. En MikroTik comprobar `/system scheduler print where name="lbbs-reconcile"` con `X` (deshabilitado).
 5. Subir `35-lbbs-clientes-presence-v2.rsc` a `flash/` mediante WinBox Files e importar **una sola vez**:
 
