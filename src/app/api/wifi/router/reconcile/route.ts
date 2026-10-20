@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { authenticateRouter } from "@/lib/hotspot/router-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { customerExpiryReason } from "@/lib/hotspot/session-policy";
 
 // RouterOS HotSpot keeps a disconnected client active until keepalive-timeout=3m.
 // A complete authenticated snapshot therefore distinguishes clients still inside
@@ -17,21 +18,6 @@ type Voucher = {
   session_expires_at: string | null;
   revocation_requested_at: string | null;
 };
-
-export type ExpiryReason = "absolute_deadline" | "session_missing";
-
-export function customerExpiryReason(
-  voucher: Pick<Voucher, "id" | "session_expires_at">,
-  observedActive: ReadonlySet<string>,
-  now: number,
-): ExpiryReason | null {
-  if (!voucher.session_expires_at || !Number.isFinite(Date.parse(voucher.session_expires_at))) {
-    return "absolute_deadline"; // incomplete session record must not leave unrestricted access
-  }
-  if (Date.parse(voucher.session_expires_at) <= now) return "absolute_deadline";
-  if (!observedActive.has(voucher.id.toLowerCase())) return "session_missing";
-  return null;
-}
 
 export async function POST(request: Request) {
   const auth = await authenticateRouter(request);
