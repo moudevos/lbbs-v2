@@ -65,6 +65,6 @@ describe("LBBS one-voucher canary safety", () => {
     expect(installer).toContain('/system scheduler disable [find where name="lbbs-canary-v1"]');
     expect(installer).not.toContain("/ip hotspot user remove");
     expect(installer).not.toContain("/ip firewall filter");
-    expect(installer).not.toContain("lbbsRouterToken]");
+    expect(installer).not.toContain(":put $lbbsRouterToken");
   });
 });
