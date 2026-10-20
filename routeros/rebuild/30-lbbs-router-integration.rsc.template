@@ -5,7 +5,7 @@
 # Never import previous session-hooks: their LOGOUT invalidates vouchers instantly.
 # One-time installer: STOP on error, never reimport blindly.
 
-:local routerToken "{{LBBS_ROUTER_TOKEN}}"
+:local routerToken "lbbs_rt_wFF90Q7L7CcuZXX8y2Vh4aDEYoIUkC0-"
 :if ([:len $routerToken] < 36 || [:pick $routerToken 0 8] != "lbbs_rt_") do={ :error "LBBS: replace LBBS_ROUTER_TOKEN locally" }
 :if ([:len [/ip hotspot find where name="lbbs-hotspot"]] != 1) do={ :error "LBBS: Clients hotspot missing" }
 :if ([:len [/ip hotspot user profile find where name="lbbs-client-profile"]] != 1) do={ :error "LBBS: Clients user profile missing" }

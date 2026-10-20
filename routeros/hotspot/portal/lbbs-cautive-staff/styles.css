@@ -1,0 +1,445 @@
+/* =========================================================
+   LBBS WiFi · Portal cautivo La Bajadita Barber Studio
+   Para cambiar la identidad visual edita SOLO este bloque.
+   ========================================================= */
+:root {
+  color-scheme: dark;
+
+  --bg: #0c0c0d;
+  --bg-glow: #1d1a14;
+  --surface: #151517;
+  --surface-2: #1c1c1f;
+  --line: #2b2b30;
+
+  --text: #f4efe6;
+  --muted: #a8a195;
+
+  --accent: #c8a45c;       /* dorado de marca (ajústalo al de la web) */
+  --accent-hover: #ddbd78;
+  --accent-ink: #16120a;   /* texto sobre el acento */
+
+  --danger: #ff8f7a;
+  --ok: #7ddba3;
+
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  --font-body: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --font-display: "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Nota: las tipografías de Google Fonts solo cargan si agregas
+   fonts.googleapis.com y fonts.gstatic.com al Walled Garden del
+   MikroTik. Si no, el portal usa las fuentes del sistema. */
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  font-family: var(--font-body);
+  color: var(--text);
+  background:
+    radial-gradient(900px 500px at 50% -10%, var(--bg-glow), transparent 70%),
+    var(--bg);
+}
+
+/* ---------- Tarjeta ---------- */
+.card {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 34px 26px 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Franja tipo poste de barbero */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--accent) 0 10px,
+    var(--bg) 10px 20px,
+    var(--text) 20px 30px,
+    var(--bg) 30px 40px
+  );
+  opacity: .9;
+}
+
+.logo {
+  display: block;
+  width: 84px;
+  height: 84px;
+  margin: 6px auto 0;
+  object-fit: contain;
+}
+
+.eyebrow {
+  margin: 20px 0 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+p {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.brand-foot {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- Formularios ---------- */
+form {
+  margin-top: 26px;
+  text-align: left;
+}
+
+form[hidden] { display: none; }
+
+label {
+  display: block;
+  margin: 16px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--text);
+}
+
+input {
+  width: 100%;
+  margin-top: 7px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* evita el zoom automático en iOS */
+  transition: border-color .15s, box-shadow .15s;
+}
+
+input::placeholder { color: #6b665c; }
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200, 164, 92, .25);
+}
+
+input[readonly] {
+  color: var(--muted);
+  background: var(--surface);
+}
+
+#code {
+  letter-spacing: .4em;
+  text-align: center;
+  font-weight: 700;
+}
+
+label.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+label.check input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
+label.check a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- Botones ---------- */
+button,
+.button {
+  display: block;
+  width: 100%;
+  margin-top: 24px;
+  padding: 15px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s, transform .05s;
+}
+
+button:hover,
+.button:hover { background: var(--accent-hover); }
+
+button:active,
+.button:active { transform: translateY(1px); }
+
+button:disabled { cursor: not-allowed; opacity: .75; }
+
+button.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: spin .7s linear infinite;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.secondary:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+/* ---------- Mensajes ---------- */
+.hint,
+.notice {
+  font-size: 13px;
+  text-align: center;
+}
+
+.hint { margin-top: 16px; }
+
+.notice {
+  min-height: 20px;
+  margin-top: 16px;
+  color: var(--accent-hover);
+}
+
+/* Errores que devuelve el MikroTik ($(error)) */
+.notice[role="alert"],
+.notice.is-error {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 143, 122, .35);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 143, 122, .08);
+  color: var(--danger);
+}
+
+/* ---------- Íconos de estado ---------- */
+.badge {
+  width: 64px;
+  height: 64px;
+  margin: 6px auto 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.badge svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.badge.ok { color: var(--ok); border-color: rgba(125, 219, 163, .4); }
+.badge.err { color: var(--danger); border-color: rgba(255, 143, 122, .4); }
+.badge.off { color: var(--accent); border-color: rgba(200, 164, 92, .4); }
+
+/* ---------- Datos de sesión ---------- */
+dl {
+  margin: 24px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+
+dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+dl > div:last-child { border-bottom: 0; }
+
+dt { color: var(--muted); font-size: 14px; }
+
+dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: right;
+  word-break: break-word;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 360px) {
+  body { padding: 12px; }
+  .card { padding: 30px 18px 22px; }
+  h1 { font-size: 24px; }
+}
+
+/* ---------- Panel de carga (login) ---------- */
+body.is-loading { overflow: hidden; }
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(12, 12, 13, .96);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.loader[hidden] { display: none; }
+
+.spinner {
+  width: 68px;
+  height: 68px;
+  margin-bottom: 22px;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+
+.loader h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.loader-text {
+  min-height: 3em;
+  max-width: 340px;
+}
+
+.steps {
+  list-style: none;
+  width: min(100%, 320px);
+  margin: 18px 0 0;
+  padding: 0;
+  text-align: left;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  color: #6b665c;
+  font-size: 14px;
+}
+
+.steps li::before {
+  content: "";
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--bg);
+}
+
+.steps li.is-active { color: var(--text); font-weight: 700; }
+
+.steps li.is-active::before {
+  border-color: var(--accent);
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.steps li.is-done { color: var(--muted); }
+
+.steps li.is-done::before {
+  content: "✓";
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+.loader-warn {
+  max-width: 340px;
+  margin-top: 22px;
+  padding: 10px 14px;
+  border: 1px solid rgba(200, 164, 92, .35);
+  border-radius: var(--radius-sm);
+  background: rgba(200, 164, 92, .08);
+  color: var(--accent-hover);
+  font-size: 13px;
+}
+
+@keyframes pulse { 50% { opacity: .35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *:not(.spinner) { animation: none !important; transition: none !important; }
+}

@@ -3,55 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
 <meta http-equiv="pragma" content="no-cache">
 <meta http-equiv="expires" content="-1">
 <meta http-equiv="refresh" content="8;url=$(link-status)">
 <title>Conectando…</title>
-<style>
-:root{--bg:#0f1419;--card:#171d25;--line:#263040;--text:#e8edf3;--muted:#8a97a8;--accent:#2dd4bf;--accent-ink:#06201c;--danger:#f87171;--ok:#4ade80;--radius:14px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:var(--bg);color:var(--text);font-family:var(--font)}
-.card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px;text-align:center}
-.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px;text-align:left}
-.logo{width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:800;font-size:18px}
-h1{font-size:20px;margin:0}
-.sub{color:var(--muted);font-size:14px;margin:4px 0 0}
-.ring{width:64px;height:64px;margin:8px auto 18px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:r .9s linear infinite}
-.done .ring{animation:none;border-color:var(--ok);position:relative}
-.done .ring:after{content:"";position:absolute;left:19px;top:8px;width:14px;height:26px;border:solid var(--ok);border-width:0 4px 4px 0;transform:rotate(45deg)}
-@keyframes r{to{transform:rotate(360deg)}}
-.steps{list-style:none;padding:0;margin:20px 0 0;text-align:left}
-.steps li{display:flex;align-items:center;gap:10px;padding:9px 0;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
-.steps li i{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none}
-.steps li.on{color:var(--text)}
-.steps li.on i{border-color:var(--accent);border-top-color:transparent;animation:r .8s linear infinite}
-.steps li.ok{color:var(--text)}
-.steps li.ok i{background:var(--ok);border-color:var(--ok);animation:none}
-.link{display:none;margin-top:18px;font-size:14px}
-.link a{color:var(--accent)}
-</style>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="staff.css">
 </head>
 <body>
 <main class="card" id="card">
-  <div class="brand">
-    <div class="logo">S</div>
-    <div><h1>Acceso Staff</h1><p class="sub">Red interna · solo personal autorizado</p></div>
-  </div>
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">Acceso Staff</p>
 
   <div class="ring"></div>
   <h1 id="title">Conectando…</h1>
-  <p class="sub" id="msg">Un momento, estamos habilitando tu acceso.</p>
+  <p id="msg">Un momento, estamos habilitando tu acceso.</p>
 
-  <ul class="steps">
+  <ul class="progress">
     <li id="s1" class="on"><i></i>Credenciales verificadas</li>
     <li id="s2"><i></i>Asignando acceso a la red</li>
     <li id="s3"><i></i>Comprobando conexión</li>
   </ul>
 
   <p class="link" id="fb">¿Tarda demasiado? <a href="$(link-status)">Continuar</a></p>
+  <p class="brand-foot">La Bajadita Barber Studio</p>
 </main>
 
-<noscript><p style="text-align:center;margin-top:20px"><a style="color:#2dd4bf" href="$(link-status)">Continuar</a></p></noscript>
+<noscript><p class="hint" style="text-align:center;margin-top:20px"><a style="color:#c8a45c" href="$(link-status)">Continuar</a></p></noscript>
 
 <script>
 var STATUS="$(link-status)";
