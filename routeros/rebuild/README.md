@@ -89,3 +89,16 @@ El portal físico instalado originalmente en `flash/lbbs-clients/` sigue mostran
 - La apertura automática del miniportal en Android/iOS depende también de los probes del sistema y/o RFC7710; RouterOS sólo anuncia el endpoint DHCP automáticamente si el HotSpot tiene **DNS válido más certificado SSL válido**. `wifi.lbbs.test` no dispone actualmente de certificado público validable. No forzar DHCP option 114 HTTP ni abrir WAN para disfrazar el estado.
 - **SEGURIDAD**: tokens de router aparecieron en `/system script print` y `/log print` del historial; rotar en Dashboard, actualizar exclusivamente `lbbs-env` (sin eliminarlo), y nunca imprimir script source/log entries que contengan secretos. Eliminar el instalador 30 personalizado del RouterOS una vez instalado.
 - No habilitar `LBBS-GATE customer WAN OFF until captive proven` antes de auditar activación, hook de LOGIN, expiración absoluta (3h) y gracia desconectado (3min). Estado actual: voucher CREATE sincroniza, pero no prueba acceso final.
+
+## 31-lbbs-client-login-events.rsc (real LOGIN event, NO LOGOUT yet)
+
+Field check on Oct 19: a client successfully authenticated in RouterOS (`/ip hotspot active print count-only` = 1; host `HA`), but the Dashboard still displayed "Listo para conectar"/Connected=0. This is EXPECTED while `lbbs-client-profile` lacks a login hook: ACTIVATE_VOUCHER ACK is not a SESSION LOGIN event.
+
+Only after confirming the existing active HotSpot session:
+1. Download `31-lbbs-client-login-events.rsc` from this branch; upload to `flash/31-lbbs-client-login-events.rsc` in WinBox.
+2. Do NOT install the old `lbbs-install-session-hooks.rsc`. It force-deletes the user and expires the voucher immediately on logout, breaking the 3-minute grace requirement.
+3. Run `/import file-name=flash/31-lbbs-client-login-events.rsc` **once**. Stop if an error appears, since the profile might already have been changed before reconciliation.
+4. Check only non-secret status: `/ip hotspot active print count-only`, `:put [:len [/ip hotspot user profile get [find where name="lbbs-client-profile"] on-login]]` and `/log print where message~"LBBS31"`. Do NOT print system scripts or the router credential.
+5. Refresh WiFi Dashboard; the genuine 1 active session should change voucher status to `active`/connected after successful authenticated HTTPS event reconciliation. If it does not, investigate the API response / Supabase RPC and profile permissions without inventing session events.
+
+This change DOES NOT open Internet, enforce the 3h absolute max across reconnects, or implement the 3-minute disconnection grace. A later phase must implement a reconciling monitor with logout/disconnection state and router authorization checks. Until then keep the Client WAN gate disabled, and note the Dashboard active state may be stale after a disconnect due to intentionally deferred logout events. No change to Staff.
