@@ -32,7 +32,7 @@
     :foreach seenId in=$ids do={
       :if ($seenId = $voucherId) do={ :set existing true }
     }
-    :if (!$existing) do={ :set ids ($ids, $voucherId) }
+    :if ($existing = false) do={ :set ids ($ids, $voucherId) }
   }
   :if ([:len $ids] > 256) do={ :error "LBBS35: too many client voucher IDs; snapshot not submitted" }
 
