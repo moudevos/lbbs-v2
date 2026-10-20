@@ -147,14 +147,15 @@
     document.getElementById("progressTitle").textContent = title;
     document.getElementById("progressText").textContent = text;
   }
-  // Los challenges CHAP caducan o dejan de corresponder al host mientras
-  // el Dashboard completa ACTIVATE_VOUCHER. Pedir uno NUEVO justo antes del
-  // POST de login; no usar el challenge del HTML que inició el proceso.
-  // MikroTik representa los bytes del challenge como secuencias octales JS.
+  // El alta del voucher tarda varios segundos: antes de hacer el POST
+  // solicitamos al HotSpot su desafío CHAP vigente para este mismo host.
+  // No persistir el código ni el hash en sessionStorage/localStorage.
+  var chapRenderId = "$(chap-id)";
+  var chapRenderChallenge = "$(chap-challenge)";
   function decodeChapBytes(value) {
-    return value.replace(/\\\\([0-7]{3})/g, function (_, octal) {
+    return value.replace(/\\([0-7]{3})/g, function (_, octal) {
       return String.fromCharCode(parseInt(octal, 8));
-    }).replace(/\\\\x([0-9a-fA-F]{2})/g, function (_, hex) {
+    }).replace(/\\x([0-9a-fA-F]{2})/g, function (_, hex) {
       return String.fromCharCode(parseInt(hex, 16));
     });
   }
@@ -167,14 +168,16 @@
       if (!response.ok) throw new Error("No se pudo renovar el desafío CHAP.");
       return response.text();
     }).then(function (html) {
-      // Extraer SOLO los bytes de dos literales CHAP del login servido por
-      // RouterOS; nunca ejecutar scripts del HTML recibido.
-      var match = html.match(/hexMD5\\("([^"]*)" \\+ code\\.value \\+ "([^"]*)"\\)/);
-      if (!match) throw new Error("El portal no entregó un desafío CHAP válido. Vuelve a abrirlo.");
-      var id = decodeChapBytes(match[1]);
-      var challenge = decodeChapBytes(match[2]);
-      if (!id || !challenge || id.indexOf("\\") !== -1 || challenge.indexOf("\\") !== -1) {
-        throw new Error("El desafío CHAP recibido es inválido. Vuelve a abrir el portal.");
+      // Extraemos literales de texto, nunca ejecutamos el HTML descargado.
+      var idMatch = html.match(/var chapRenderId = "([^"]*)";/);
+      var challengeMatch = html.match(/var chapRenderChallenge = "([^"]*)";/);
+      if (!idMatch || !challengeMatch) {
+        throw new Error("El portal no entregó un desafío CHAP vigente.");
+      }
+      var id = decodeChapBytes(idMatch[1]);
+      var challenge = decodeChapBytes(challengeMatch[1]);
+      if (id.length !== 1 || challenge.length < 8 || challenge.length > 64) {
+        throw new Error("Desafío CHAP inválido.");
       }
       return { id: id, challenge: challenge };
     });
@@ -190,7 +193,7 @@
     document.getElementById("progressTitle").textContent = "Conectando tu dispositivo";
     document.getElementById("progressText").textContent = "MikroTik está confirmando el inicio de sesión.";
     freshChap().then(function (chap) {
-      // No almacenar ni registrar el voucher, el password ni el hash.
+      // El HASH CHAP se calcula y envía solo al RouterOS local, no al backend.
       form.elements.username.value = code.value;
       form.elements.password.value = hexMD5(chap.id + code.value + chap.challenge);
       form.submit();
