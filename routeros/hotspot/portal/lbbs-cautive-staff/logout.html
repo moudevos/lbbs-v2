@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="-1">
+<title>Sesión cerrada</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="staff.css">
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">Acceso Staff</p>
+  <div class="badge off" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 7.2a8 8 0 1 0 11.4 0"/></svg>
+  </div>
+  <h1>Sesión cerrada</h1>
+  <p>Tu acceso a la red fue desconectado correctamente.</p>
+
+  <dl>
+    <div class="r"><dt>Documento</dt><dd>$(username)</dd></div>
+    <div class="r"><dt>Tiempo conectado</dt><dd>$(uptime)</dd></div>
+    <div class="r"><dt>Descargado</dt><dd>$(bytes-in-nice)</dd></div>
+    <div class="r"><dt>Subido</dt><dd>$(bytes-out-nice)</dd></div>
+  </dl>
+
+  <a class="button" href="$(link-login)">Iniciar sesión nuevamente</a>
+  <p class="brand-foot">La Bajadita Barber Studio</p>
+</main>
+</body>
+</html>

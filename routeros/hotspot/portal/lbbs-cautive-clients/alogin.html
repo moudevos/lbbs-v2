@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
+<meta http-equiv="refresh" content="4;url=$(link-status)">
+<title>LBBS · Conexión autorizada</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">WiFi para clientes</p>
+  <section class="step progress-step" role="status" aria-live="polite">
+    <div class="badge ok" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+    </div>
+    <h1>Dispositivo autorizado</h1>
+    <p>El MikroTik confirmó tu identidad y tu código de acceso.</p>
+    <ol class="progress-checklist">
+      <li class="progress-done">Identidad verificada</li>
+      <li class="progress-done">Código autorizado por LBBS</li>
+      <li class="progress-done">Sesión aceptada por MikroTik</li>
+    </ol>
+    <p class="hint">Redirigiendo al estado de conexión…</p>
+    <a class="button secondary" href="$(link-status)">Ver estado de conexión</a>
+  </section>
+  <p class="brand-foot">La Bajadita Barber Studio</p>
+</main>
+<script>setTimeout(function () { window.location.replace("$(link-status)"); }, 3500);</script>
+</body>
+</html>

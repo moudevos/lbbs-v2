@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<title>LBBS · WiFi Clientes</title>
+<link rel="stylesheet" href="styles.css">
+<script src="md5.js"></script>
+</head>
+<body>
+<main class="card" aria-labelledby="pageTitle">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="La Bajadita Barber Studio">
+  <p class="eyebrow">La Bajadita Barber Studio</p>
+
+  <section id="welcome" class="step" aria-labelledby="pageTitle">
+    <div class="badge wifi-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0M5.5 12a10 10 0 0 1 13 0M9 15.7a5 5 0 0 1 6 0M12 19h.01"/></svg>
+    </div>
+    <h1 id="pageTitle">Bienvenido al WiFi LBBS</h1>
+    <p>Conéctate con seguridad usando tu documento y el código que recibiste en recepción.</p>
+    <div class="steps-note"><span>1 · Identifícate</span><span>2 · Valida tu acceso</span><span>3 · Conéctate</span></div>
+    <button id="begin" type="button">Comenzar</button>
+    <p class="hint">El código es personal y válido para un dispositivo.</p>
+  </section>
+
+  <section id="identifyStep" class="step" hidden>
+    <p class="eyebrow step-eyebrow">Paso 1 de 3 · Identificación</p>
+    <h1>Accede a Internet</h1>
+    <p>Selecciona tu documento de identidad e ingresa el código que te entregaron.</p>
+    $(if error)<p class="notice" role="alert">MikroTik no autorizó la conexión. Verifica el código o consulta en recepción.</p>$(endif)
+    <form id="identify" autocomplete="off">
+      <label for="documentType">Tipo de documento</label>
+      <select id="documentType" name="documentType" required>
+        <option value="DNI">DNI · Documento nacional</option>
+        <option value="CE">CEX · Carné de extranjería</option>
+      </select>
+      <label for="documentNumber">Número de documento</label>
+      <input id="documentNumber" name="documentNumber" type="text" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos" required>
+      <p class="field-hint" id="documentHint">DNI: 8 dígitos numéricos.</p>
+      <label for="code">Código WiFi</label>
+      <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="••••••" required>
+      <button id="identifyButton" type="submit">Validar y conectar</button>
+      <p class="hint">¿No tienes un código? Solicítalo en recepción.</p>
+    </form>
+  </section>
+
+  <section id="registrationStep" class="step" hidden>
+    <p class="eyebrow step-eyebrow">Paso 2 de 3 · Registro</p>
+    <h1>Completa tus datos</h1>
+    <p>Solo necesitamos estos datos para habilitar tu conexión.</p>
+    <form id="register" autocomplete="off">
+      <label for="registrationDocument">Documento</label>
+      <input id="registrationDocument" readonly>
+      <label for="firstName">Nombres</label>
+      <input id="firstName" autocomplete="given-name" maxlength="100" required>
+      <label for="lastName">Apellidos</label>
+      <input id="lastName" autocomplete="family-name" maxlength="100" required>
+      <label for="email">Correo electrónico (opcional)</label>
+      <input id="email" type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com">
+      <label for="birthdate">Fecha de cumpleaños (opcional)</label>
+      <input id="birthdate" type="date">
+      <label class="check"><input id="privacy" type="checkbox" required><span>Acepto la <a data-legal="privacidad" target="_blank" rel="noopener">Política de Privacidad</a>, los <a data-legal="terminos-wifi" target="_blank" rel="noopener">Términos WiFi</a> y la <a data-legal="cookies" target="_blank" rel="noopener">Política de Cookies</a>.</span></label>
+      <label class="check"><input id="clubMarketing" type="checkbox"><span>Quiero recibir novedades y beneficios de <a data-legal="club" target="_blank" rel="noopener">La Bajadita Club</a>.</span></label>
+      <button id="registerButton" type="submit">Registrarme y conectar</button>
+    </form>
+  </section>
+
+  <section id="progressStep" class="step progress-step" hidden role="status" aria-live="polite">
+    <p class="eyebrow step-eyebrow">Paso 3 de 3 · Conexión</p>
+    <div class="progress-ring" aria-hidden="true"></div>
+    <h1 id="progressTitle">Preparando tu conexión</h1>
+    <p id="progressText">Estamos validando tu autorización con LBBS.</p>
+    <ol class="progress-checklist">
+      <li id="progressIdentity" class="progress-done">Identidad verificada</li>
+      <li id="progressVoucher" class="progress-current">Código autorizado por LBBS</li>
+      <li id="progressRouter">Acceso confirmado por MikroTik</li>
+    </ol>
+    <p class="hint">Mantén abierta esta ventana unos segundos.</p>
+  </section>
+
+  <p id="notice" class="notice" aria-live="polite"></p>
+  <p class="brand-foot">La Bajadita Barber Studio · Red de clientes</p>
+
+  $(if chap-id)
+  <form id="chap" action="$(link-login-only)" method="post" hidden>
+    <input name="username">
+    <input name="password">
+    <input name="dst" value="$(link-orig)">
+    <input name="popup" value="false">
+  </form>
+  $(endif)
+</main>
+
+<script>
+(function () {
+  // RouterOS expande identificador y desafio CHAP usando escapes octales de JavaScript.
+  // No usar modo estricto en este bloque: causaria SyntaxError antes de registrar eventos.
+  var api = "https://app.labajaditabarberstudio.com";
+  var legalBase = "https://web.labajaditabarberstudio.com/legal";
+  var router = "lbbs-la-bajadita-san-juan";
+  var docType = document.getElementById("documentType");
+  var docNumber = document.getElementById("documentNumber");
+  var code = document.getElementById("code");
+  var notice = document.getElementById("notice");
+  var claimToken = "";
+  var loading = false;
+  var sections = ["welcome", "identifyStep", "registrationStep", "progressStep"];
+  var rules = {
+    DNI: { re: /^\d{8}$/, max: 8, hint: "DNI: 8 dígitos numéricos.", placeholder: "8 dígitos" },
+    CE: { re: /^[A-Z0-9]{6,12}$/, max: 12, hint: "CEX: 6 a 12 caracteres alfanuméricos.", placeholder: "Número de carné" }
+  };
+  document.querySelectorAll("[data-legal]").forEach(function (link) {
+    link.href = legalBase + "/" + link.getAttribute("data-legal");
+  });
+
+  function show(id) {
+    sections.forEach(function (name) { document.getElementById(name).hidden = name !== id; });
+    notice.textContent = "";
+  }
+  function say(message) { notice.textContent = message; }
+  function busy(button, value) {
+    button.disabled = value;
+    button.classList.toggle("is-loading", value);
+    loading = value;
+  }
+  function post(path, data) {
+    return fetch(api + path, {
+      method: "POST", mode: "cors", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    }).then(function (response) {
+      return response.json().then(function (json) {
+        if (!response.ok) throw new Error(json.error || "No pudimos completar el acceso.");
+        return json;
+      });
+    });
+  }
+  function failed(error, step) {
+    show(step || "identifyStep");
+    say((error && error.message) || "No pudimos conectarte. Comprueba la red e inténtalo nuevamente.");
+    busy(document.getElementById("identifyButton"), false);
+    busy(document.getElementById("registerButton"), false);
+  }
+  function progress(title, text) {
+    show("progressStep");
+    document.getElementById("progressTitle").textContent = title;
+    document.getElementById("progressText").textContent = text;
+  }
+  // El alta del voucher tarda varios segundos: antes de hacer el POST
+  // solicitamos al HotSpot su desafío CHAP vigente para este mismo host.
+  // No persistir el código ni el hash en sessionStorage/localStorage.
+  var chapRenderId = "$(chap-id)";
+  var chapRenderChallenge = "$(chap-challenge)";
+  function decodeChapBytes(value) {
+    return value.replace(/\\([0-7]{3})/g, function (_, octal) {
+      return String.fromCharCode(parseInt(octal, 8));
+    }).replace(/\\x([0-9a-fA-F]{2})/g, function (_, hex) {
+      return String.fromCharCode(parseInt(hex, 16));
+    });
+  }
+  function freshChap() {
+    var freshUrl = "$(link-login-only)";
+    var separator = freshUrl.indexOf("?") === -1 ? "?" : "&";
+    return fetch(freshUrl + separator + "lbbs_chap_refresh=" + Date.now(), {
+      method: "GET", cache: "no-store", credentials: "same-origin", redirect: "follow"
+    }).then(function (response) {
+      if (!response.ok) throw new Error("No se pudo renovar el desafío CHAP.");
+      return response.text();
+    }).then(function (html) {
+      // Extraemos literales de texto, nunca ejecutamos el HTML descargado.
+      var idMatch = html.match(/var chapRenderId = "([^"]*)";/);
+      var challengeMatch = html.match(/var chapRenderChallenge = "([^"]*)";/);
+      if (!idMatch || !challengeMatch) {
+        throw new Error("El portal no entregó un desafío CHAP vigente.");
+      }
+      var id = decodeChapBytes(idMatch[1]);
+      var challenge = decodeChapBytes(challengeMatch[1]);
+      if (id.length !== 1 || challenge.length < 8 || challenge.length > 64) {
+        throw new Error("Desafío CHAP inválido.");
+      }
+      return { id: id, challenge: challenge };
+    });
+  }
+  function chapLogin() {
+    var form = document.getElementById("chap");
+    if (!form || typeof hexMD5 !== "function") {
+      failed(new Error("La autenticación del router no está disponible. Consulta en recepción."));
+      return;
+    }
+    document.getElementById("progressVoucher").className = "progress-done";
+    document.getElementById("progressRouter").className = "progress-current";
+    document.getElementById("progressTitle").textContent = "Conectando tu dispositivo";
+    document.getElementById("progressText").textContent = "MikroTik está confirmando el inicio de sesión.";
+    freshChap().then(function (chap) {
+      // El HASH CHAP se calcula y envía solo al RouterOS local, no al backend.
+      form.elements.username.value = code.value;
+      form.elements.password.value = hexMD5(chap.id + code.value + chap.challenge);
+      form.submit();
+    }).catch(function () {
+      failed(new Error("No pudimos renovar la autenticación del router. Cierra el portal, ábrelo de nuevo e inténtalo."));
+    });
+  }
+  function waitForActivation(token, tries) {
+    if (tries > 30) {
+      failed(new Error("La autorización está tardando demasiado. Consulta en recepción."));
+      return;
+    }
+    post("/api/hotspots/captive/status", { claimToken: token }).then(function (result) {
+      if (result.status === "activation_ready") {
+        chapLogin();
+      } else if (result.status === "expired" || result.status === "revoked") {
+        failed(new Error("El código ya no está disponible. Solicita uno nuevo."));
+      } else {
+        setTimeout(function () { waitForActivation(token, tries + 1); }, 1000);
+      }
+    }).catch(function () {
+      if (tries < 4) {
+        setTimeout(function () { waitForActivation(token, tries + 1); }, 1500);
+      } else {
+        failed(new Error("No logramos contactar el Dashboard. Mantén el WiFi conectado y vuelve a intentar."));
+      }
+    });
+  }
+  docType.addEventListener("change", function () {
+    var r = rules[docType.value];
+    docNumber.value = "";
+    docNumber.maxLength = r.max;
+    docNumber.inputMode = docType.value === "DNI" ? "numeric" : "text";
+    docNumber.placeholder = r.placeholder;
+    document.getElementById("documentHint").textContent = r.hint;
+  });
+  docNumber.addEventListener("input", function () {
+    this.value = this.value.replace(/\s+/g, "").toUpperCase().slice(0, rules[docType.value].max);
+  });
+  code.addEventListener("input", function () { this.value = this.value.replace(/\D/g, "").slice(0, 6); });
+  document.getElementById("begin").addEventListener("click", function () {
+    show("identifyStep");
+    docNumber.focus();
+  });
+  document.getElementById("identify").addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (loading) return;
+    if (!rules[docType.value].re.test(docNumber.value)) {
+      say("Revisa el número de documento indicado."); return;
+    }
+    if (!/^\d{6}$/.test(code.value)) { say("El código WiFi debe tener 6 dígitos."); return; }
+    busy(document.getElementById("identifyButton"), true);
+    progress("Validando tus datos", "Estamos verificando tu documento y tu código.");
+    post("/api/hotspots/captive/identify", {
+      documentType: docType.value, documentNumber: docNumber.value,
+      // Older production API accepts only the DNI field. CE requires the new API deployment.
+      dni: docType.value === "DNI" ? docNumber.value : undefined,
+      code: code.value, mac: "$(mac)", ip: "$(ip)", routerIdentifier: router
+    }).then(function (result) {
+      if (result.status === "registration_required") {
+        claimToken = result.registrationToken;
+        document.getElementById("registrationDocument").value = docType.value + " · " + docNumber.value;
+        busy(document.getElementById("identifyButton"), false);
+        show("registrationStep");
+        return;
+      }
+      if (!result.claimToken) throw new Error("No recibimos la autorización.");
+      claimToken = result.claimToken;
+      progress("Preparando tu acceso", "El Dashboard está habilitando tu dispositivo en MikroTik.");
+      waitForActivation(claimToken, 0);
+    }).catch(function (error) { failed(error, "identifyStep"); });
+  });
+  document.getElementById("register").addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (loading) return;
+    busy(document.getElementById("registerButton"), true);
+    progress("Registrando tus datos", "Completamos tu registro de cliente para autorizar el código.");
+    post("/api/hotspots/captive/register", {
+      registrationToken: claimToken,
+      firstName: document.getElementById("firstName").value,
+      lastName: document.getElementById("lastName").value,
+      email: document.getElementById("email").value,
+      birthdate: document.getElementById("birthdate").value,
+      privacyAccepted: document.getElementById("privacy").checked,
+      clubMarketingAccepted: document.getElementById("clubMarketing").checked
+    }).then(function (result) {
+      if (!result.claimToken) throw new Error("No recibimos la autorización.");
+      claimToken = result.claimToken;
+      progress("Preparando tu acceso", "El Dashboard está habilitando tu dispositivo en MikroTik.");
+      waitForActivation(claimToken, 0);
+    }).catch(function (error) { failed(error, "registrationStep"); });
+  });
+}());
+</script>
+</body>
+</html>

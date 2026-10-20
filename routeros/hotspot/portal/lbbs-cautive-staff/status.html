@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="-1">
+$(if refresh-timeout)<meta http-equiv="refresh" content="$(refresh-timeout-secs)">$(endif)
+<title>Estado de sesión</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="staff.css">
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">Acceso Staff</p>
+
+  <span class="pill">Conectado</span>
+
+  <dl>
+    <div class="r"><dt>Documento</dt><dd>$(username)</dd></div>
+    <div class="r"><dt>Dirección IP</dt><dd>$(ip)</dd></div>
+    <div class="r"><dt>Dirección MAC</dt><dd class="break">$(mac)</dd></div>
+    <div class="r"><dt>Tiempo conectado</dt><dd>$(uptime)</dd></div>
+    $(if session-time-left)<div class="r"><dt>Tiempo restante</dt><dd>$(session-time-left)</dd></div>$(endif)
+    <div class="r"><dt>Descargado</dt><dd>$(bytes-in-nice)</dd></div>
+    <div class="r"><dt>Subido</dt><dd>$(bytes-out-nice)</dd></div>
+  </dl>
+
+  $(if link-redirect)<a class="button" href="$(link-redirect)">Continuar navegando</a>$(endif)
+
+  <form class="inline" action="$(link-logout)" method="post">
+    <button class="secondary danger" type="submit">Cerrar sesión</button>
+  </form>
+  <p class="brand-foot">La Bajadita Barber Studio</p>
+</main>
+</body>
+</html>

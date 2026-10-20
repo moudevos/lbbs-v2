@@ -265,7 +265,8 @@ button.is-loading::after {
 }
 
 /* Errores que devuelve el MikroTik ($(error)) */
-.notice[role="alert"] {
+.notice[role="alert"],
+.notice.is-error {
   padding: 10px 12px;
   border: 1px solid rgba(255, 143, 122, .35);
   border-radius: var(--radius-sm);
@@ -336,6 +337,109 @@ dd {
   h1 { font-size: 24px; }
 }
 
+/* ---------- Panel de carga (login) ---------- */
+body.is-loading { overflow: hidden; }
+
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(12, 12, 13, .96);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.loader[hidden] { display: none; }
+
+.spinner {
+  width: 68px;
+  height: 68px;
+  margin-bottom: 22px;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+
+.loader h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.loader-text {
+  min-height: 3em;
+  max-width: 340px;
+}
+
+.steps {
+  list-style: none;
+  width: min(100%, 320px);
+  margin: 18px 0 0;
+  padding: 0;
+  text-align: left;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  color: #6b665c;
+  font-size: 14px;
+}
+
+.steps li::before {
+  content: "";
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--bg);
+}
+
+.steps li.is-active { color: var(--text); font-weight: 700; }
+
+.steps li.is-active::before {
+  border-color: var(--accent);
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.steps li.is-done { color: var(--muted); }
+
+.steps li.is-done::before {
+  content: "✓";
+  border-color: var(--ok);
+  background: var(--ok);
+}
+
+.loader-warn {
+  max-width: 340px;
+  margin-top: 22px;
+  padding: 10px 14px;
+  border: 1px solid rgba(200, 164, 92, .35);
+  border-radius: var(--radius-sm);
+  background: rgba(200, 164, 92, .08);
+  color: var(--accent-hover);
+  font-size: 13px;
+}
+
+@keyframes pulse { 50% { opacity: .35; } }
+
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  *:not(.spinner) { animation: none !important; transition: none !important; }
 }

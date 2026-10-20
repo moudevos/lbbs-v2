@@ -834,7 +834,12 @@ export function WifiPageClient() {
                         return (
                           <tr key={row.id} className="align-top hover:bg-slate-50/70">
                             <td className="px-4 py-4 font-mono font-semibold text-slate-800">••{row.code_last4}</td>
-                            <td className="px-4 py-4"><StatusPill status={row.effectiveStatus} /></td>
+                            <td className="px-4 py-4">
+                              <StatusPill status={row.effectiveStatus} />
+                              {row.effectiveStatus === "active" && row.is_connected !== true ? (
+                                <p className="mt-1 text-xs font-medium text-amber-700">Sin sesión confirmada</p>
+                              ) : null}
+                            </td>
                             <td className="px-4 py-4">
                               <p className="font-medium text-slate-800">{row.customer_name ?? (row.device_mac ? "Dispositivo identificado" : "Sin asignar")}</p>
                               {row.device_mac ? (

@@ -1,0 +1,38 @@
+# LBBS Router integration - RouterOS 7.23.8, staged ONLY after Clients portal exists.
+# PERSONALIZE LOCALLY; never commit the filled copy or paste its token into chat.
+# Prerequisites: files flash/lbbs-sync.rsc + flash/lbbs-heartbeat.rsc
+# and a router credential minted in Dashboard for the SAME active router.
+# Never import previous session-hooks: their LOGOUT invalidates vouchers instantly.
+# One-time installer: STOP on error, never reimport blindly.
+
+:local routerToken "lbbs_rt_wFF90Q7L7CcuZXX8y2Vh4aDEYoIUkC0-"
+:if ([:len $routerToken] < 36 || [:pick $routerToken 0 8] != "lbbs_rt_") do={ :error "LBBS: replace LBBS_ROUTER_TOKEN locally" }
+:if ([:len [/ip hotspot find where name="lbbs-hotspot"]] != 1) do={ :error "LBBS: Clients hotspot missing" }
+:if ([:len [/ip hotspot user profile find where name="lbbs-client-profile"]] != 1) do={ :error "LBBS: Clients user profile missing" }
+:if ([:len [/system script find where name="lbbs-env"]] > 0) do={ :error "LBBS: runtime already installed" }
+:if ([:len [/system script find where name="lbbs-sync"]] > 0) do={ :error "LBBS: sync already installed" }
+:if ([:len [/system script find where name="lbbs-heartbeat"]] > 0) do={ :error "LBBS: heartbeat already installed" }
+:if ([:len [/system scheduler find where name="lbbs-sync"]] > 0) do={ :error "LBBS: sync scheduler already exists" }
+:if ([:len [/system scheduler find where name="lbbs-heartbeat"]] > 0) do={ :error "LBBS: heartbeat scheduler already exists" }
+:if ([:len [/file find where name="flash/lbbs-sync.rsc"]] != 1) do={ :error "LBBS: missing flash/lbbs-sync.rsc" }
+:if ([:len [/file find where name="flash/lbbs-heartbeat.rsc"]] != 1) do={ :error "LBBS: missing flash/lbbs-heartbeat.rsc" }
+
+# Persist credentials in local RouterOS script storage; runtime global variables
+# themselves do NOT survive reboot. Router-admin access is sensitive.
+:local envSource (":global lbbsApiBaseUrl \"https://app.labajaditabarberstudio.com\";")
+:set envSource ($envSource . ":global lbbsRouterToken \"" . $routerToken . "\";")
+:set envSource ($envSource . ":global lbbsHotspotServerName \"lbbs-hotspot\";")
+:set envSource ($envSource . ":global lbbsHotspotUserProfile \"lbbs-client-profile\";")
+/system script add name="lbbs-env" policy=read,write,policy,test,sensitive source=$envSource comment="LBBS confidential settings; never export with show-sensitive"
+/system script run lbbs-env
+
+# Existing v2 command contract: pull, apply local voucher, ACK individually.
+/import file-name=flash/lbbs-sync.rsc
+/import file-name=flash/lbbs-heartbeat.rsc
+
+# Each run reloads configuration from persistent script so reboot never strands
+# lbbsApiBaseUrl / lbbsRouterToken / profile names.
+/system scheduler add name="lbbs-sync" interval=20s on-event="/system script run lbbs-env; /system script run lbbs-sync" policy=ftp,read,write,policy,test,sensitive disabled=no comment="LBBS polling; startup-safe env"
+/system scheduler add name="lbbs-heartbeat" interval=45s on-event="/system script run lbbs-env; /system script run lbbs-heartbeat" policy=ftp,read,write,policy,test,sensitive disabled=no comment="LBBS heartbeat; startup-safe env"
+
+:log warning "LBBS router integration INSTALLED (do not enable client WAN until session hooks and grace are tested)"
