@@ -65,12 +65,6 @@ export async function GET(request: Request) {
   }
   const revocationMap = new Map((revocationCommands ?? []).map((cmd) => [cmd.voucher_id, cmd]));
 
-  const vouchers = (data ?? []).map((row) => ({
-    ...row,
-    customer_name: row.customer_id ? customerNames.get(row.customer_id) ?? null : null,
-    revoke_command_status: revocationMap.get(row.id)?.status ?? null,
-  }));
-
   let router = null;
   if (branchId) {
     const { data: routerData } = await supabase
@@ -84,6 +78,66 @@ export async function GET(request: Request) {
       .maybeSingle();
     router = routerData ?? null;
   }
+
+  // Count ONLY sessions confirmed by recent /ip hotspot active snapshots,
+  // not every DB voucher still marked active. The service-role read is
+  // restricted to authenticated admins via presence RLS (is_admin()).
+  // Fail closed (zero connections) if the snapshot cannot be read.
+  const now = Date.now();
+  const routerOnline = Boolean(
+    router?.last_seen_at &&
+    router.is_active &&
+    router.status === "active" &&
+    now - new Date(router.last_seen_at).getTime() >= 0 &&
+    now - new Date(router.last_seen_at).getTime() <= 90_000
+  );
+  const ids = (data ?? []).map((row) => row.id);
+  type Presence = {
+    voucher_id: string;
+    router_id: string;
+    last_present_at: string | null;
+    last_snapshot_at: string;
+    missing_since: string | null;
+  };
+  const presenceMap = new Map<string, Presence>();
+  if (routerOnline && router && ids.length > 0) {
+    const { data: presence, error: presenceError } = await supabase
+      .from("hotspot_client_presence_v2")
+      .select("voucher_id,router_id,last_present_at,last_snapshot_at,missing_since")
+      .eq("router_id", router.id)
+      .in("voucher_id", ids);
+    if (presenceError) {
+      console.error("[wifi/vouchers] No se pudo consultar presencia.", { code: presenceError.code });
+    } else {
+      for (const item of presence ?? []) presenceMap.set(item.voucher_id, item);
+    }
+  }
+
+  const vouchers = (data ?? []).map((row) => {
+    const presence = presenceMap.get(row.id);
+    const isConnected = Boolean(
+      routerOnline && presence && router &&
+      presence.router_id === router.id &&
+      row.status === "active" &&
+      row.first_used_at &&
+      row.session_expires_at &&
+      new Date(row.session_expires_at).getTime() > now &&
+      !row.revocation_requested_at &&
+      presence.last_present_at &&
+      !presence.missing_since &&
+      new Date(presence.last_present_at).getTime() <= now + 5_000 &&
+      now - new Date(presence.last_present_at).getTime() >= 0 &&
+      now - new Date(presence.last_present_at).getTime() <= 90_000 &&
+      now - new Date(presence.last_snapshot_at).getTime() >= 0 &&
+      now - new Date(presence.last_snapshot_at).getTime() <= 90_000
+    );
+    return {
+      ...row,
+      customer_name: row.customer_id ? customerNames.get(row.customer_id) ?? null : null,
+      revoke_command_status: revocationMap.get(row.id)?.status ?? null,
+      is_connected: isConnected,
+    };
+  });
 
   return NextResponse.json({ data: vouchers, router });
 }
