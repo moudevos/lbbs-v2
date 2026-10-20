@@ -24,6 +24,7 @@
   :global lbbsApiBaseUrl
   :global lbbsRouterToken
   :if ([:len $lbbsApiBaseUrl] = 0 || [:len $lbbsRouterToken] = 0) do={ :log warning "LBBS33: runtime not configured"; :error "lbbs_not_configured" }
+  :global lbbsReconcileLastOk
   :local ids [:toarray ""]
   :local countActive 0
   :foreach a in=[/ip hotspot active find where server="lbbs-hotspot"] do={
@@ -43,10 +44,12 @@
     :local reply [/tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/reconcile") http-method=post http-header-field=$headers http-data=[:serialize to=json options=json.no-string-conversion value=$payload] check-certificate=yes output=user as-value]
     :local body [:deserialize from=json options=json.no-string-conversion value=($reply->"data")]
     :if (($body->"ok") != true) do={ :error "LBBS33: server response invalid" }
+    :set lbbsReconcileLastOk ([:tostr [/system clock get date]] . " " . [:tostr [/system clock get time]])
   } on-error={
     :log warning "LBBS33: reconcile failed (check deployed API, auth, firewall and Vercel logs)"
+    :error "lbbs33_reconcile_failed"
   }
 }
 
-/system scheduler add name="lbbs-reconcile" interval=30s on-event="/system script run lbbs-env; /system script run lbbs-reconcile" policy=ftp,read,write,policy,test,sensitive disabled=no comment="LBBS33 Customers online snapshot"
-:log info "LBBS33: client reconciler installed; never import legacy logout hooks"
+/system scheduler add name="lbbs-reconcile" interval=30s on-event="/system script run lbbs-env; /system script run lbbs-reconcile" policy=ftp,read,write,policy,test,sensitive disabled=yes comment="LBBS33 Customers online snapshot - enable after manual smoke test"
+:log info "LBBS33: installed in SAFE MODE (scheduler disabled); run manually and verify last success before enable"
