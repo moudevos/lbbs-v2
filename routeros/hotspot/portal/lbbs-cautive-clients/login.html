@@ -34,7 +34,7 @@
       <label for="documentType">Tipo de documento</label>
       <select id="documentType" name="documentType" required>
         <option value="DNI">DNI · Documento nacional</option>
-        <option value="CE">CE · Carné de extranjería</option>
+        <option value="CE">CEX · Carné de extranjería</option>
       </select>
       <label for="documentNumber">Número de documento</label>
       <input id="documentNumber" name="documentNumber" type="text" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos" required>
@@ -108,7 +108,7 @@
   var sections = ["welcome", "identifyStep", "registrationStep", "progressStep"];
   var rules = {
     DNI: { re: /^\d{8}$/, max: 8, hint: "DNI: 8 dígitos numéricos.", placeholder: "8 dígitos" },
-    CE: { re: /^[A-Z0-9]{6,12}$/, max: 12, hint: "CE: 6 a 12 caracteres alfanuméricos.", placeholder: "Número de carné" }
+    CE: { re: /^[A-Z0-9]{6,12}$/, max: 12, hint: "CEX: 6 a 12 caracteres alfanuméricos.", placeholder: "Número de carné" }
   };
   document.querySelectorAll("[data-legal]").forEach(function (link) {
     link.href = legalBase + "/" + link.getAttribute("data-legal");
