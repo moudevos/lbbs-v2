@@ -115,7 +115,7 @@ Comprobación real 19 Oct 2026: cliente HotSpot con `/ip hotspot active print co
 
 **No habilitar la red Clientes para público todavía**: esto es un piloto de tráfico AUTH-only, NO completa el requisito de 3h absolutas contando reconexiones ni la gracia de 3min. Mientras on-logout esté deliberadamente deshabilitado, el Dashboard puede mostrar sesiones históricas como aún conectadas. Necesitamos un reconciliador de estado a prueba de reinicio, desvinculación + expiración y pruebas de fallos de red antes de producción general.
 
-## 33 - Cierre de sesiones Clientes y vencimiento (staging; NO importar todavía en producción sin API)
+## 33 - Cierre de sesiones Clientes y vencimiento (API en producción; ejecutar validación manual antes del scheduler)
 
 Validación física 19 oct 2026:
 - A: otro cliente SIN voucher no puede navegar.
@@ -134,9 +134,10 @@ ORDEN DE DESPLIEGUE ESTRICTO:
 1. Probar los tests en el checkout: `npx vitest run tests/unit/hotspot-client-session-reconcile.test.ts`, `npx tsc --noEmit`, ejecutar lint según scripts en package.json.
 2. Publicar ANTES el backend de esta rama a un entorno accesible por `app.labajaditabarberstudio.com` (por ejemplo después de promoción revisada a producción). No asumir que un push a rama actualiza Vercel prod. NO desplegar directamente la rama principal sin revisión ni autorización.
 3. Comprobar que el endpoint esté desplegado y RouterOS pueda llegar por TLS válido. **Si devuelve 404, no importar**.
-4. Cargar `routeros/rebuild/33-lbbs-clientes-session-reconcile.rsc` en `flash/` y ejecutar una sola vez `/import file-name=flash/33-lbbs-clientes-session-reconcile.rsc`. En error detener; no repetir a ciegas.
-5. Verificar sin exponer secretos: `/system scheduler print where name="lbbs-reconcile"`, `/log print where message~"LBBS33"` (evitar logs generales), `/ip hotspot active print count-only` y estados en Dashboard.
-6. Prueba controlada: voucher activo, 1 minuto desconectado/reconectar (seguir autenticado), 4 minutos desconectado (se debe expirar y remover usuario), manual desconectar desde Dashboard, prueba de vencimiento 3h con acceso real. Comprobar que dispositivos SIN login nunca navegan.
+4. Cargar `routeros/rebuild/33-lbbs-clientes-session-reconcile.rsc` en `flash/` y ejecutar una sola vez `/import file-name=flash/33-lbbs-clientes-session-reconcile.rsc`. Se instala inicialmente con el **scheduler deshabilitado**, para poder hacer prueba segura. En error detener; no repetir a ciegas.
+5. Ejecutar manualmente `/system script run lbbs-env` seguido de `/system script run lbbs-reconcile`. Comprobar la última conexión API correcta con `:global lbbsReconcileLastOk; :put $lbbsReconcileLastOk`. Revisar únicamente `/log print where message~"LBBS33"`; nunca `/system script print`, que contiene el token.
+6. Si funcionó la prueba manual: `/system scheduler enable [find where name="lbbs-reconcile"]`. Comprobar `/system scheduler print where name="lbbs-reconcile"` y Dashboard.
+7. Prueba controlada: voucher activo, 1 minuto desconectado/reconectar (seguir autenticado), 4 minutos desconectado (se debe expirar y remover usuario), manual desconectar desde Dashboard, prueba de vencimiento 3h con acceso real. Comprobar que dispositivos SIN login nunca navegan.
 
 Rollback del nuevo reconciliador (sin afectar clientes autenticados existentes):
 `/system scheduler disable [find where name="lbbs-reconcile"]`
