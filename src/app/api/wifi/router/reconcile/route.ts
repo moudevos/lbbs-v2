@@ -52,7 +52,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Inventario supera el límite seguro." }, { status: 503 });
   }
 
+  // A LOGOUT may already have marked the voucher expired while its RouterOS
+  // EXPIRE command subsequently failed. Retry those failed commands even if
+  // the voucher no longer has status=active, otherwise access could linger.
+  const { data: failedCommands, error: failedError } = await admin
+    .from("hotspot_router_commands")
+    .select("id,updated_at")
+    .eq("router_id", auth.router.id)
+    .eq("command_type", "EXPIRE_VOUCHER")
+    .eq("status", "failed")
+    .limit(50);
+  if (failedError) {
+    console.error("[wifi/reconcile] No se pudieron revisar órdenes fallidas.", { code: failedError.code });
+    return NextResponse.json({ error: "No se pudo revisar la cola de expiración." }, { status: 503 });
+  }
+
   const now = Date.now();
+  for (const command of failedCommands ?? []) {
+    // Give the operator and router time to recover; do not hammer Vercel/RouterOS.
+    if (now - new Date(command.updated_at).getTime() < 90_000) continue;
+    const { error: retryError } = await admin.from("hotspot_router_commands")
+      .update({
+        status: "pending",
+        attempts: 0,
+        claimed_at: null,
+        processed_at: null,
+        error_code: null,
+        error_message: null,
+        available_at: new Date(now).toISOString(),
+        updated_at: new Date(now).toISOString(),
+      })
+      .eq("id", command.id)
+      .eq("router_id", auth.router.id)
+      .eq("status", "failed");
+    if (retryError) {
+      console.error("[wifi/reconcile] Reprogramación de expiración fallida.", { code: retryError.code });
+      return NextResponse.json({ error: "No se pudo reprogramar expiración." }, { status: 503 });
+    }
+  }
+
   let queued = 0;
   let loggedOut = 0;
   for (const voucher of (data ?? []) as Voucher[]) {
