@@ -60,3 +60,17 @@ Después de 00 y 10, ya comprobados en el hEX real, se puede preparar el HotSpot
 7. No habilitar `LBBS-GATE customer WAN OFF until captive proven` hasta integrar el token de router, el sync / ACK y hooks correctos para reconexión de 3 minutos. No usar el on-logout histórico: expira el voucher inmediatamente y no cumple la ventana.
 
 **Limitaciones a resolver:** el backend Clientes disponible actualmente acepta solo DNI; extender tipo de documento antes de considerarlo listo. `session-timeout=3h` en RouterOS limita la sesión en línea, pero no basta para imponer 3h absolutas contando reconexiones; el límite definitivo debe basarse en `first_used_at + interval '3 hours'` y programarse en RouterOS. La política de gracia de 3m requiere un estado de desconexión, reversión de login si vuelve antes de vencer y evento expirado definitivo tras la gracia. El script no afirma cumplir aún esas características.
+
+## 30-lbbs-router-integration.rsc.template (STAGED / credential safe)
+
+Newly installed Clients HotSpot currently displays the portal, but lacks RouterOS scripts and its WAN gate is intentionally disabled. To restore authenticated voucher provisioning without revealing secrets:
+
+1. On an administration PC, obtain the router token in Dashboard > /control/wifi > Configuración MikroTik > Regenerar token de conexión. Do NOT paste it in this chat or commit it to Git.
+2. Copy `30-lbbs-router-integration.rsc.template` to a **local outside-repository** file `30-lbbs-router-integration.rsc`. Replace the single `{{LBBS_ROUTER_TOKEN}}` placeholder with the current token; this must stay PRIVATE. Never store it under the git working tree.
+3. Upload `routeros/hotspot/scripts/lbbs-sync.rsc` and `routeros/hotspot/scripts/lbbs-heartbeat.rsc` to `flash/` as `lbbs-sync.rsc` and `lbbs-heartbeat.rsc`. Upload your local `30-lbbs-router-integration.rsc` to `flash/`.
+4. Before import, inspect `/system script print` (names only) and `/system scheduler print`. Scripts `lbbs-env`, `lbbs-sync`, `lbbs-heartbeat` must not already exist. Import `/import file-name=flash/30-lbbs-router-integration.rsc`. On error, STOP; do not repeat blindly.
+5. Immediately delete the private upload from the router filesystem: `/file remove [find where name="flash/30-lbbs-router-integration.rsc"]`. The secret remains in `/system script lbbs-env` as an administrator-readable configuration and survives reboot via scheduler. Do not print its source or export show-sensitive.
+6. Test `/system script run lbbs-env`, `/system script run lbbs-heartbeat`, and confirm the router online in Dashboard. Only then test `lbbs-sync` and voucher CRUD+ACK; do not assert success from a no-error return. Check the API heartbeat response, last_seen_at, and command states.
+7. DO NOT install `lbbs-install-session-hooks.rsc` in its old form: it removes Client voucher on every LOGOUT and contradicts the 3-minute reconnect policy. DO NOT enable `LBBS-GATE customer WAN OFF until captive proven` yet.
+
+This staged integration does NOT fulfill the complete Customer three-minute grace rule or Staff automatic reconnection. Type-of-document support for Clients and max-one-device Staff policy also require backend changes.
