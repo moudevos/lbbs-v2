@@ -208,6 +208,8 @@
     progress("Validando tus datos", "Estamos verificando tu documento y tu código.");
     post("/api/hotspots/captive/identify", {
       documentType: docType.value, documentNumber: docNumber.value,
+      // Older production API accepts only the DNI field. CE requires the new API deployment.
+      dni: docType.value === "DNI" ? docNumber.value : undefined,
       code: code.value, mac: "$(mac)", ip: "$(ip)", routerIdentifier: router
     }).then(function (result) {
       if (result.status === "registration_required") {
