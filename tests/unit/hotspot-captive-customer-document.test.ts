@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { Script } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 import { normalizeCaptiveDocument } from "@/lib/hotspot/captive";
@@ -25,6 +26,14 @@ describe("WiFi Clientes: documento y flujo cautivo", () => {
     expect(register).toContain('token.documentNumber ?? token.dni');
     expect(register).toContain("document_type: document.type");
     expect(register).toContain("document_number: document.number");
+  });
+  it("ejecuta JavaScript de inicio aun cuando RouterOS inyecta CHAP con escapes octales", () => {
+    const html = file("routeros/hotspot/portal/lbbs-cautive-clients/login.html");
+    const inline = html.slice(html.lastIndexOf("<script>") + 8, html.lastIndexOf("</script>"));
+    // RouterOS representa CHAP-ID como un byte escapado en octal. En "use strict"
+    // el parser aborta todo el script y el boton Comenzar no recibe su listener.
+    const rendered = inline.replaceAll("$(chap-id)", "\\001").replaceAll("$(chap-challenge)", "\\250\\011");
+    expect(() => new Script(rendered)).not.toThrow();
   });
   it("mantiene welcome, formulario DNI/CE, registro y progreso real de autorización", () => {
     const login = file("routeros/hotspot/portal/lbbs-cautive-clients/login.html");
