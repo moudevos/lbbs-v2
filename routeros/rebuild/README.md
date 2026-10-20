@@ -46,3 +46,17 @@ Nunca incluir tokens, contraseñas, vouchers ni credenciales en GitHub, Netinsta
 9. Clientes y Staff permanecen SIN salida a Internet hasta probar sus HotSpots y el backend, nunca habilitar LBBS-GATE como simple bypass.
 
 Requisito actualizado por el usuario: Clientes: tipo de documento + número + código temporal, sesión máxima 3h, reconexión de 3 minutos. Staff: tipo/número de documento + código individual, reconexión automática con máximo 1 dispositivo. La versión de backend Staff en main admite actualmente 2 dispositivos: NO activar Staff sin corregir el límite y tener el aprovisionamiento operativo. Persistencia: usar sistema de scripts y schedulers de RouterOS, no variables :global manuales.
+
+## 20-lbbs-clientes.rsc (portal cautivo preparado, sin apertura de WAN)
+
+Después de 00 y 10, ya comprobados en el hEX real, se puede preparar el HotSpot Clientes **sin habilitar su salida general a Internet**.
+
+1. Abrir WinBox > Files > flash; crear la carpeta `lbbs-clients` y dentro `assets`.
+2. Copiar el **contenido**, sin cambiar su diseño, de `routeros/hotspot/portal/lbbs-cautive-clients/` a `flash/lbbs-clients/`; el instalador valida `login.html` y `md5.js`. Debe incluirse `api.json` para detección cautiva moderna.
+3. Subir `routeros/rebuild/20-lbbs-clientes.rsc` a Files en la ruta elegida. Si está en la raíz de `flash`, importarlo con `/import file-name=flash/20-lbbs-clientes.rsc`. Si WinBox lo muestra en la raíz del listado, usar la ruta exacta que se muestre.
+4. Antes de importar: `/system/device-mode/print`; validar que la función HotSpot está permitida. El script no altera device-mode.
+5. Verificar `/ip hotspot print detail`, `/ip hotspot profile print detail`, `/ip hotspot walled-garden print detail` y `/ip firewall filter print where comment~"LBBS-"`.
+6. Conectar el AP TP-Link a ether5 y revisar por Android que DHCP es 10.10.10.0/24, DNS apunta a 10.10.10.1 y se ve el login local. **Todavía no hay Internet general para Clientes.**
+7. No habilitar `LBBS-GATE customer WAN OFF until captive proven` hasta integrar el token de router, el sync / ACK y hooks correctos para reconexión de 3 minutos. No usar el on-logout histórico: expira el voucher inmediatamente y no cumple la ventana.
+
+**Limitaciones a resolver:** el backend Clientes disponible actualmente acepta solo DNI; extender tipo de documento antes de considerarlo listo. `session-timeout=3h` en RouterOS limita la sesión en línea, pero no basta para imponer 3h absolutas contando reconexiones; el límite definitivo debe basarse en `first_used_at + interval '3 hours'` y programarse en RouterOS. La política de gracia de 3m requiere un estado de desconexión, reversión de login si vuelve antes de vencer y evento expirado definitivo tras la gracia. El script no afirma cumplir aún esas características.
