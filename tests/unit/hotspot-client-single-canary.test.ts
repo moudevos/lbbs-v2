@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const source = (name: string) => readFileSync(path.join(process.cwd(), name), "utf8");
+const source = (name: string) => readFileSync(path.join(process.cwd(), name), "utf8").replace(/\r\n/g, "\n");
 const migration = source("supabase/migrations/20261020145000_hotspot_reconcile_one_voucher_canary.sql");
 const canaryRoute = source("src/app/api/wifi/router/reconcile/canary/route.ts");
 const regularRoute = source("src/app/api/wifi/router/reconcile/route.ts");
@@ -13,7 +13,7 @@ describe("LBBS one-voucher canary safety", () => {
     expect(regularRoute).toContain("p_enforce: false");
     expect(regularRoute).toContain('mode: "observe"');
     expect(regularRoute).not.toContain('process.env.HOTSPOT_RECONCILE_V2_ENFORCE');
-    expect(regularRoute).toContain("body?.enforce !== false");
+    expect(regularRoute).toContain("body?.enforce !== undefined && body.enforce !== false");
   });
 
   it("requires signed RouterOS auth, explicit canary intent and a valid inventory", () => {
@@ -48,7 +48,7 @@ describe("LBBS one-voucher canary safety", () => {
   });
 
   it("queues at most one voucher, never expires other users, and disarms atomically", () => {
-    expect(migration).toContain("values (\n    p_router_id, c.voucher_id, 'EXPIRE_VOUCHER'");
+    expect(migration).toMatch(/values\s*\(\s*p_router_id,\s*c\.voucher_id,\s*'EXPIRE_VOUCHER'/);
     expect(migration).toContain("'expire:' || c.voucher_id::text");
     expect(migration).toContain("set enabled=false, command_queued_at=v_now");
     expect(migration).toContain("return query select 'queued'::text, 1");
