@@ -12,7 +12,7 @@ export function normalizeCaptiveDocument(type: unknown, value: unknown):
   if (documentType === "DNI" && /^\d{8}$/.test(documentNumber)) {
     return { type: "DNI", number: documentNumber };
   }
-  if (documentType === "CE" && /^[A-Z0-9]{8,12}$/.test(documentNumber)) {
+  if (documentType === "CE" && /^[A-Z0-9]{6,12}$/.test(documentNumber)) {
     return { type: "CE", number: documentNumber };
   }
   return null;
