@@ -146,3 +146,16 @@ Si se requiere bloquear inmediatamente todas las salidas de Clientes durante la 
 Nunca habilitar `LBBS-GATE customer WAN OFF until captive proven`.
 
 **Límite del modelo actual**: el cierre a los ~3m depende del temporizador HotSpot RouterOS y de cuándo identifica pérdida de conectividad, no de un evento 802.11 del AP TP-Link. El Dashboard deja de mostrar accesos desconectados luego de reconciliarse, no instantáneamente. Staff permanece sin tocar.
+
+## Alerta 20 oct 2026 — reconciliación de desconexión en pausa por falsos positivos
+
+**Mantener deshabilitado el scheduler `lbbs-reconcile` en producción** hasta reemplazar la deducción `session_missing` por un mecanismo de estado de presencia duradero. Reproducción real en Supabase: LOGIN a las 16:55:10 UTC, comando EXPIRE_VOUCHER encolado a las 16:55:34 UTC (solo 24 segundos después), ACK a las 16:55:49 UTC; motivo: `session_missing`. El script no cuenta MAC cookies ni aplica límite de sesiones. La falla fue inferir una desconexión definitiva tras **una sola instantánea sin el UUID**.
+
+Hotfix independiente publicado en `main` (`f478aca8a82dcc5eeb875c26730d02f4a7f75f9b`): el endpoint ya **ignora `session_missing`** y no reintenta comandos fallidos. Solo conserva expiración por `session_expires_at` fijo. NO RESTAURA vouchers ya expirados; crear uno nuevo para las pruebas. Este mismo cambio se sincronizó con la rama infra para evitar regresiones futuras. Hasta completar el estado de presencia:
+- no afirmar que la revocación automática de tres minutos esté implementada;
+- no volver a habilitar el scheduler en producción;
+- no reinstalar antiguos hooks de LOGOUT que invalidan instantáneamente;
+- antes de habilitar otra vez, demostrar al menos dos o tres observaciones coherentes, identidad de voucher y transición presente → ausente sostenida, tolerancia ante reinicio y telemetría con evidencia;
+- las sesiones de RouterOS siguen limitadas por su perfil, pero las tres horas absolutas entre reconexiones todavía necesitan una prueba de extremo a extremo.
+
+Para contener: `/system scheduler disable [find where name="lbbs-reconcile"]`. No deshabilitar `lbbs-sync` ni `lbbs-heartbeat`; la red Clientes sigue protegida por `hotspot=auth`.
