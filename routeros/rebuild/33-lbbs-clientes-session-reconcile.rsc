@@ -14,7 +14,7 @@
 :if ([:len [/system scheduler find where name="lbbs-reconcile"]] != 0) do={ :error "LBBS33: scheduler already present" }
 :local clientProfile [/ip hotspot user profile find where name="lbbs-client-profile"]
 :if ([:len $clientProfile] != 1) do={ :error "LBBS33: client profile missing" }
-:if ([:tostr [/ip hotspot user profile get $clientProfile keepalive-timeout]] != "3m") do={ :error "LBBS33: keepalive-timeout must be 3m" }
+:if ([:len [/ip hotspot user profile get $clientProfile on-login]] = 0) do={ :error "LBBS33: LOGIN event hook not installed" }
 
 # Authenticated snapshot. No clients are modified by this script. It POSTs
 # only UUID voucher IDs (never usernames/passwords, never MAC or router token
