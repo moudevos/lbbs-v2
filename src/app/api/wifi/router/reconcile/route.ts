@@ -67,33 +67,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Inventario supera el límite seguro." }, { status: 503 });
   }
 
-  // Emergency mitigation: never resurrect failed session_missing expirations.
-  // A snapshot omission does NOT prove the 3-minute disconnection grace expired.
-  // Automatic retries are suspended pending a durable presence state machine.
+  // A missing RouterOS snapshot cannot cause user expiration, even for
+  // historically failed commands. Retry logic is disabled until presence
+  // observations are durable and we can prove a sustained disconnection.
   const now = Date.now();
-  for (const command of failedCommands ?? []) {
-    // Give the operator and router time to recover; do not hammer Vercel/RouterOS.
-    if (now - new Date(command.updated_at).getTime() < 90_000) continue;
-    const { error: retryError } = await admin.from("hotspot_router_commands")
-      .update({
-        status: "pending",
-        attempts: 0,
-        claimed_at: null,
-        processed_at: null,
-        error_code: null,
-        error_message: null,
-        available_at: new Date(now).toISOString(),
-        updated_at: new Date(now).toISOString(),
-      })
-      .eq("id", command.id)
-      .eq("router_id", auth.router.id)
-      .eq("status", "failed");
-    if (retryError) {
-      console.error("[wifi/reconcile] Reprogramación de expiración fallida.", { code: retryError.code });
-      return NextResponse.json({ error: "No se pudo reprogramar expiración." }, { status: 503 });
-    }
-  }
-
   let queued = 0;
   let deferredMissing = 0;
   for (const voucher of (data ?? []) as Voucher[]) {
