@@ -21,6 +21,7 @@ type Voucher = {
   customer_name: string | null;
   revocation_requested_at: string | null;
   revoke_command_status: string | null;
+  is_connected?: boolean;
   archived_at?: string | null;
 };
 type Router = {
@@ -204,7 +205,7 @@ export function WifiPageClient() {
     () => rows.map((row) => ({ ...row, effectiveStatus: effectiveVoucherStatus(row, clock) })),
     [rows, clock],
   );
-  const connectedRows = derivedRows.filter((row) => row.effectiveStatus === "active");
+  const connectedRows = derivedRows.filter((row) => row.effectiveStatus === "active" && row.is_connected === true);
   const pendingDisconnects = derivedRows.filter((row) => ["revocation_pending", "revocation_failed"].includes(row.effectiveStatus) && Boolean(row.first_used_at));
   const awaitingConfirmation = derivedRows.filter(
     (row) => row.effectiveStatus === "activation_ready" && Boolean(row.device_mac),
@@ -576,7 +577,7 @@ export function WifiPageClient() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Conexiones confirmadas" value={connectedRows.length} helper="Inicio de sesión registrado" variant="green" />
+        <Metric label="Conexiones confirmadas" value={connectedRows.length} helper="Presencia reciente validada por MikroTik" variant="green" />
         <Metric label="Códigos disponibles" value={availableCount} helper="Vigentes y sin utilizar" variant="blue" />
         <Metric label="En preparación" value={processingCount} helper="Pendientes de completar acceso" variant="amber" />
         <Metric label="Finalizados" value={endedCount} helper="Vencidos o revocados" variant="slate" />
@@ -620,7 +621,7 @@ export function WifiPageClient() {
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Dispositivos conectados</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Sesiones confirmadas por MikroTik. La información se consulta cada 30 segundos, sin interrumpir la conexión.
+                  Sesiones activas confirmadas por el inventario de MikroTik en los últimos 90 segundos. Se actualiza cada 30 segundos.
                 </p>
               </div>
               <span className="inline-flex w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
@@ -667,7 +668,7 @@ export function WifiPageClient() {
                 </div>
                 <p className="mt-4 font-semibold text-slate-900">Todavía no hay conexiones confirmadas</p>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                  Cuando el MikroTik informe un inicio de sesión, aparecerá aquí el cliente, su dispositivo y el tiempo disponible.
+                  Cuando MikroTik confirme una sesión activa, aparecerán aquí el cliente, su dispositivo y el tiempo disponible.
                 </p>
                 <button type="button" onClick={() => setTab("codes")} className="mt-4 text-sm font-semibold text-emerald-700 hover:text-emerald-800">
                   Ver códigos WiFi →
@@ -719,7 +720,7 @@ export function WifiPageClient() {
               </div>
             )}
             <p className="mt-4 text-xs leading-5 text-slate-500">
-              El listado refleja los eventos confirmados por el router, no una consulta directa a su tabla de sesiones. Puedes solicitar la desconexión manual. El acceso quedará pendiente hasta recibir el ACK del MikroTik.
+              El listado refleja las sesiones observadas recientemente en MikroTik. Los vouchers vigentes sin sesión se consultan en Códigos WiFi. Puedes solicitar la desconexión manual; se confirma al recibir el ACK del MikroTik.
             </p>
           </section>
         ) : null}
