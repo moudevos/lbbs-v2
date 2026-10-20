@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { authenticateRouter } from "@/lib/hotspot/router-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
-/** LBBS Clientes: router-authenticated, observation-first presence reconciliation.
- * Enforcement requires BOTH HOTSPOT_RECONCILE_V2_ENFORCE=true and body.enforce=true.
- * Do not switch to enforcement before supervised canary tests pass.
+/** LBBS Clientes: permanent OBSERVATION-ONLY reconciliation endpoint.
+ * Canary expirations run through a separate endpoint and a DB allowlist.
+ * There is intentionally NO global enable path in this route.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_IDS = 256;
@@ -34,17 +34,16 @@ export async function POST(request: Request) {
   if (new Set(ids).size !== ids.length) {
     return NextResponse.json({ error: "Inventario duplicado." }, { status: 400 });
   }
-  if (body?.enforce !== undefined && typeof body.enforce !== "boolean") {
+  if (body?.enforce !== undefined && body.enforce !== false) {
     return NextResponse.json({ error: "Modo de control inválido." }, { status: 400 });
   }
 
-  // Server-side switch OFF by default, regardless of what RouterOS sends.
-  const mayEnforce = process.env.HOTSPOT_RECONCILE_V2_ENFORCE === "true";
-  const enforce = body?.enforce === true && mayEnforce;
+  // FAIL-CLOSED: never call the broad v2 RPC in enforce mode.
+  // The separately authorized canary route can queue only a selected UUID.
   const { data, error } = await getSupabaseAdmin().rpc("reconcile_hotspot_client_sessions_v2", {
     p_router_id: authenticated.router.id,
     p_active_voucher_ids: ids,
-    p_enforce: enforce,
+    p_enforce: false,
   });
 
   if (error) {
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     version: 2,
-    mode: enforce ? "enforce" : "observe",
+    mode: "observe",
     seen: row.seen_count,
     missing: row.missing_count,
     gracePending: row.grace_count,
