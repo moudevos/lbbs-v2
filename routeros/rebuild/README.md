@@ -102,3 +102,15 @@ Only after confirming the existing active HotSpot session:
 5. Refresh WiFi Dashboard; the genuine 1 active session should change voucher status to `active`/connected after successful authenticated HTTPS event reconciliation. If it does not, investigate the API response / Supabase RPC and profile permissions without inventing session events.
 
 This change DOES NOT open Internet, enforce the 3h absolute max across reconnects, or implement the 3-minute disconnection grace. A later phase must implement a reconciling monitor with logout/disconnection state and router authorization checks. Until then keep the Client WAN gate disabled, and note the Dashboard active state may be stale after a disconnect due to intentionally deferred logout events. No change to Staff.
+
+## 32-lbbs-clientes-wan-auth-only.rsc (piloto de Internet con autorización)
+
+Comprobación real 19 Oct 2026: cliente HotSpot con `/ip hotspot active print count-only` = 1, `host HA`, evento LOGIN confirmado en Dashboard; NAT único `out-interface=ether1`, `LBBS-BOOT-Forward-Drop` activo, las dos reglas WAN amplias continúan deshabilitadas.
+
+1. Subir `routeros/rebuild/32-lbbs-clientes-wan-auth-only.rsc` a `flash/`.
+2. Ejecutar una sola vez `/import file-name=flash/32-lbbs-clientes-wan-auth-only.rsc`.
+3. Verificar `/ip firewall filter print stats where comment="LBBS-CLIENTES-WAN-AUTH-ONLY"`; la regla debe aparecer **antes** de `LBBS captive preauth HTTPS exception` y del DROP final. `LBBS-GATE customer WAN OFF until captive proven` y `LBBS-GATE staff WAN OFF until captive proven` deben seguir DESHABILITADAS.
+4. Prueba: teléfono autorizado (primero probar una URL HTTPS externa en navegador; Android podría tardar en re-evaluar la indicación “Sin Internet”). Segundo teléfono **no autenticado**: no debe poder navegar por Internet salvo destinos LBBS que formen parte de la excepción de preautorización. Confirmar desde WinBox que el perfil y aislamiento Staff no cambiaron.
+5. Rollback inmediato SIN deshacer Netinstall: `/ip firewall filter disable [find where comment="LBBS-CLIENTES-WAN-AUTH-ONLY"]`. Dejar los gateways amplios deshabilitados.
+
+**No habilitar la red Clientes para público todavía**: esto es un piloto de tráfico AUTH-only, NO completa el requisito de 3h absolutas contando reconexiones ni la gracia de 3min. Mientras on-logout esté deliberadamente deshabilitado, el Dashboard puede mostrar sesiones históricas como aún conectadas. Necesitamos un reconciliador de estado a prueba de reinicio, desvinculación + expiración y pruebas de fallos de red antes de producción general.
