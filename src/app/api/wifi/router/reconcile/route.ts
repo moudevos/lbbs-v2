@@ -4,7 +4,8 @@ import { authenticateRouter } from "@/lib/hotspot/router-auth";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 
-// Hotfix: absent sessions in one RouterOS snapshot are NEVER sufficient to\n// revoke a voucher. Keep absolute 3h expiration while fixing the grace state machine.
+// Hotfix: one missing RouterOS snapshot is not sufficient to revoke a voucher.
+// Keep the absolute three-hour limit until the grace state machine is reliable.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_ACTIVE_IDS = 256;
 const MAX_SERVER_ROWS = 257;
