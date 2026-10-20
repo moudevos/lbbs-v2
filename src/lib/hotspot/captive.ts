@@ -2,6 +2,22 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const secret = process.env.HOTSPOT_CAPTIVE_TOKEN_SECRET;
 export function normalizeDni(value: unknown) { const dni = typeof value === "string" ? value.replace(/\D/g, "") : ""; return /^\d{8}$/.test(dni) ? dni : null; }
+export type CaptiveDocumentType = "DNI" | "CE";
+
+/** La identificación WiFi comparte los tipos de documento del padrón de clientes. */
+export function normalizeCaptiveDocument(type: unknown, value: unknown):
+  { type: CaptiveDocumentType; number: string } | null {
+  const documentType = typeof type === "string" ? type.trim().toUpperCase() : "";
+  const documentNumber = typeof value === "string" ? value.replace(/\s+/g, "").toUpperCase() : "";
+  if (documentType === "DNI" && /^\d{8}$/.test(documentNumber)) {
+    return { type: "DNI", number: documentNumber };
+  }
+  if (documentType === "CE" && /^[A-Z0-9]{8,12}$/.test(documentNumber)) {
+    return { type: "CE", number: documentNumber };
+  }
+  return null;
+}
+
 export function normalizeCode(value: unknown) { const code = typeof value === "string" ? value.trim() : ""; return /^\d{6}$/.test(code) ? code : null; }
 export function normalizeCaptiveEmail(value: unknown) {
   const email = typeof value === "string" ? value.trim().toLowerCase() : "";
