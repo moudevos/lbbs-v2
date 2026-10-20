@@ -19,9 +19,9 @@
 
 # Local HTTP CHAP + no persistent cookies until 3-minute reconnection lifecycle
 # is implemented end-to-end in RouterOS and Supabase.
-/ip hotspot profile add name="lbbs-hotspot-profile" hotspot-address=10.10.10.1 dns-name="wifi.lbbs.test" login-by=http-chap html-directory="flash/lbbs-clients" use-radius=no comment="LBBS Clients CHAP portal"
-/ip hotspot user profile add name="lbbs-client-profile" shared-users=1 session-timeout=3h keepalive-timeout=3m idle-timeout=none add-mac-cookie=no comment="LBBS Clients 3h max; grace requires separate reconciliation"
-/ip hotspot add name="lbbs-hotspot" interface=bridge-hotspot address-pool=pool-hotspot profile=lbbs-hotspot-profile keepalive-timeout=3m idle-timeout=none login-timeout=5m addresses-per-mac=1 disabled=no comment="LBBS customer captive gateway"
+/ip hotspot profile add name="lbbs-hotspot-profile" hotspot-address=10.10.10.1 dns-name="wifi.lbbs.test" login-by=http-chap html-directory="flash/lbbs-clients" use-radius=no
+/ip hotspot user profile add name="lbbs-client-profile" shared-users=1 session-timeout=3h keepalive-timeout=3m idle-timeout=none add-mac-cookie=no
+/ip hotspot add name="lbbs-hotspot" interface=bridge-hotspot address-pool=pool-hotspot profile=lbbs-hotspot-profile keepalive-timeout=3m idle-timeout=none login-timeout=5m addresses-per-mac=1 disabled=no
 
 # Frontend API requests and privacy pages are the ONLY permitted external hosts.
 # IP list entries below are DNS-resolved; the HotSpot's walled garden performs
