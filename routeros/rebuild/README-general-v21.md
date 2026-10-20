@@ -1,5 +1,9 @@
 # LBBS WiFi Clientes v2.1 — cierre de producción (20/10/2026)
 
+**Despliegue realizado:** Supabase migraciones `20261020162500` y `20261020163500` aplicadas. API y Dashboard publicados selectivamente en `main` commit `35c3abe127d0254799efba8a805e73cb0d03d232`; Vercel producción `dpl_2N8TxfsyYB6gJgFMjF5YvyPm51oj` READY. Configuración `hotspot_general_reconcile_config_v21` habilitada SOLO en router `lbbs-la-bajadita-san-juan` a las **2026-10-20 21:24:57 UTC (16:24:57 Perú)**. Primera lectura posterior: router online, 1 presencia activa verificada, 1 voucher histórico ausente, 0 órdenes generales encoladas. El voucher histórico no se revoca retroactivamente sin nueva presencia real.
+
+**Pendiente de ensayo físico final:** apagar/reactivar WiFi en un voucher nuevo posterior a habilitación y comprobar `EXPIRE_VOUCHER` con `source=general_v21` en status `applied`, Dashboard `Expirado` y rechazo de código. Sin ese ensayo, considerar desplegado y habilitado, **no verificado todavía extremo a extremo en modo general**; la lógica canaria sí fue validada end-to-end.
+
 ## Alcance verificado y cambio
 
 Se validó el voucher canario LBBS36: un `EXPIRE_VOUCHER`, un `applied`, estado `expired`, evento `SESSION_EXPIRED`, rechaza reutilización. La automatización general usa exclusivamente el inventario **ya operativo** de `lbbs-presence-v2` (35), cada 30s. **No instalar otro script** ni tocar HotSpot, portal o Staff.
