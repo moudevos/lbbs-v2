@@ -6,7 +6,7 @@
 - Backend Staff ya tiene `hotspot_staff_credentials`, `hotspot_staff_devices`, `hotspot_staff_sessions`, Dashboard Staff, validación de identidad DNI/CE y bloqueo de intentos. Actualmente la autenticación Router-origin Staff está bloqueada por `LBBS_STAFF_ROUTER_AUTH_ENABLED`; las rutas públicas de autorización devuelven 503.
 - El Portal Staff HTML estaba preparado **solamente** en `infra/wifi-netinstall-rebuild`. Su formulario no aprovisiona usuarios en RouterOS; por tanto **no** basta con copiar HTML y activar WAN.
 - En producción hay 1 credencial Staff, **0 dispositivos autorizados** y **0 sesiones Staff**. El código se guarda como hash scrypt, sin contraseña reversible; no existe aún aprovisionamiento de perfiles/usuarios HotSpot. No activar el flag de autenticación hasta resolver este paso.
-- Requisito de negocio actualizado: Staff **máximo 2 dispositivos autorizados por empleado**, acceso persistente, independiente de vouchers de Clientes. Esta rama prepara la corrección del límite en SQL/Dashboard. No se aplicó todavía en producción.
+- Requisito de negocio actualizado: Staff **máximo 2 dispositivos autorizados por empleado**, acceso persistente, independiente de vouchers de Clientes. El límite de dos dispositivos ya está aplicado en Supabase; el ajuste visual queda en esta rama hasta que se promueva.
 - Hardware previsto: AP Staff en **ether4** > `bridge-staff`, 10.10.20.0/24, gateway 10.10.20.1; Clientes en ether5/10.10.10.0/24. No puentear ambas redes.
 
 ## Inspección RouterOS: SOLO CONSULTA, NO MODIFICA NADA
@@ -88,7 +88,7 @@ La segunda instrucción abriría WAN Staff sin `hotspot=auth` y no se usará ni 
 
 ## Estado de despliegue de esta rama
 
-**Fase de hardening desarrollada (SQL de máximo 2 dispositivos aplicada en Supabase; frontend sin promover a producción):** `feat/wifi-staff-rollout-v1` incluye migración que impone dos dispositivos, protecciones de conflicto preexistente y UI/API adaptadas. El aprovisionamiento RouterOS Staff y su HotSpot separado quedan pendientes de la inspección del hardware. No activar Staff solo por tener esta rama compilada.
+**Fase de hardening desarrollada (SQL de máximo 2 dispositivos aplicada en Supabase; frontend sin promover a producción):** `feat/wifi-staff-rollout-v1` incluye migración que impone dos dispositivos, protecciones de conflicto preexistente y UI/API adaptadas. El instalador 40 del HotSpot Staff, inicialmente deshabilitado, está preparado según la inspección del hardware; el aprovisionamiento RouterOS Staff sigue pendiente. No activar Staff solo por tener esta rama compilada.
 
 Una vez recibidos los siete listados anteriores, construir el **instalador incremental no destructivo** específico del estado del hEX (solo Staff) y el backend de aprovisionamiento cifrado. Auditar en rama, instalar primero deshabilitado, probar credencial de ensayo, y entonces habilitar WAN auth-only.
 
