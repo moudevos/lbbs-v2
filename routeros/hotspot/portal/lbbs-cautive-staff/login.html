@@ -67,6 +67,7 @@ function showErr(m){ce.textContent=m;ce.style.display='block';}
 var API="https://app.labajaditabarberstudio.com";
 var ROUTER_IDENTIFIER="lbbs-la-bajadita-san-juan"; // Sede San Juan exclusivamente
 var CLIENT_MAC="$(mac)"; // Sustituido por RouterOS, nunca se toma de un input
+var CLIENT_IP="$(ip)"; // Sustituido por RouterOS; cruzado con presencia firmada por router
 var chapRenderId="$(chap-id)";
 var chapRenderChallenge="$(chap-challenge)";
 var busy=false;
@@ -104,7 +105,8 @@ function authorize(documentType,documentNumber,pin,tries) {
       documentType:documentType,
       documentNumber:documentNumber,
       code:pin,
-      mac:CLIENT_MAC
+      mac:CLIENT_MAC,
+      ip:CLIENT_IP
     })
   }).then(function(response){
     return response.json().catch(function(){return {};}).then(function(body){
@@ -128,7 +130,7 @@ function doLogin(){
   var pin=document.getElementById("pwd").value;
   if(!r.re.test(v)){showErr(r.msg);return false;}
   if(!/^\d{6}$/.test(pin)){showErr("El código personal debe tener 6 dígitos.");return false;}
-  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(CLIENT_MAC)){
+  if(!/^10\.10\.20\.(?:[1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/.test(CLIENT_IP)){\n    showErr("El dispositivo no está en la red Staff.");return false;\n  }\n  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(CLIENT_MAC)){
     showErr("RouterOS no proporcionó una MAC válida.");return false;
   }
   ce.style.display="none";
