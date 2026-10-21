@@ -96,7 +96,7 @@ export async function getStaffDesired(router: { id: string; branch_id: string })
       deviceId: d.id, credentialId: credential.id, mac,
       username: "sf_" + d.id.replace(/-/g, ""),
       password: passwordFor(router.id, d.id, credential.code_hash),
-      profile: "lbbs-staff-user-profile",
+      profile: "lbbs-staff-user-profile" as const,
     };
   }).sort((a, b) => a.deviceId.localeCompare(b.deviceId));
 
