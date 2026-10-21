@@ -1,9 +1,92 @@
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { captiveJson, captiveOptions } from "@/lib/hotspot/cors";
+import {
+  getStaffDesired, normalizeStaffDocument, staffAttemptKey,
+  staffEnabled, staffMac, verifyStaffPin,
+} from "@/lib/hotspot/staff-provisioning";
 
-// Staff captive authentication is deliberately disabled until router-origin
-// attestation, rate limiting, and lockout protections are deployed.
-// Public DNI + six-digit PIN must never auto-enroll a device without them.
+const headers = { "Cache-Control": "no-store" };
+const deny = () => captiveJson({ error: "Credenciales o dispositivo no autorizados." }, {
+  status: 403, headers,
+});
 export function OPTIONS() { return captiveOptions(); }
-export async function POST() {
-  return captiveJson({ error: "El portal Staff aún no está habilitado." }, { status: 503 });
+
+export async function POST(request: Request) {
+  if (!staffEnabled()) return captiveJson({ error: "WiFi Staff aún no está habilitado." },
+    { status: 503, headers });
+  const body = await request.json().catch(() => null);
+  const identity = normalizeStaffDocument(body?.documentType, body?.documentNumber);
+  const pin = body?.code;
+  const mac = typeof body?.mac === "string" ? body.mac.trim().toUpperCase() : "";
+  const routerIdentifier = typeof body?.routerIdentifier === "string" ? body.routerIdentifier : "";
+  if (!identity || !staffMac.test(mac) || !/^[a-zA-Z0-9-]{6,80}$/.test(routerIdentifier) ||
+      typeof pin !== "string" || !/^\d{6}$/.test(pin)) return deny();
+
+  const admin = getSupabaseAdmin();
+  const { data: router } = await admin.from("hotspot_routers")
+    .select("id,branch_id,status,is_active")
+    .eq("identifier", routerIdentifier).eq("status", "active").eq("is_active", true)
+    .maybeSingle();
+  if (!router) return deny();
+
+  const { data: employee, error: employeeError } = await admin.from("employees")
+    .select("id").eq("branch_id", router.branch_id)
+    .ilike("document_type", identity.type)
+    .eq("document_number", identity.document).eq("status", "active").maybeSingle();
+  if (employeeError) return captiveJson({ error: "No se pudo validar Staff." },
+    { status: 503, headers });
+
+  const { data: credential, error: credentialError } = employee
+    ? await admin.from("hotspot_staff_credentials")
+        .select("id,code_hash,is_enabled").eq("branch_id", router.branch_id)
+        .eq("employee_id", employee.id).maybeSingle()
+    : { data: null, error: null };
+  if (credentialError) return captiveJson({ error: "No se pudo validar Staff." },
+    { status: 503, headers });
+  const pinValid = Boolean(credential?.is_enabled && verifyStaffPin(pin, credential.code_hash));
+  // Rate limit BOTH identity and MAC, including invalid PIN, before returning any secret.
+  const [identityLimit, macLimit] = await Promise.all([
+    admin.rpc("staff_auth_attempt", {
+      p_router: router.id, p_subject: staffAttemptKey(identity.type + ":" + identity.document),
+      p_valid: pinValid,
+    }),
+    admin.rpc("staff_auth_attempt", {
+      p_router: router.id, p_subject: staffAttemptKey("MAC:" + mac),
+      p_valid: pinValid,
+    }),
+  ]);
+  if (identityLimit.error || macLimit.error)
+    return captiveJson({ error: "No se pudo validar Staff." }, { status: 503, headers });
+  if (!identityLimit.data || !macLimit.data || !pinValid || !credential) return deny();
+
+  // The portal NEVER enrolls its claimed MAC. Admin registers each device
+  // explicitly; RouterOS independently enforces that MAC on the local user.
+  const { data: device, error: deviceError } = await admin.from("hotspot_staff_devices")
+    .select("id").eq("credential_id", credential.id).eq("mac_address", mac)
+    .eq("is_authorized", true).maybeSingle();
+  if (deviceError) return captiveJson({ error: "No se pudo validar Staff." },
+    { status: 503, headers });
+  if (!device) return deny();
+
+  try {
+    const desired = await getStaffDesired(router);
+    const record = desired.devices.find(d => d.deviceId === device.id &&
+      d.credentialId === credential.id && d.mac === mac);
+    if (!record) return deny();
+    const { data: state, error: stateError } = await admin.from("hotspot_staff_sync_state_v41")
+      .select("revision,synced_at").eq("router_id", router.id).maybeSingle();
+    if (stateError) throw stateError;
+    // Only release a local CHAP credential after the router has ACKed
+    // the SAME current roster (new code/device/revocations force resync).
+    if (!state || state.revision !== desired.revision ||
+        Date.now() - new Date(state.synced_at).getTime() > 120_000)
+      return captiveJson({ error: "El dispositivo aún se está sincronizando. Intenta nuevamente." },
+        { status: 409, headers });
+    return captiveJson({
+      status: "ready", username: record.username, password: record.password,
+    }, { headers });
+  } catch {
+    return captiveJson({ error: "No se pudo preparar el acceso Staff." },
+      { status: 503, headers });
+  }
 }
