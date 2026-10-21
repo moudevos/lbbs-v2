@@ -25,6 +25,9 @@ describe("WiFi Staff v50 isolated pilot contract", () => {
     expect(setup).toContain('dst-address=10.0.0.0/8');
     expect(setup).toContain('dst-address=172.16.0.0/12');
     expect(setup).toContain('dst-address=192.168.0.0/16');
+    expect(setup).toContain('comment="LBBS-STAFF-V50-IPV6-FWD-DROP"');
+    expect(setup).toContain('comment="LBBS-STAFF-V50-IPV6-INPUT-DROP"');
+    expect(setup).toContain('LBBS50: upload the new fixed Staff login.html before enabling');
     expect(setup).not.toContain('/ip hotspot enable [find]');
     expect(setup).not.toContain('/ip firewall filter enable');
     expect(setup).not.toContain('LBBS-GATE staff WAN OFF until captive proven" action=accept');
@@ -51,7 +54,7 @@ describe("WiFi Staff v50 isolated pilot contract", () => {
     const tagNames = [
       "FWD-JUMP", "INPUT-MGMT-DROP", "PRIVATE-10", "PRIVATE-172",
       "PRIVATE-192", "PREAUTH-API", "AUTH-WAN", "DEFAULT-DROP",
-      "NAT", "WALLED-API", "API-DNS",
+      "NAT", "WALLED-API", "API-DNS", "IPV6-FWD-DROP", "IPV6-INPUT-DROP",
     ];
     for (const label of tagNames) {
       expect(setup).toContain("LBBS-STAFF-V50-" + label);
