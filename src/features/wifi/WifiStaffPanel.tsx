@@ -64,7 +64,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "No se pudo guardar el cambio.");
       if (typeof payload.code === "string") setIssuedCode(payload.code);
-      setNotice(payload.warning ?? "Cambio guardado en el Dashboard. La activación de red requiere la instalación y validación del portal Staff en MikroTik.");
+      setNotice(payload.warning ?? "Cambio guardado en el Dashboard. La revocación se aplicará al router con la siguiente sincronización Staff.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo guardar el cambio.");
