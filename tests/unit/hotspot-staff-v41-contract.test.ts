@@ -50,13 +50,16 @@ describe("WiFi Staff phase 41 isolated provisioning and CHAP flow", () => {
     expect(publicAuth).toContain('verifyStaffPin');
     expect(publicAuth).toContain('staff_auth_attempt');
     expect(publicAuth).toContain('"MAC:" + mac');
-    expect(publicAuth).toContain('.eq("is_authorized", true)');
+    expect(publicAuth).toContain('enroll_hotspot_staff_seen_device_v42');
+    expect(publicAuth).toContain('p_router_id: router.id');
+    expect(publicAuth).toContain('p_ip: ip');
     expect(publicAuth).toContain('state.revision !== desired.revision');
     expect(publicAuth).toContain("120_000");
     expect(publicAuth).toContain('record.username');
     expect(publicAuth).toContain('record.password');
     expect(publicAuth).not.toContain('authorize_hotspot_staff_device');
     expect(publicAuth).not.toContain('.insert({ credential_id:');
+    expect(publicAuth).not.toContain('authorize_hotspot_staff_device');
   });
 
   it("accepts Staff ACK only for current secure full roster", () => {
