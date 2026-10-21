@@ -21,8 +21,8 @@
 
 # A dedicated HotSpot profile, scoped only to the Staff AP network.
 # No shared staff passwords and no cookie login during the STAGING phase.
-/ip hotspot profile add name="lbbs-staff-hotspot-profile" hotspot-address=10.10.20.1 dns-name="wifi-staff.lbbs.test" login-by=http-chap html-directory="flash/lbbs-staff" use-radius=no comment="LBBS40 Staff only - staged"
-/ip hotspot user profile add name="lbbs-staff-user-profile" shared-users=1 idle-timeout=none keepalive-timeout=3m add-mac-cookie=no comment="LBBS40 Staff only - staged"
+/ip hotspot profile add name="lbbs-staff-hotspot-profile" hotspot-address=10.10.20.1 dns-name="wifi-staff.lbbs.test" login-by=http-chap html-directory="flash/lbbs-staff" use-radius=no
+/ip hotspot user profile add name="lbbs-staff-user-profile" shared-users=1 idle-timeout=none keepalive-timeout=3m add-mac-cookie=no
 /ip hotspot add name="lbbs-staff-hotspot" interface=bridge-staff address-pool=none profile=lbbs-staff-hotspot-profile keepalive-timeout=3m idle-timeout=none login-timeout=5m addresses-per-mac=2 disabled=yes comment="LBBS40 Staff disabled until auth and WAN are proven"
 
 :if ([:len [/ip hotspot find where name="lbbs-staff-hotspot" and disabled=yes]] != 1) do={ :error "LBBS40: staged server verification failed" }
