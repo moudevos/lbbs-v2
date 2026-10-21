@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   faArrowRotateRight,
@@ -75,7 +75,7 @@ const limaTime = (value: string) =>
 function MetricCard({
   title, value, hint, icon, emphasized = false, detail,
 }: {
-  title: string; value: string; hint: string; icon: IconDefinition; emphasized?: boolean; detail?: React.ReactNode;
+  title: string; value: string; hint: string; icon: IconDefinition; emphasized?: boolean; detail?: ReactNode;
 }) {
   return (
     <article className={`min-w-0 rounded-2xl border p-4 shadow-sm sm:p-5 ${emphasized ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-white"}`}>
@@ -281,7 +281,7 @@ export function ControlToday({ greetingName, verse }: {
                   hint="Facturación neta de ventas completadas"
                   detail={weeklyDelta === null ? <span className="text-slate-500">Sin base para comparar con el mismo día de la semana pasada.</span>
                     : <span className={weeklyDelta < 0 ? "font-semibold text-rose-700" : "font-semibold text-emerald-700"}>
-                      {weeklyDelta > 0 ? "+" : ""}{weeklyDelta.toFixed(1)}% vs. mismo día anterior, hasta esta hora
+                      {weeklyDelta > 0 ? "+" : ""}{weeklyDelta.toFixed(1)}% vs. el mismo día de la semana pasada, hasta esta hora
                     </span>} />
                 <MetricCard title="Cobrado hoy" value={currency.format(current?.collectedToday ?? 0)} icon={faCashRegister}
                   hint="Pagos reales registrados, excluye crédito interno." />
