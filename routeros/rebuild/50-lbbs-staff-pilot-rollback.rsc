@@ -17,6 +17,8 @@
 /ip firewall filter remove [find where comment="LBBS-STAFF-V50-AUTH-WAN"]
 /ip firewall filter remove [find where comment="LBBS-STAFF-V50-DEFAULT-DROP"]
 /ip firewall nat remove [find where comment="LBBS-STAFF-V50-NAT"]
+/ipv6 firewall filter remove [find where comment="LBBS-STAFF-V50-IPV6-FWD-DROP"]
+/ipv6 firewall filter remove [find where comment="LBBS-STAFF-V50-IPV6-INPUT-DROP"]
 /ip hotspot walled-garden ip remove [find where comment="LBBS-STAFF-V50-WALLED-API" and server="lbbs-staff-hotspot"]
 /ip firewall address-list remove [find where list="lbbs-staff-v50-api" and comment="LBBS-STAFF-V50-API-DNS"]
 :put "LBBS-STAFF-V50-ROLLBACK=completed"
