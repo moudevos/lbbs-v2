@@ -15,7 +15,7 @@
   <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
   <p class="eyebrow">Red interna</p>
   <h1>Acceso Staff</h1>
-  <p>Solo personal autorizado.</p>
+  <p>Solo personal autorizado.</p>\n  <p class="hint">Los dos primeros equipos que accedan con tu código quedarán registrados como dispositivos de confianza.</p>
 
   $(if error)<div class="alert">$(error)</div>$(endif)
   <div class="alert" id="clientError" style="display:none"></div>
@@ -110,7 +110,7 @@ function authorize(documentType,documentNumber,pin,tries) {
     })
   }).then(function(response){
     return response.json().catch(function(){return {};}).then(function(body){
-      if(response.status===409 && tries<12) {
+      if(response.status===409 && tries<30) {
         buttonState(true,"Preparando acceso…");
         return new Promise(function(resolve){setTimeout(resolve,2000);})
           .then(function(){return authorize(documentType,documentNumber,pin,tries+1);});
