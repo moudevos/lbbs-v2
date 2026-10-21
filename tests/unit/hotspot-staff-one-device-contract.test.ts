@@ -10,8 +10,20 @@ const limit = source("supabase/migrations/20261021144500_hotspot_staff_two_devic
 const panel = source("src/features/wifi/WifiStaffPanel.tsx");
 const adminApi = source("src/app/api/admin/wifi/staff/route.ts");
 const provision = source("src/app/api/wifi/router/staff/authorize/route.ts");
+const installer = source("routeros/rebuild/40-lbbs-staff-hotspot-stage.rsc");
 
 describe("LBBS WiFi Staff staged two-device safety", () => {
+  it("checks actual RouterOS firewall DROP properties instead of a mixed boolean find filter", () => {
+    expect(installer).toContain('find where comment="LBBS-BOOT-Forward-Drop"');
+    expect(installer).toContain('get $forwardDrop chain');
+    expect(installer).toContain('get $forwardDrop action');
+    expect(installer).toContain('get $forwardDrop disabled');
+    expect(installer).not.toContain('find where comment="LBBS-BOOT-Forward-Drop" and disabled=no');
+    expect(installer).toContain('name="lbbs-staff-hotspot"');
+    expect(installer).toContain('disabled=yes comment="LBBS40 Staff disabled');
+    expect(installer).not.toContain("LBBS-CLIENTES-WAN-AUTH-ONLY");
+  });
+
   it("restores a two-device cap without deleting data or relaxing concurrency", () => {
     expect(earlierOneDeviceMigration).toContain("v_authorized >= 1");
     expect(limit).toContain("having count(*) > 2");
