@@ -108,7 +108,8 @@
     :log warning ("LBBS42: Staff host attestation failed at " . $stage)
   }
 }
-}:local hostScript [/system script find where name="lbbs-staff-hosts-v42"]
+}
+:local hostScript [/system script find where name="lbbs-staff-hosts-v42"]
 :if ([:len $hostScript] != 1) do={ :error "LBBS50: host reporter missing" }
 :if ([:len [/system scheduler find where name="lbbs-staff-hosts-v42"]] = 0) do={
   /system scheduler add name="lbbs-staff-hosts-v42" disabled=yes interval=10s policy=ftp,read,write,policy,test,sensitive on-event="/system script run lbbs-env; /system script run lbbs-staff-hosts-v42" comment="LBBS50 Staff physical host polling"
