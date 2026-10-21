@@ -38,11 +38,15 @@ export async function POST(request: Request) {
     if (!credential.is_enabled || employee?.status !== "active" ||
         employee.branch_id !== auth.router.branch_id || !device.is_authorized)
       return NextResponse.json({ error: "Staff revocado." }, { status: 403 });
-    const { error } = await admin.from("hotspot_staff_sessions").upsert({
+    // The (router_id, router_session_key) uniqueness index is PARTIAL.
+    // Supabase upsert(... onConflict=...) cannot infer that partial index.
+    // INSERT + handling 23505 preserves idempotency without a 42P10 failure.
+    const { error } = await admin.from("hotspot_staff_sessions").insert({
       credential_id: credentialId, device_id: device.id,
       router_id: auth.router.id, router_session_key: key,
-    }, { onConflict: "router_id,router_session_key", ignoreDuplicates: true });
-    if (error) return NextResponse.json({ error: "No se registró el inicio." }, { status: 500 });
+    });
+    if (error && error.code !== "23505")
+      return NextResponse.json({ error: "No se registró el inicio." }, { status: 500 });
   } else {
     // RouterOS on-logout cannot recover the random LOGIN key after reboot.
     // Close only currently open sessions of the exact device on the same router.
