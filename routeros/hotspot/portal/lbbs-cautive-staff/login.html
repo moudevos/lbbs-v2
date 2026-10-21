@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+<!-- LBBS-STAFF-PILOT-V50: RouterOS 7.23 + MAC/IP automatic trust -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -35,8 +36,8 @@
     </div>
     <p class="hint" id="dhint">8 dígitos</p>
 
-    <label for="pwd">Contraseña</label>
-    <input id="pwd" name="password" type="password" placeholder="••••••••" required>
+    <label for="pwd">Código personal de 6 dígitos</label>
+    <input id="pwd" name="password" type="password" placeholder="••••••" required>
 
     <button class="btn" id="go" type="submit"><span class="spin"></span><span id="gotxt">Conectar</span></button>
   </form>
@@ -131,7 +132,10 @@ function doLogin(){
   var pin=document.getElementById("pwd").value;
   if(!r.re.test(v)){showErr(r.msg);return false;}
   if(!/^\d{6}$/.test(pin)){showErr("El código personal debe tener 6 dígitos.");return false;}
-  if(!/^10\.10\.20\.(?:[1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/.test(CLIENT_IP)){\n    showErr("El dispositivo no está en la red Staff.");return false;\n  }\n  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(CLIENT_MAC)){
+  if(!/^10\.10\.20\.(?:[1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/.test(CLIENT_IP)){
+    showErr("El dispositivo no está en la red Staff.");return false;
+  }
+  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(CLIENT_MAC)){
     showErr("RouterOS no proporcionó una MAC válida.");return false;
   }
   ce.style.display="none";
