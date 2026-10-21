@@ -28,6 +28,8 @@
   :if ([:len [/file find where name=("flash/lbbs-staff/" . $fname)]] != 1) do={ :error ("LBBS50: missing portal file " . $fname) }
 }
 :if ([/ip hotspot profile get [find where name="lbbs-staff-hotspot-profile"] html-directory] != "flash/lbbs-staff") do={ :error "LBBS50: Staff portal directory mismatch" }
+:local loginSource [/file get [/file find where name="flash/lbbs-staff/login.html"] contents]
+:if ([:typeof [:find $loginSource "LBBS-STAFF-PILOT-V50"]] = "nil") do={ :error "LBBS50: upload the new fixed Staff login.html before enabling" }
 
 # Refuse a partial/double import; operator can run the Staff-only rollback.
 :if ([:len [/ip firewall filter find where comment="LBBS-STAFF-V50-FWD-JUMP"]] > 0) do={ :error "LBBS50: pilot already present; use rollback to reinstall" }
@@ -103,6 +105,10 @@
 
 # Restrict Staff devices from administrative router services (HotSpot HTTP/DNS untouched).
 /ip firewall filter add chain=input action=drop in-interface="bridge-staff" protocol=tcp dst-port=21,22,23,8291,8728,8729 place-before=0 comment="LBBS-STAFF-V50-INPUT-MGMT-DROP"
+
+# HotSpot is IPv4-only: block IPv6 Staff traffic to prevent captive-portal bypass.
+/ipv6 firewall filter add chain=forward action=drop in-interface="bridge-staff" place-before=0 comment="LBBS-STAFF-V50-IPV6-FWD-DROP"
+/ipv6 firewall filter add chain=input action=drop in-interface="bridge-staff" place-before=0 comment="LBBS-STAFF-V50-IPV6-INPUT-DROP"
 
 # Staff-specific NAT; no changes to Clientes NAT rules.
 /ip firewall nat add chain=srcnat action=masquerade src-address=10.10.20.0/24 out-interface=ether1 comment="LBBS-STAFF-V50-NAT"
