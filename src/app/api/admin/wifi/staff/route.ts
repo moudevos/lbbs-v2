@@ -106,8 +106,8 @@ export async function PATCH(request: Request) {
       : await db().from("hotspot_staff_devices").insert({ credential_id: current.id, mac_address: mac })
           .select("id").single();
     if (result.error) return NextResponse.json({
-      error: result.error.code === "23514" ? "Se alcanzó el máximo de dos dispositivos o la credencial está inactiva." : "No se pudo registrar el dispositivo.",
-    }, { status: result.error.code === "23514" ? 409 : 500 });
+      error: ["23514", "23505"].includes(result.error.code) ? "Esta credencial admite un único dispositivo autorizado, o está inactiva." : "No se pudo registrar el dispositivo.",
+    }, { status: ["23514", "23505"].includes(result.error.code) ? 409 : 500 });
     return NextResponse.json({ ok: true, deviceId: result.data.id, warning: "Dispositivo registrado en Dashboard; pendiente de sincronización con MikroTik." });
   }
   if (body.action === "revoke_device") {
