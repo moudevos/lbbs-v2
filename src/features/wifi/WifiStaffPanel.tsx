@@ -80,6 +80,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
     <section role="tabpanel" aria-label="WiFi Staff" className="space-y-5 p-5 sm:p-6">
       <div>
         <h2 className="text-lg font-bold text-slate-950">WiFi Staff</h2>
+        <a href="/control/wifi/staff/preview" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-emerald-700 underline">Ver el portal Staff original ↗</a>
         <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. Hasta dos dispositivos autorizados por empleado. El acceso a Internet requiere un HotSpot Staff separado y habilitado en MikroTik.</p>
       </div>
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c0c0d">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="-1">
+<meta http-equiv="refresh" content="8;url=$(link-status)">
+<title>Conectando…</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="staff.css">
+</head>
+<body>
+<main class="card" id="card">
+  <img class="logo" src="assets/lbbs-logo.svg" alt="LBBS">
+  <p class="eyebrow">Acceso Staff</p>
+
+  <div class="ring"></div>
+  <h1 id="title">Conectando…</h1>
+  <p id="msg">Un momento, estamos habilitando tu acceso.</p>
+
+  <ul class="progress">
+    <li id="s1" class="on"><i></i>Credenciales verificadas</li>
+    <li id="s2"><i></i>Asignando acceso a la red</li>
+    <li id="s3"><i></i>Comprobando conexión</li>
+  </ul>
+
+  <p class="link" id="fb">¿Tarda demasiado? <a href="$(link-status)">Continuar</a></p>
+  <p class="brand-foot">La Bajadita Barber Studio</p>
+</main>
+
+<noscript><p class="hint" style="text-align:center;margin-top:20px"><a style="color:#c8a45c" href="$(link-status)">Continuar</a></p></noscript>
+
+<script>
+var STATUS="$(link-status)";
+function mark(id,cls){document.getElementById(id).className=cls;}
+mark('s1','ok');mark('s2','on');
+setTimeout(function(){mark('s2','ok');mark('s3','on');},1200);
+setTimeout(function(){
+  mark('s3','ok');
+  document.getElementById('card').className='card done';
+  document.getElementById('title').textContent='Conectado';
+  document.getElementById('msg').textContent='Redirigiendo a tu estado de sesión…';
+},2600);
+setTimeout(function(){window.location.replace(STATUS);},3400);
+setTimeout(function(){document.getElementById('fb').style.display='block';},6000);
+</script>
+</body>
+</html>

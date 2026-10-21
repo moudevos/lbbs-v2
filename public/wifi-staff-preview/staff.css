@@ -1,0 +1,201 @@
+/* =========================================================
+   LBBS Staff · extensiones sobre styles.css
+   Cargar DESPUÉS de styles.css. Hereda los tokens de :root.
+   ========================================================= */
+
+/* ---------- Formulario de acceso ---------- */
+select {
+  width: 100%;
+  margin-top: 7px;
+  padding: 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200, 164, 92, .25);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+}
+
+#dhint {
+  margin-top: 8px;
+  font-size: 12px;
+  text-align: left;
+}
+
+#pwd { letter-spacing: .08em; }
+
+/* Alertas (error del router y validación del cliente) */
+.alert {
+  margin-top: 18px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 143, 122, .35);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 143, 122, .08);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  word-break: break-word;
+}
+
+/* Botón con spinner interno (login) */
+button#go {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.spin {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+button[disabled] .spin { display: inline-block; }
+button[disabled] { cursor: wait; }
+
+/* Formulario de una sola acción (cerrar sesión) */
+form.inline { margin-top: 0; }
+
+.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255, 143, 122, .06);
+}
+
+/* ---------- Estado "conectado" (status) ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding: 6px 14px;
+  border: 1px solid rgba(125, 219, 163, .45);
+  border-radius: 999px;
+  background: rgba(125, 219, 163, .1);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+dd.break { word-break: break-all; }
+
+/* ---------- Pantalla "Conectando…" (alogin) ---------- */
+.ring {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  margin: 6px auto 20px;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+
+.done .ring {
+  animation: none;
+  border-color: var(--ok);
+}
+
+.done .ring::after {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 8px;
+  width: 14px;
+  height: 26px;
+  border: solid var(--ok);
+  border-width: 0 4px 4px 0;
+  transform: rotate(45deg);
+}
+
+.progress {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  text-align: left;
+}
+
+.progress li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  color: #6b665c;
+  font-size: 14px;
+}
+
+.progress li i {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+}
+
+.progress li.on { color: var(--text); font-weight: 700; }
+
+.progress li.on i {
+  border-color: var(--accent);
+  border-top-color: transparent;
+  animation: spin .8s linear infinite;
+}
+
+.progress li.ok { color: var(--muted); }
+
+.progress li.ok i {
+  border-color: var(--ok);
+  background: var(--ok);
+  animation: none;
+}
+
+.link {
+  display: none;
+  margin-top: 18px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.link a,
+.hint a {
+  color: var(--accent);
+  font-weight: 700;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 360px) {
+  .row { grid-template-columns: 100px 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring, .spin { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
+}
