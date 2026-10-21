@@ -174,5 +174,5 @@
 :put ("LBBS47_RESULT=" . $lbbsStaffLastSync)
 :put ("LBBS47_STAFF_USERS=" . [/ip hotspot user print count-only where server="lbbs-staff-hotspot"])
 :put ("LBBS47_STAFF_HOTSPOT_DISABLED=" . [/ip hotspot get $staffServer disabled])
-:put ("LBBS47_CLIENTES_ENABLED=" . (![/ip hotspot get $clientsServer disabled]))
+:put ("LBBS47_CLIENTES_DISABLED=" . [/ip hotspot get $clientsServer disabled])
 :put ("LBBS47_SCHEDULER_DISABLED=" . [/system scheduler get $scheduler disabled])
