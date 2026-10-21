@@ -36,7 +36,7 @@ describe("WiFi Staff phase 41 isolated provisioning and CHAP flow", () => {
     expect(lib).toContain('staffMac.test');
     expect(lib).toContain('d.id.replace(/-/g, "")');
     expect(lib).toContain('createHmac("sha256", signingKey())');
-    expect(lib).toContain('router.id, d.id, codeHash');
+    expect(lib).toContain('["LBBS-STAFF-CHAP-V1", routerId, deviceId, codeHash]');
     expect(routerScript).toContain('mac-address=$mac disabled=no');
     expect(routerScript).toContain('comment=$tag');
     expect(routerScript).toContain('profile=$staffProfile');
