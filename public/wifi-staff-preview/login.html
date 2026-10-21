@@ -29,14 +29,13 @@
       <select id="dtype">
         <option value="dni">DNI</option>
         <option value="cex">CEX</option>
-        <option value="pas">Pasaporte</option>
       </select>
       <input id="doc" type="text" inputmode="text" autocapitalize="characters" placeholder="Número" required>
     </div>
     <p class="hint" id="dhint">8 dígitos</p>
 
-    <label for="pwd">Contraseña</label>
-    <input id="pwd" name="password" type="password" placeholder="••••••••" required>
+    <label for="pwd">Código personal</label>
+    <input id="pwd" name="password" type="password" placeholder="••••••" required>
 
     <button class="btn" id="go" type="submit"><span class="spin"></span><span id="gotxt">Conectar</span></button>
   </form>
@@ -51,7 +50,6 @@
 var RULES={
   dni:{re:/^\d{8}$/,hint:"8 dígitos",msg:"El DNI debe tener 8 dígitos."},
   cex:{re:/^[A-Z0-9]{9,12}$/,hint:"9 a 12 caracteres (letras y números)",msg:"El CEX debe tener entre 9 y 12 caracteres."},
-  pas:{re:/^[A-Z0-9]{6,12}$/,hint:"6 a 12 caracteres (letras y números)",msg:"El pasaporte debe tener entre 6 y 12 caracteres."}
 };
 var sel=document.getElementById('dtype'),doc=document.getElementById('doc'),
     hint=document.getElementById('dhint'),ce=document.getElementById('clientError');
