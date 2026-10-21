@@ -20,7 +20,13 @@ describe("LBBS WiFi Staff staged two-device safety", () => {
     expect(installer).toContain('get $forwardDrop disabled');
     expect(installer).not.toContain('find where comment="LBBS-BOOT-Forward-Drop" and disabled=no');
     expect(installer).toContain('name="lbbs-staff-hotspot"');
-    expect(installer).toContain('disabled=yes comment="LBBS40 Staff disabled');
+    expect(installer).toContain('addresses-per-mac=2 disabled=yes');
+    expect(installer).not.toMatch(/\\/ip hotspot add[^\\n]*comment=/);
+    expect(installer).toContain('Staff HotSpot profile reused');
+    expect(installer).toContain('existing Staff profile set to 2 sessions');
+    expect(installer).toContain('existing disabled Staff server reused');
+    expect(installer).toContain('Staff portal');
+    expect(installer).toContain('api.json');
     expect(installer).not.toContain("LBBS-CLIENTES-WAN-AUTH-ONLY");
   });
 
