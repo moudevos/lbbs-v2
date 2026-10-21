@@ -2,7 +2,8 @@
 # This installs a DISABLED Staff HotSpot, one Staff-only user profile,
 # and NO WAN permit, no DNS/walled garden exception, no users or credentials.
 # Does not modify Clientes, bridge, DHCP, NAT, firewall or Starlink.
-# File preflight: flash/lbbs-staff/login.html (staging splash).
+# File preflight: complete original Staff portal in flash/lbbs-staff/. 
+# The operator verifies all original files; no demo files on the live router.
 # One-time importer; do not reimport after success.
 
 :if ([:len [/interface bridge find where name="bridge-staff"]] != 1) do={ :error "LBBS40: bridge-staff missing" }
@@ -24,7 +25,15 @@
 :if ([:len [/ip hotspot find where name="lbbs-staff-hotspot"]] != 0) do={ :error "LBBS40: Staff hotspot name already exists; stop" }
 :if ([:len [/ip hotspot profile find where name="lbbs-staff-hotspot-profile"]] != 0) do={ :error "LBBS40: Staff hotspot profile already exists; stop" }
 :if ([:len [/ip hotspot user profile find where name="lbbs-staff-user-profile"]] != 0) do={ :error "LBBS40: Staff user profile already exists; stop" }
-:if ([:len [/file find where name="flash/lbbs-staff/login.html"]] != 1) do={ :error "LBBS40: staging splash flash/lbbs-staff/login.html missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/login.html"]] != 1) do={ :error "LBBS40: original Staff login.html missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/styles.css"]] != 1) do={ :error "LBBS40: Staff styles.css missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/staff.css"]] != 1) do={ :error "LBBS40: Staff staff.css missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/md5.js"]] != 1) do={ :error "LBBS40: Staff md5.js missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/assets/lbbs-logo.svg"]] != 1) do={ :error "LBBS40: Staff logo missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/alogin.html"]] != 1) do={ :error "LBBS40: Staff alogin.html missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/status.html"]] != 1) do={ :error "LBBS40: Staff status.html missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/error.html"]] != 1) do={ :error "LBBS40: Staff error.html missing" }
+:if ([:len [/file find where name="flash/lbbs-staff/logout.html"]] != 1) do={ :error "LBBS40: Staff logout.html missing" }
 
 # A dedicated HotSpot profile, scoped only to the Staff AP network.
 # No shared staff passwords and no cookie login during the STAGING phase.
