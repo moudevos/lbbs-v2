@@ -17,9 +17,12 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const hosts = body?.hosts;
-  if (!hosts || typeof hosts !== "object" || Array.isArray(hosts))
+  // RouterOS serializes an empty dictionary as [] on some v7 builds.
+  // Accept only that empty-array special case; nonempty arrays are invalid.
+  if (!hosts || typeof hosts !== "object" ||
+      (Array.isArray(hosts) && hosts.length > 0))
     return NextResponse.json({ error: "Host snapshot inválido." }, { status: 400, headers });
-  const list = Object.entries(hosts);
+  const list = Array.isArray(hosts) ? [] : Object.entries(hosts);
   if (list.length > 96)
     return NextResponse.json({ error: "Demasiados hosts Staff." }, { status: 413, headers });
   const rows: { router_id: string; mac_address: string; ip_address: string; observed_at: string }[] = [];
