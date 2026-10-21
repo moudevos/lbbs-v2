@@ -52,14 +52,14 @@ Pegar salidas sin `/system script print detail`, `/export show-sensitive`, contr
 
 La rama `feat/wifi-staff-rollout-v1` contiene:
 
-- `routeros/rebuild/staff-staged-portal/login.html`: splash de preparación, **no solicita credenciales ni abre sesión**.
+- `routeros/hotspot/portal/lbbs-cautive-staff/`: **portal original recuperado** con cinco pantallas, CSS, MD5 y logo. La vista de prueba se habilitó en `/control/wifi/staff/preview` (no autentica ni genera sesiones).
 - `routeros/rebuild/40-lbbs-staff-hotspot-stage.rsc`: instalador con precondiciones del router real. Crea `lbbs-staff-hotspot-profile`, `lbbs-staff-user-profile` y `lbbs-staff-hotspot` **disabled=yes**, y no cambia ninguna ruta, puerto, regla WAN, HotSpot Clientes ni credenciales.
 - `supabase/migrations/20261021141000_hotspot_staff_one_device_safe.sql`: **aplicada inicialmente** con máximo 1; quedó reemplazada por la migración posterior de máximo 2 dispositivos. El trigger actualmente garantiza 2 MAC Staff autorizadas; validado en Supabase (1 credencial, 0 dispositivos, 0 sesiones).
 
 **Instalación física por WinBox (no ejecutar hasta tener ambos archivos):**
 
 1. WinBox > Files > `flash` > New Folder `lbbs-staff`.
-2. Copiar *solo* `staff-staged-portal/login.html` a `flash/lbbs-staff/login.html`.
+2. Copiar **todo el contenido** de `routeros/hotspot/portal/lbbs-cautive-staff/` a `flash/lbbs-staff/`, incluyendo `assets/`, `md5.js` y los cinco archivos HTML. El instalador exige el portal completo.
 3. Subir `40-lbbs-staff-hotspot-stage.rsc` a `flash/40-lbbs-staff-hotspot-stage.rsc`.
 4. Confirmar que se mantiene una conexión WinBox desde la red de administración, no por la red Staff.
 5. Ejecutar en Terminal:
@@ -111,3 +111,11 @@ El instalador viejo abortó en la línea 15 con `LBBS40: default forward deny no
 4. En cualquier nuevo error, detener. No abrir WAN Staff ni habilitar el servidor HotSpot antes de la fase de autenticación.
 
 **Límite Staff actualizado:** migración `20261021144500_hotspot_staff_two_devices_safe.sql` **aplicada**, elimina el índice único de un dispositivo y cambia el trigger a **2 MAC autorizadas** con bloqueo de concurrencia. La migración previa `20261021141000` queda en historial por trazabilidad. El Dashboard en esta rama muestra `0/2`, `1/2`, `2/2`; aún es staging, sin provisión de acceso real en RouterOS.
+
+## Portal original integrado desde infra
+
+La rama `feat/wifi-staff-rollout-v1` ahora incluye el mismo portal de `infra/wifi-netinstall-rebuild` sin alterar su diseño. Páginas: `login.html` (documento/PIN), `alogin.html` (transición), `status.html` (sesión), `error.html` (fallos) y `logout.html` (cierre). Dependencias incluidas: `styles.css`, `staff.css`, `md5.js`, `assets/lbbs-logo.svg`.
+
+La vista previa del Dashboard está disponible en `/control/wifi/staff/preview`, restringida a usuarios con acceso al módulo Hotspots. El espejo estático de demostración vive en `public/wifi-staff-preview/` y reemplaza las variables de MikroTik por datos de ejemplo; NO admite autenticación ni envía contraseñas. No subir los archivos `public/wifi-staff-preview/` al MikroTik; usar exclusivamente los originales de `routeros/hotspot/portal/lbbs-cautive-staff/`.
+
+**Advertencia funcional:** el formulario original incluye DNI, CEX y pasaporte, mientras que el backend Staff actualmente solo admite DNI/CE. El portal todavía no aprovisiona usuarios HotSpot ni abre navegación; no habilitar el servidor con `/ip hotspot enable` ni el gate WAN. La conciliación segura de dos dispositivos se validará en la siguiente fase.
