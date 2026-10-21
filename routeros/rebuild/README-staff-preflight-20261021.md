@@ -119,3 +119,42 @@ La rama `feat/wifi-staff-rollout-v1` ahora incluye el mismo portal de `infra/wif
 La vista previa del Dashboard está disponible en `/control/wifi/staff/preview`, restringida a usuarios con acceso al módulo Hotspots. El espejo estático de demostración vive en `public/wifi-staff-preview/` y reemplaza las variables de MikroTik por datos de ejemplo; NO admite autenticación ni envía contraseñas. No subir los archivos `public/wifi-staff-preview/` al MikroTik; usar exclusivamente los originales de `routeros/hotspot/portal/lbbs-cautive-staff/`.
 
 **Advertencia funcional:** el formulario original incluye DNI, CEX y pasaporte, mientras que el backend Staff actualmente solo admite DNI/CE. El portal todavía no aprovisiona usuarios HotSpot ni abre navegación; no habilitar el servidor con `/ip hotspot enable` ni el gate WAN. La conciliación segura de dos dispositivos se validará en la siguiente fase.
+
+## 21 de octubre — instalador 40 v3: recuperación tras importación parcial
+
+El operador ejecutó la versión previa y RouterOS respondió:
+
+```text
+Script Error: bad parameter comment (line 33 column 215)
+```
+
+Causa confirmada: `/ip hotspot add` no acepta `comment=`. La validación previa sí pasó y el importador creó probablemente `lbbs-staff-hotspot-profile` y `lbbs-staff-user-profile`; al fallar en `/ip hotspot add`, **no llegó a crear el servidor**. No borrar esos perfiles ni resetear el equipo.
+
+**El RSC 40 v3 ya está corregido para volver a ejecutarse con seguridad después de un fallo intermedio.** Comprueba todos los puertos, DHCP, HotSpot Clientes, regla de DENY y firewall Staff, y valida el portal **antes** de cambiar nada. Reconoce perfiles Staff ya existentes, verifica que pertenecen a la configuración esperada y los reutiliza. Si el perfil de usuarios Staff tenía `shared-users=1`, lo actualiza a `shared-users=2`, exclusivamente para Staff. Crea el servidor `lbbs-staff-hotspot` **sin `comment=`** y con `disabled=yes`. Si ya existe en estado staged, lo reutiliza; si aparece otra configuración, aborta sin sobreescribirla.
+
+El paquete **original** se copia íntegro desde `routeros/hotspot/portal/lbbs-cautive-staff/` a `flash/lbbs-staff/`; tiene `login.html`, `alogin.html`, `status.html`, `error.html`, `logout.html`, `styles.css`, `staff.css`, `md5.js`, `api.json` y `assets/lbbs-logo.svg`. **No copiar** el contenido de `public/wifi-staff-preview/` (solo demostración), ni `routeros/rebuild/staff-staged-portal/login.html` (obsoleto).
+
+1. En VS Code, ya en `feat/wifi-staff-rollout-v1`, ejecutar `git pull --ff-only origin feat/wifi-staff-rollout-v1`. Conservar los cambios locales ajenos en Control.
+2. Copiar/actualizar todos los archivos originales de Staff en WinBox > Files > `flash/lbbs-staff/` y `flash/lbbs-staff/assets/`. Verificar nombres completos.
+3. **Reemplazar** el archivo viejo `flash/40-lbbs-staff-hotspot-stage.rsc` con `routeros/rebuild/40-lbbs-staff-hotspot-stage.rsc` de esta rama.
+4. Ejecutar `/import file-name=flash/40-lbbs-staff-hotspot-stage.rsc`. Esta versión permite reintento seguro si el estado sigue siendo staged. Si devuelve error, detener y enviar el mensaje exacto: no modificar manualmente firewall, HotSpot Clientes ni scripts.
+5. Verificar con los comandos de solo consulta:
+
+```routeros
+/ip hotspot print
+/ip hotspot profile print where name="lbbs-staff-hotspot-profile"
+/ip hotspot user profile print where name="lbbs-staff-user-profile"
+/ip firewall filter print where comment="LBBS-GATE staff WAN OFF until captive proven"
+```
+
+Resultado: Clientes habilitado; Staff con **X (disabled)**; Staff user-profile `shared-users=2`; regla WAN amplia Staff con **X**. Nunca habilitarla.
+
+### Contrato del portal de Staff (diseño y flujo)
+
+- **Diseño:** se conserva la versión original de la rama de infraestructura, con páginas de login, transición, estado, error, salida, CSS de marca y logo; la ruta de Vista Previa en Dashboard se mantiene `/control/wifi/staff/preview`.
+- **Autenticación prevista:** dispositivo conectado en AP Staff (ether4), DHCP 10.10.20.0/24, apertura del portal Staff, DNI/CE + código individual, validación de empleado activo y sede, validación y vinculación de MAC (máximo 2 dispositivos).
+- **Seguridad:** la confirmación en RouterOS debe estar asociada al equipo autorizado; `shared-users=2` limita sesiones simultáneas pero **NO** valida las dos MAC por sí solo. El Dashboard y SQL ya limitan dos dispositivos. El aprovisionamiento seguro de cuentas individuales en RouterOS **aún debe implementarse**: la API existente devuelve `provisioned:false`; el portal antiguo no llama al servicio de autorización y aún incluye un selector de pasaporte no soportado por backend.
+- **Sesiones:** una vez concluida la integración, registrar LOGIN/LOGOUT Staff y revocar cuentas, sesiones/cookies por MAC desde Dashboard mediante un reconciliador Staff dedicado, sin afectar Clientes.
+- **Navegación:** abrir WAN **solo** con nueva regla de Staff `hotspot=auth`, jamás con la regla `LBBS-GATE staff WAN OFF until captive proven` que permite todo el tráfico de Staff.
+- **Por ahora:** servidor de Staff sigue deshabilitado y no se dan por funcionales los códigos Staff ni la conexión a Internet. El RSC 40 prepara infraestructura y diseño local; la siguiente fase enlaza autenticación, MAC y revocación.
+
