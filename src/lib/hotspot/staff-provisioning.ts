@@ -47,6 +47,7 @@ type ProvisionedStaffDevice = {
   username: string;
   password: string;
   profile: "lbbs-staff-user-profile";
+  syncTag: string;
 };
 
 // Server-only deterministic secret for a registered device. PIN rotation
