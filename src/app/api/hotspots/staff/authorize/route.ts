@@ -19,7 +19,8 @@ export async function POST(request: Request) {
   const pin = body?.code;
   const mac = typeof body?.mac === "string" ? body.mac.trim().toUpperCase() : "";
   const routerIdentifier = typeof body?.routerIdentifier === "string" ? body.routerIdentifier : "";
-  if (!identity || !staffMac.test(mac) || !/^[a-zA-Z0-9-]{6,80}$/.test(routerIdentifier) ||
+  const ip = typeof body?.ip === "string" ? body.ip.trim() : "";
+  if (!identity || !staffMac.test(mac) || !/^10\.10\.20\.(?:[1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/.test(ip) || !/^[a-zA-Z0-9-]{6,80}$/.test(routerIdentifier) ||
       typeof pin !== "string" || !/^\d{6}$/.test(pin)) return deny();
 
   const admin = getSupabaseAdmin();
@@ -59,18 +60,27 @@ export async function POST(request: Request) {
     return captiveJson({ error: "No se pudo validar Staff." }, { status: 503, headers });
   if (!identityLimit.data || !macLimit.data || !pinValid || !credential) return deny();
 
-  // The portal NEVER enrolls its claimed MAC. Admin registers each device
-  // explicitly; RouterOS independently enforces that MAC on the local user.
-  const { data: device, error: deviceError } = await admin.from("hotspot_staff_devices")
-    .select("id").eq("credential_id", credential.id).eq("mac_address", mac)
-    .eq("is_authorized", true).maybeSingle();
-  if (deviceError) return captiveJson({ error: "No se pudo validar Staff." },
-    { status: 503, headers });
-  if (!device) return deny();
+  // Auto-trust ONLY a physically observed hotspot host from the authenticated
+  // MikroTik's Staff bridge. Browser MAC/IP alone never grants a slot.
+  // This RPC locks the credential: parallel first/second logins cannot exceed 2.
+  // An admin-revoked MAC is deliberately NOT auto-reactivated.
+  const enrollment = await admin.rpc("enroll_hotspot_staff_seen_device_v42", {
+    p_router_id: router.id, p_credential_id: credential.id, p_mac: mac, p_ip: ip,
+  });
+  if (enrollment.error) {
+    if (["23514", "23505"].includes(enrollment.error.code))
+      return captiveJson({
+        error: "Dispositivo no autorizado, no detectado en la red o límite de dos equipos alcanzado. Contacta al administrador.",
+      }, { status: 403, headers });
+    return captiveJson({ error: "No se pudo comprobar el dispositivo Staff." },
+      { status: 503, headers });
+  }
+  const device = Array.isArray(enrollment.data) ? enrollment.data[0] : null;
+  if (!device?.device_id) return deny();
 
   try {
     const desired = await getStaffDesired(router);
-    const record = desired.devices.find(d => d.deviceId === device.id &&
+    const record = desired.devices.find(d => d.deviceId === device.device_id &&
       d.credentialId === credential.id && d.mac === mac);
     if (!record) return deny();
     const { data: state, error: stateError } = await admin.from("hotspot_staff_sync_state_v41")
