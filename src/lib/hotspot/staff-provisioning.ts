@@ -98,6 +98,7 @@ export async function getStaffDesired(router: { id: string; branch_id: string })
       username: "sf_" + d.id.replace(/-/g, ""),
       password: passwordFor(router.id, d.id, credential.code_hash),
       profile: "lbbs-staff-user-profile" as const,
+      syncTag: "LBBSSTAFF:" + credential.id + ":" + d.id + ":" + createHash("sha256").update(passwordFor(router.id, d.id, credential.code_hash)).digest("hex").slice(0, 12),
     };
   }).sort((a, b) => a.deviceId.localeCompare(b.deviceId));
 
