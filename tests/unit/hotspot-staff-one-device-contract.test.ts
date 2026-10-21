@@ -21,7 +21,7 @@ describe("LBBS WiFi Staff staged two-device safety", () => {
     expect(installer).not.toContain('find where comment="LBBS-BOOT-Forward-Drop" and disabled=no');
     expect(installer).toContain('name="lbbs-staff-hotspot"');
     expect(installer).toContain('addresses-per-mac=2 disabled=yes');
-    expect(installer).not.toMatch(/\\/ip hotspot add[^\\n]*comment=/);
+    expect(installer.split("\\n").filter((line) => line.trim().startsWith("/ip hotspot add")).every((line) => !line.includes(" comment="))).toBe(true);
     expect(installer).toContain('Staff HotSpot profile reused');
     expect(installer).toContain('existing Staff profile set to 2 sessions');
     expect(installer).toContain('existing disabled Staff server reused');
