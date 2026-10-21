@@ -53,7 +53,7 @@
   :local stage "env"
   :onerror fault in={
     :if ([:len $lbbsApiBaseUrl] = 0 || [:len $lbbsRouterToken] = 0) do={ :error "missing_env" }
-    :local observed {}
+    :local observed [:toarray ""]
     :set stage "host_read"
     :foreach host in=[/ip hotspot host find where server="lbbs-staff-hotspot"] do={
       :local mac [:toupper [:tostr [/ip hotspot host get $host mac-address]]]
