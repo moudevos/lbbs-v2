@@ -163,4 +163,12 @@
   }
 }
 
+# Permit authorized MAC cookie reconnection only AFTER a real successful CHAP.
+# A revoked/rotated device is removed from active sessions + cookie by LBBS41.
+# Server remains DISABLED and there is still NO Staff WAN rule.
+:local staffHotspotProfile [/ip hotspot profile find where name="lbbs-staff-hotspot-profile"]
+:if ([:len $staffHotspotProfile] != 1) do={ :error "LBBS41: Staff HotSpot profile missing" }
+/ip hotspot profile set $staffHotspotProfile login-by=http-chap,mac-cookie
+/ip hotspot user profile set $staffProfile add-mac-cookie=yes mac-cookie-timeout=30d
+
 :log info "LBBS41 STAGED: Staff sync installed DISABLED, no Staff internet, Clientes untouched"
