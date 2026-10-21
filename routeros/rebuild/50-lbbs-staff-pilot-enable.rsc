@@ -43,7 +43,9 @@
 :if ([:pick $lbbsStaffLastSync 0 11] != "ok devices=") do={ :error "LBBS50: Staff roster sync not healthy" }
 
 # Install dedicated Staff-only host reporter, if absent.
-:if ([:len [/system script find where name="lbbs-staff-hosts-v42"]] = 0) do={
+:local existingHostScripts [/system script find where name="lbbs-staff-hosts-v42"]
+:if ([:len $existingHostScripts] > 1) do={ :error "LBBS50B: duplicate host reporter" }
+:if ([:len $existingHostScripts] = 0) do={
 /system script add name="lbbs-staff-hosts-v42" policy=ftp,read,write,policy,test,sensitive source={
 
   :global lbbsApiBaseUrl
@@ -74,8 +76,39 @@
     :log warning ("LBBS42: Staff host attestation failed at " . $stage)
   }
 }
+} else={
+# Repair preexisting reporter from older RSC42 if it had the invalid {} initializer.
+/system script set $existingHostScripts policy=ftp,read,write,policy,test,sensitive source={
+
+  :global lbbsApiBaseUrl
+  :global lbbsRouterToken
+  :global lbbsStaffHostsResult
+
+  :local stage "env"
+  :onerror fault in={
+    :if ([:len $lbbsApiBaseUrl] = 0 || [:len $lbbsRouterToken] = 0) do={ :error "missing_env" }
+    :local observed [:toarray ""]
+    :set stage "host_read"
+    :foreach host in=[/ip hotspot host find where server="lbbs-staff-hotspot"] do={
+      :local mac [:toupper [:tostr [/ip hotspot host get $host mac-address]]]
+      :local ip [:tostr [/ip hotspot host get $host address]]
+      :if ([:len $mac] = 17 && [:pick $ip 0 9] = "10.10.20.") do={
+        :set ($observed->$mac) $ip
+      }
+    }
+    :set stage "fetch"
+    :local payload [:serialize to=json options=json.no-string-conversion value={"hosts"=$observed}]
+    :local response [/tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/staff/hosts") http-method=post http-header-field=("Content-Type: application/json,Authorization: Bearer " . $lbbsRouterToken) http-data=$payload check-certificate=yes output=user as-value]
+    :set stage "parse"
+    :local decoded [:deserialize from=json options=json.no-string-conversion value=($response->"data")]
+    :if (($decoded->"ok") != true) do={ :error "not_acknowledged" }
+    :set lbbsStaffHostsResult ("ok seen=" . ($decoded->"seen"))
+  } do={
+    :set lbbsStaffHostsResult ("failed stage=" . $stage)
+    :log warning ("LBBS42: Staff host attestation failed at " . $stage)
+  }
 }
-:local hostScript [/system script find where name="lbbs-staff-hosts-v42"]
+}:local hostScript [/system script find where name="lbbs-staff-hosts-v42"]
 :if ([:len $hostScript] != 1) do={ :error "LBBS50: host reporter missing" }
 :if ([:len [/system scheduler find where name="lbbs-staff-hosts-v42"]] = 0) do={
   /system scheduler add name="lbbs-staff-hosts-v42" disabled=yes interval=10s policy=ftp,read,write,policy,test,sensitive on-event="/system script run lbbs-env; /system script run lbbs-staff-hosts-v42" comment="LBBS50 Staff physical host polling"
