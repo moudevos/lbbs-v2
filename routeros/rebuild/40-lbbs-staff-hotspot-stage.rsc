@@ -12,7 +12,14 @@
 :if ([:len [/ip dhcp-server find where name="dhcp-staff" and interface="bridge-staff" and disabled=no]] != 1) do={ :error "LBBS40: Staff DHCP missing/disabled" }
 :if ([:len [/ip hotspot find where name="lbbs-hotspot" and interface="bridge-hotspot" and disabled=no]] != 1) do={ :error "LBBS40: Clientes hotspot not healthy" }
 :if ([:len [/ip firewall filter find where comment="LBBS-GATE staff WAN OFF until captive proven" and disabled=yes]] != 1) do={ :error "LBBS40: broad Staff WAN gate must remain disabled" }
-:if ([:len [/ip firewall filter find where comment="LBBS-BOOT-Forward-Drop" and disabled=no]] != 1) do={ :error "LBBS40: default forward deny not active" }
+# RouterOS 7 can return a false-negative when boolean filters are mixed
+# into a script's 'find where' query. Locate by stable comment and then read
+# action, chain and disabled properties separately (do NOT relax protection).
+:local forwardDrop [/ip firewall filter find where comment="LBBS-BOOT-Forward-Drop"]
+:if ([:len $forwardDrop] != 1) do={ :error "LBBS40: forward deny rule absent or ambiguous" }
+:if (([/ip firewall filter get $forwardDrop chain] != "forward") || ([/ip firewall filter get $forwardDrop action] != "drop") || ([/ip firewall filter get $forwardDrop disabled] = true)) do={
+  :error "LBBS40: forward deny exists but is invalid or disabled"
+}
 :if ([:len [/ip hotspot find where interface="bridge-staff"]] != 0) do={ :error "LBBS40: Staff hotspot already exists; stop" }
 :if ([:len [/ip hotspot find where name="lbbs-staff-hotspot"]] != 0) do={ :error "LBBS40: Staff hotspot name already exists; stop" }
 :if ([:len [/ip hotspot profile find where name="lbbs-staff-hotspot-profile"]] != 0) do={ :error "LBBS40: Staff hotspot profile already exists; stop" }
