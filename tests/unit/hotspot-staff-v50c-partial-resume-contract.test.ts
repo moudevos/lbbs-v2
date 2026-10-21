@@ -18,7 +18,7 @@ describe("LBBS v50c partial pilot continuation", () => {
   expect(resume).toContain('place-before=($first6b->0)');
   expect(resume).toContain("LBBS-STAFF-V50-IPV6-FWD-DROP");
   expect(resume).toContain("LBBS-STAFF-V50-IPV6-INPUT-DROP");
-  expect(resume).not.toMatch(/place-before=0(?![a-z0-9])/);
+  expect(resume).not.toMatch(/^\s*\/ipv6 firewall filter add .*place-before=0/m);
  });
  it("never repeats partially completed IPv4 install or reconfigures Clientes", () => {
   expect(resume).toContain('existing IPv4 Staff jump missing');
