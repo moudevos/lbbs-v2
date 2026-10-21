@@ -80,6 +80,7 @@
       :local check [/ip hotspot user find where name=$username and server=$staffServer]
       :if ([:len $check] != 1) do={ :error "LBBS41: local staff provision failed" }
       :if ([:toupper [:tostr [/ip hotspot user get $check mac-address]]] != $mac) do={ :error "LBBS41: MAC verification failed" }
+      :if ([/ip hotspot user get $check password] != $secret || [/ip hotspot user get $check disabled] = true) do={ :error "LBBS41: local Staff password or account invalid" }
     }
 
     # Remove obsolete accounts ONLY if owned by LBBS Staff tag and server.
@@ -113,5 +114,53 @@
 # This scheduler remains disabled until backend and preauth firewall are ready.
 # Explicit lbbs-env reload survives router restart.
 /system scheduler add name="lbbs-staff-sync" interval=20s disabled=yes policy=ftp,read,write,policy,test,sensitive on-event="/system script run lbbs-env; /system script run lbbs-staff-sync" comment="LBBS41 Staff-only sync; disabled until authorized pilot"
+
+
+# RouterOS authenticates only one of the provisioned MAC-bound users.
+# Hooks log real Staff sessions through the existing router Bearer token.
+# They never modify Clientes and never reject internet if telemetry is down.
+:local staffProfile [/ip hotspot user profile find where name="lbbs-staff-user-profile"]
+:if ([:len $staffProfile] != 1) do={ :error "LBBS41: Staff profile disappeared" }
+/ip hotspot user profile set $staffProfile on-login={
+  :global lbbsApiBaseUrl
+  :global lbbsRouterToken
+  :local username $user
+  :local currentMac [:toupper $"mac-address"]
+  :local users [/ip hotspot user find where name=$username and server="lbbs-staff-hotspot"]
+  :if ([:len $users] = 1 && [:len $lbbsApiBaseUrl] > 0 && [:len $lbbsRouterToken] > 0) do={
+    :local tag [/ip hotspot user get $users comment]
+    :if ([:pick $tag 0 10] = "LBBSSTAFF:" && [:len $tag] = 83) do={
+      :local credentialId [:pick $tag 10 46]
+      :local deviceId [:pick $tag 47 83]
+      :local key ($username . ":" . $currentMac . ":" . [/system clock get date] . ":" . [/system clock get time])
+      :local data [:serialize to=json options=json.no-string-conversion value={"event"="LOGIN";"credentialId"=$credentialId;"deviceId"=$deviceId;"mac"=$currentMac;"sessionKey"=$key}]
+      :do {
+        /tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/staff/session") http-method=post http-header-field=("Content-Type: application/json,Authorization: Bearer " . $lbbsRouterToken) http-data=$data check-certificate=yes output=none
+      } on-error={
+        :log warning "LBBS41: Staff LOGIN telemetry unavailable"
+      }
+    }
+  }
+}
+/ip hotspot user profile set $staffProfile on-logout={
+  :global lbbsApiBaseUrl
+  :global lbbsRouterToken
+  :local username $user
+  :local currentMac [:toupper $"mac-address"]
+  :local users [/ip hotspot user find where name=$username and server="lbbs-staff-hotspot"]
+  :if ([:len $users] = 1 && [:len $lbbsApiBaseUrl] > 0 && [:len $lbbsRouterToken] > 0) do={
+    :local tag [/ip hotspot user get $users comment]
+    :if ([:pick $tag 0 10] = "LBBSSTAFF:" && [:len $tag] = 83) do={
+      :local credentialId [:pick $tag 10 46]
+      :local deviceId [:pick $tag 47 83]
+      :local data [:serialize to=json options=json.no-string-conversion value={"event"="LOGOUT";"credentialId"=$credentialId;"deviceId"=$deviceId;"mac"=$currentMac}]
+      :do {
+        /tool fetch url=($lbbsApiBaseUrl . "/api/wifi/router/staff/session") http-method=post http-header-field=("Content-Type: application/json,Authorization: Bearer " . $lbbsRouterToken) http-data=$data check-certificate=yes output=none
+      } on-error={
+        :log warning "LBBS41: Staff LOGOUT telemetry unavailable"
+      }
+    }
+  }
+}
 
 :log info "LBBS41 STAGED: Staff sync installed DISABLED, no Staff internet, Clientes untouched"
