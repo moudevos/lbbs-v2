@@ -68,6 +68,18 @@ export async function POST(request: Request) {
     p_router_id: router.id, p_credential_id: credential.id, p_mac: mac, p_ip: ip,
   });
   if (enrollment.error) {
+    // The Staff reporter runs every 10s. A newly connected device may POST
+    // valid credentials before its router-attested MAC/IP has arrived.
+    // This happens only AFTER the employee PIN has passed validation.
+    // Let the captive portal retry instead of falsely treating the user
+    // as unauthorized. Never enroll without verified router presence.
+    if (enrollment.error.code === "23514" &&
+        enrollment.error.message?.includes("Device not observed on Staff AP")) {
+      return captiveJson({
+        error: "Estamos detectando tu equipo en la red Staff. Mantén el WiFi conectado.",
+        retryAfterSeconds: 2,
+      }, { status: 409, headers: { ...headers, "Retry-After": "2" } });
+    }
     if (["23514", "23505"].includes(enrollment.error.code))
       return captiveJson({
         error: "Dispositivo no autorizado, no detectado en la red o límite de dos equipos alcanzado. Contacta al administrador.",
