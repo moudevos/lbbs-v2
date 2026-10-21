@@ -80,7 +80,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
     <section role="tabpanel" aria-label="WiFi Staff" className="space-y-5 p-5 sm:p-6">
       <div>
         <h2 className="text-lg font-bold text-slate-950">WiFi Staff</h2>
-        <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. La autorización y las sesiones se preparan en el backend; el portal Staff todavía no está activado en MikroTik.</p>
+        <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. Un dispositivo autorizado por empleado. El acceso a Internet requiere un HotSpot Staff separado y habilitado en MikroTik.</p>
       </div>
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         Las credenciales creadas aquí todavía no permiten conectarse al WiFi Staff. No se modifican los vouchers de clientes.
@@ -116,7 +116,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
                 <td className="p-3 font-mono">••••{c.code_last2}</td>
                 <td className="p-3">{c.is_enabled ? "Habilitado en Dashboard" : "Deshabilitado"}</td>
                 <td className="p-3">
-                  <span>{c.devices.filter(d => d.is_authorized).length} / 2</span>
+                  <span>{c.devices.filter(d => d.is_authorized).length} / 1</span>
                   {c.devices.filter(d => d.is_authorized).map(d => (
                     <div key={d.id} className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                       <span className="font-mono">{d.mac_address}</span>
@@ -128,7 +128,7 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
                 </td>
                 <td className="p-3">
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={working || !c.is_enabled || c.devices.filter(d => d.is_authorized).length >= 2} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => {
+                    <button type="button" disabled={working || !c.is_enabled || c.devices.filter(d => d.is_authorized).length  >= 1} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => {
                       const mac = window.prompt("Dirección MAC del dispositivo (AA:BB:CC:DD:EE:FF):");
                       if (mac) void mutate("PATCH", { credentialId: c.id, action: "register_device", mac });
                     }}>Añadir dispositivo</button>
