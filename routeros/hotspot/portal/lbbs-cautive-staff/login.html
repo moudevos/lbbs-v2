@@ -29,7 +29,6 @@
       <select id="dtype">
         <option value="dni">DNI</option>
         <option value="cex">CEX</option>
-        <option value="pas">Pasaporte</option>
       </select>
       <input id="doc" type="text" inputmode="text" autocapitalize="characters" placeholder="Número" required>
     </div>
@@ -55,30 +54,105 @@
 </main>
 
 <script>
+// Solo documentos compatibles con la identidad del empleado en LBBS.
 var RULES={
   dni:{re:/^\d{8}$/,hint:"8 dígitos",msg:"El DNI debe tener 8 dígitos."},
-  cex:{re:/^[A-Z0-9]{9,12}$/,hint:"9 a 12 caracteres (letras y números)",msg:"El CEX debe tener entre 9 y 12 caracteres."},
-  pas:{re:/^[A-Z0-9]{6,12}$/,hint:"6 a 12 caracteres (letras y números)",msg:"El pasaporte debe tener entre 6 y 12 caracteres."}
+  cex:{re:/^[A-Z0-9]{9,12}$/,hint:"9 a 12 caracteres (letras y números)",msg:"El CEX debe tener entre 9 y 12 caracteres."}
 };
 var sel=document.getElementById('dtype'),doc=document.getElementById('doc'),
     hint=document.getElementById('dhint'),ce=document.getElementById('clientError');
 sel.onchange=function(){hint.textContent=RULES[sel.value].hint;doc.value='';ce.style.display='none';doc.inputMode=sel.value==='dni'?'numeric':'text';doc.focus();};
 doc.inputMode='numeric';
 function showErr(m){ce.textContent=m;ce.style.display='block';}
+var API="https://app.labajaditabarberstudio.com";
+var ROUTER_IDENTIFIER="lbbs-la-bajadita-san-juan"; // Sede San Juan exclusivamente
+var CLIENT_MAC="$(mac)"; // Sustituido por RouterOS, nunca se toma de un input
+var chapRenderId="$(chap-id)";
+var chapRenderChallenge="$(chap-challenge)";
+var busy=false;
+
+function buttonState(isBusy, label){
+  busy=isBusy;
+  document.getElementById("go").disabled=isBusy;
+  document.getElementById("gotxt").textContent=label;
+}
+function decodeChapBytes(v) {
+  return v.replace(/\\([0-7]{3})/g,function(_,oct){return String.fromCharCode(parseInt(oct,8));})
+    .replace(/\\x([a-fA-F0-9]{2})/g,function(_,hex){return String.fromCharCode(parseInt(hex,16));});
+}
+function refreshChallenge(){
+  var url="$(link-login-only)";
+  return fetch(url+(url.indexOf("?")<0?"?":"&")+"lbbs_staff_chap="+Date.now(),
+    {method:"GET",cache:"no-store",credentials:"same-origin"})
+    .then(function(r){if(!r.ok)throw Error("No se pudo renovar el desafío.");return r.text();})
+    .then(function(html){
+      var id=html.match(/var chapRenderId="([^"]*)";/);
+      var challenge=html.match(/var chapRenderChallenge="([^"]*)";/);
+      if(!id||!challenge)throw Error("El portal no entregó un desafío válido.");
+      var parsed={id:decodeChapBytes(id[1]),challenge:decodeChapBytes(challenge[1])};
+      if(parsed.id.length!==1||parsed.challenge.length<8||parsed.challenge.length>64)throw Error("Desafío de RouterOS inválido.");
+      return parsed;
+    });
+}
+function authorize(documentType,documentNumber,pin,tries) {
+  return fetch(API+"/api/hotspots/staff/authorize",{
+    method:"POST",
+    cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      routerIdentifier:ROUTER_IDENTIFIER,
+      documentType:documentType,
+      documentNumber:documentNumber,
+      code:pin,
+      mac:CLIENT_MAC
+    })
+  }).then(function(response){
+    return response.json().catch(function(){return {};}).then(function(body){
+      if(response.status===409 && tries<12) {
+        buttonState(true,"Preparando acceso…");
+        return new Promise(function(resolve){setTimeout(resolve,2000);})
+          .then(function(){return authorize(documentType,documentNumber,pin,tries+1);});
+      }
+      if(!response.ok)throw Error(body.error||"Acceso no autorizado.");
+      if(body.status!=="ready"||typeof body.username!=="string"||
+        !/^sf_[a-f0-9]{32}$/.test(body.username)||
+        typeof body.password!=="string"||!/^[a-f0-9]{40}$/.test(body.password))
+        throw Error("Respuesta de autorización inválida.");
+      return body;
+    });
+  });
+}
 function doLogin(){
-  var r=RULES[sel.value],v=doc.value.replace(/\s+/g,'').toUpperCase(),p=document.getElementById('pwd').value;
+  if(busy)return false;
+  var r=RULES[sel.value],v=doc.value.replace(/\s+/g,"").toUpperCase();
+  var pin=document.getElementById("pwd").value;
   if(!r.re.test(v)){showErr(r.msg);return false;}
-  if(!p){showErr('Ingresa tu contraseña.');return false;}
-  ce.style.display='none';
-  document.login.username.value=v;
-  var b=document.getElementById('go');b.disabled=true;document.getElementById('gotxt').textContent='Verificando…';
-  $(if chap-id)
-  document.sendin.username.value=v;
-  document.sendin.password.value=hexMD5('$(chap-id)'+p+'$(chap-challenge)');
-  document.sendin.submit();
+  if(!/^\d{6}$/.test(pin)){showErr("El código personal debe tener 6 dígitos.");return false;}
+  if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(CLIENT_MAC)){
+    showErr("RouterOS no proporcionó una MAC válida.");return false;
+  }
+  ce.style.display="none";
+  buttonState(true,"Verificando…");
+  authorize(sel.value==="cex"?"CE":"DNI",v,pin,0)
+    .then(function(account){
+      buttonState(true,"Conectando…");
+      return refreshChallenge().then(function(chap){
+        if(typeof hexMD5!=="function"||!document.sendin)
+          throw Error("Autenticación HTTP-CHAP no disponible.");
+        document.sendin.username.value=account.username;
+        document.sendin.password.value=hexMD5(chap.id+account.password+chap.challenge);
+        document.getElementById("pwd").value="";
+        pin="";
+        document.sendin.submit();
+      });
+    })
+    .catch(function(error){
+      document.getElementById("pwd").value="";
+      pin="";
+      showErr(error.message||"No se pudo completar el acceso.");
+      buttonState(false,"Conectar");
+    });
   return false;
-  $(endif)
-  return true;
 }
 </script>
 </body>
