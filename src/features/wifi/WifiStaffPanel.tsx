@@ -81,10 +81,10 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
       <div>
         <h2 className="text-lg font-bold text-slate-950">WiFi Staff</h2>
         <a href="/control/wifi/staff/preview" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-emerald-700 underline">Ver el portal Staff original ↗</a>
-        <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. Hasta dos dispositivos autorizados por empleado. El acceso a Internet requiere un HotSpot Staff separado y habilitado en MikroTik.</p>
+        <p className="mt-1 text-sm text-slate-500">Credenciales del personal por sede. Los dos primeros dispositivos que inicien sesión correctamente se registran automáticamente. Desde aquí puedes revocar cualquiera y liberar su plaza.</p>
       </div>
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        Las credenciales creadas aquí todavía no permiten conectarse al WiFi Staff. No se modifican los vouchers de clientes.
+        El alta automática requiere que el router Staff detecte físicamente el dispositivo y que el empleado ingrese correctamente su documento y código. El portal seguirá sin Internet hasta finalizar las pruebas de red. No se modifican los vouchers de clientes.
       </div>
       {error ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
       {notice ? <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p> : null}
@@ -118,6 +118,12 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
                 <td className="p-3">{c.is_enabled ? "Habilitado en Dashboard" : "Deshabilitado"}</td>
                 <td className="p-3">
                   <span>{c.devices.filter(d => d.is_authorized).length} / 2</span>
+                  {c.devices.filter(d => !d.is_authorized).map(d => (
+                    <div key={d.id} className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                      <span className="font-mono">{d.mac_address}</span>
+                      <span>Revocado</span>
+                    </div>
+                  ))}
                   {c.devices.filter(d => d.is_authorized).map(d => (
                     <div key={d.id} className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                       <span className="font-mono">{d.mac_address}</span>
@@ -129,10 +135,9 @@ export function WifiStaffPanel({ branchId }: { branchId: string }) {
                 </td>
                 <td className="p-3">
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={working || !c.is_enabled || c.devices.filter(d => d.is_authorized).length >= 2} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => {
-                      const mac = window.prompt("Dirección MAC del dispositivo (AA:BB:CC:DD:EE:FF):");
-                      if (mac) void mutate("PATCH", { credentialId: c.id, action: "register_device", mac });
-                    }}>Añadir dispositivo</button>
+                    <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700">
+                      Alta automática: {Math.max(0, 2 - c.devices.filter(d => d.is_authorized).length)} disponible(s)
+                    </span>
                     <button type="button" disabled={working} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => { if (window.confirm("¿Generar un nuevo código? El anterior dejará de ser válido en el backend.")) void mutate("PATCH", { credentialId: c.id, action: "rotate" }); }}>Rotar</button>
                     <button type="button" disabled={working} className="rounded border border-slate-300 px-2 py-1 text-xs font-semibold disabled:opacity-50" onClick={() => void mutate("PATCH", { credentialId: c.id, action: c.is_enabled ? "disable" : "enable" })}>{c.is_enabled ? "Deshabilitar" : "Habilitar"}</button>
                   </div>
