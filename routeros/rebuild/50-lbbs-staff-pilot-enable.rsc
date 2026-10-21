@@ -101,7 +101,7 @@
 /ip firewall filter add chain="lbbs-staff-v50" action=accept hotspot=!auth protocol=tcp dst-port=443 dst-address-list="lbbs-staff-v50-api" out-interface=ether1 comment="LBBS-STAFF-V50-PREAUTH-API"
 /ip firewall filter add chain="lbbs-staff-v50" action=accept hotspot=auth out-interface=ether1 comment="LBBS-STAFF-V50-AUTH-WAN"
 /ip firewall filter add chain="lbbs-staff-v50" action=drop comment="LBBS-STAFF-V50-DEFAULT-DROP"
-/ip firewall filter add chain=forward action=jump in-interface="bridge-staff" src-address=10.10.20.0/24 jump-target="lbbs-staff-v50" place-before=0 comment="LBBS-STAFF-V50-FWD-JUMP"
+/ip firewall filter add chain=forward action=jump in-interface="bridge-staff" jump-target="lbbs-staff-v50" place-before=0 comment="LBBS-STAFF-V50-FWD-JUMP"
 
 # Restrict Staff devices from administrative router services (HotSpot HTTP/DNS untouched).
 /ip firewall filter add chain=input action=drop in-interface="bridge-staff" protocol=tcp dst-port=21,22,23,8291,8728,8729 place-before=0 comment="LBBS-STAFF-V50-INPUT-MGMT-DROP"
