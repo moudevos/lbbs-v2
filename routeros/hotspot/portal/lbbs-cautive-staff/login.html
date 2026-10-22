@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
-<!-- LBBS-STAFF-PILOT-V50: RouterOS 7.23 + MAC/IP automatic trust -->
+<!-- LBBS-STAFF-V54: single-request API authorization + RouterOS native HTTP-CHAP -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -79,23 +79,17 @@ function buttonState(isBusy, label){
   document.getElementById("go").disabled=isBusy;
   document.getElementById("gotxt").textContent=label;
 }
-function decodeChapBytes(v) {
-  return v.replace(/\\([0-7]{3})/g,function(_,oct){return String.fromCharCode(parseInt(oct,8));})
-    .replace(/\\x([a-fA-F0-9]{2})/g,function(_,hex){return String.fromCharCode(parseInt(hex,16));});
-}
-function refreshChallenge(){
-  var url="$(link-login-only)";
-  return fetch(url+(url.indexOf("?")<0?"?":"&")+"lbbs_staff_chap="+Date.now(),
-    {method:"GET",cache:"no-store",credentials:"same-origin"})
-    .then(function(r){if(!r.ok)throw Error("No se pudo renovar el desafío.");return r.text();})
-    .then(function(html){
-      var id=html.match(/var chapRenderId="([^"]*)";/);
-      var challenge=html.match(/var chapRenderChallenge="([^"]*)";/);
-      if(!id||!challenge)throw Error("El portal no entregó un desafío válido.");
-      var parsed={id:decodeChapBytes(id[1]),challenge:decodeChapBytes(challenge[1])};
-      if(parsed.id.length!==1||parsed.challenge.length<8||parsed.challenge.length>64)throw Error("Desafío de RouterOS inválido.");
-      return parsed;
-    });
+// El desafio CHAP ya esta incluido por RouterOS en esta pagina.
+// No solicitar de nuevo /login por fetch: algunas vistas cautivas lo bloquean.
+// RouterOS 7.x indica calcular MD5(chap-id + password + chap-challenge).
+function submitChap(account) {
+  if (typeof hexMD5 !== "function" || !document.sendin || !chapRenderId || !chapRenderChallenge) {
+    throw new Error("Desafio CHAP no disponible. Recarga el portal Staff.");
+  }
+  document.sendin.username.value = account.username;
+  document.sendin.password.value = hexMD5(chapRenderId + account.password + chapRenderChallenge);
+  document.getElementById("pwd").value = "";
+  document.sendin.submit();
 }
 function authorize(documentType,documentNumber,pin,tries) {
   return fetch(API+"/api/hotspots/staff/authorize",{
@@ -143,20 +137,16 @@ function doLogin(){
   authorize(sel.value==="cex"?"CE":"DNI",v,pin,0)
     .then(function(account){
       buttonState(true,"Conectando…");
-      return refreshChallenge().then(function(chap){
-        if(typeof hexMD5!=="function"||!document.sendin)
-          throw Error("Autenticación HTTP-CHAP no disponible.");
-        document.sendin.username.value=account.username;
-        document.sendin.password.value=hexMD5(chap.id+account.password+chap.challenge);
-        document.getElementById("pwd").value="";
-        pin="";
-        document.sendin.submit();
-      });
+      pin="";
+      submitChap(account);
     })
     .catch(function(error){
       document.getElementById("pwd").value="";
       pin="";
-      showErr(error.message||"No se pudo completar el acceso.");
+      var networkError=error && (error.name==="TypeError" || /failed to fetch|networkerror|load failed/i.test(error.message||""));
+      showErr(networkError
+        ? "No se pudo contactar la API Staff por HTTPS. Revisa la excepción de acceso de la red."
+        : (error.message||"No se pudo completar el acceso Staff."));
       buttonState(false,"Conectar");
     });
   return false;
