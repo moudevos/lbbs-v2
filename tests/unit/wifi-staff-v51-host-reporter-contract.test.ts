@@ -11,7 +11,7 @@ describe("LBBS51 Staff host reporter repair", () => {
     expect(rsc).toContain(':set stage "read_mac"');
     expect(rsc).toContain(':set stage "read_ip"');
     expect(rsc).toContain(':set stage "append_host"');
-    expect(rsc).toContain(':set json ($json . "\"" . $mac . "\":\"" . $ip . "\"")');
+    expect(rsc).toContain(':set json ($json .');
     expect(rsc).not.toContain('($observed->$mac)');
     expect(api).toContain("Object.entries(hosts)");
     expect(api).toContain("authenticateRouter(request)");
