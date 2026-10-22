@@ -9,7 +9,8 @@
 :if ([:len $staff] != 1 || [/ip hotspot get $staff interface] != "bridge-staff") do={ :error "LBBS51: wrong Staff HotSpot" }
 :if ([:len $clients] != 1 || [/ip hotspot get $clients disabled] = true) do={ :error "LBBS51: Clientes not active" }
 :if ([:len $script] != 1 || [:len $scheduler] != 1) do={ :error "LBBS51: Staff presence reporter missing" }
-:local wasEnabled (![/system scheduler get $scheduler disabled])
+:local wasEnabled false
+:if ([/system scheduler get $scheduler disabled] = false) do={ :set wasEnabled true }
 /system scheduler disable $scheduler
 
 /system script set $script policy=ftp,read,write,policy,test,sensitive source={
