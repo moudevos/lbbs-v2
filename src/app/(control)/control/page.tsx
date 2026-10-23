@@ -1,4 +1,4 @@
-import { ControlKpis } from "@/features/control/ControlKpis";
+import { ControlToday } from "@/features/control/ControlToday";
 import { getDailyVerse } from "@/lib/bible/get-daily-verse";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,5 +19,5 @@ export default async function ControlPage() {
       : "";
   const greetingName = employee?.full_name?.trim() || metadataName || userData.user?.email || "equipo";
 
-  return <ControlKpis greetingName={greetingName} verse={verse} />;
+  return <ControlToday greetingName={greetingName} verse={verse} />;
 }

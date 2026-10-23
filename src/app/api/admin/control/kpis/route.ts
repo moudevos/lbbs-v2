@@ -26,9 +26,21 @@ export async function GET(request: Request) {
   const assignedBranchId = employee?.branch_id ?? "";
   const branchId = role === "owner" || (role === "admin" && !assignedBranchId) ? requestedBranchId : assignedBranchId;
   const isDate = (value: string | null): value is string => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  const now = new Date();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const dateFrom = isDate(params.get("dateFrom")) ? params.get("dateFrom")! : today;
   const dateTo = isDate(params.get("dateTo")) ? params.get("dateTo")! : dateFrom;
+  const previousWeek = new Date(`${dateFrom}T12:00:00Z`);
+  previousWeek.setUTCDate(previousWeek.getUTCDate() - 7);
+  const previousWeekDate = previousWeek.toISOString().slice(0, 10);
+  const limaClock = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const minuteOfDay = (dateString: string) => {
+    const value = new Date(dateString);
+    if (!Number.isFinite(value.getTime())) return null;
+    const clock = limaClock.format(value).split(":").map(Number);
+    return clock[0] * 60 + clock[1];
+  };
+  const currentMinute = minuteOfDay(now.toISOString()) ?? 0;
   const timestampStart = new Date(`${dateFrom}T00:00:00-05:00`).toISOString();
   const timestampEnd = new Date(`${dateTo}T23:59:59.999-05:00`).toISOString();
   let salesQuery = supabase.from("sales").select("id, branch_id, reservation_id, pos_session_id, status, subtotal, total, paid_total, discount_total, courtesy_total, accounting_date, created_at, closed_at, pos_session:pos_sessions(status), branch:branches(name)").gte("accounting_date", dateFrom).lte("accounting_date", dateTo);
@@ -36,13 +48,19 @@ export async function GET(request: Request) {
   let paymentsQuery = supabase.from("sale_payments").select("amount, payment_method:payment_methods(code,name,sort_order,payment_kind), sale:sales!inner(branch_id, status, accounting_date, pos_session:pos_sessions(status))").eq("sale.status", "completed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
   let internalQuery = supabase.from("internal_pos_operations").select("sale_id,operation_kind,retail_amount,discount_amount,credit_amount,sale:sales!inner(branch_id,status,accounting_date)").eq("sale.status", "completed").gte("sale.accounting_date", dateFrom).lte("sale.accounting_date", dateTo);
   let sessionsQuery = supabase.from("pos_sessions").select("id, branch_id, status, branch:branches(name)").eq("status", "open");
-  if (branchId) { salesQuery = salesQuery.eq("branch_id", branchId); itemsQuery = itemsQuery.eq("sale.branch_id", branchId); paymentsQuery = paymentsQuery.eq("sale.branch_id", branchId); internalQuery = internalQuery.eq("sale.branch_id", branchId); sessionsQuery = sessionsQuery.eq("branch_id", branchId); }
-  const [salesResult, itemsResult, paymentsResult, internalResult, sessionsResult] = await Promise.all([salesQuery, itemsQuery, paymentsQuery, internalQuery, sessionsQuery]);
+  // Daily decision panel: appointments and same-weekday comparison (operational Lima date).
+  let reservationsTodayQuery = supabase.from("reservations").select("id,branch_id,status,scheduled_time").eq("scheduled_date", today);
+  let previousWeekSalesQuery = supabase.from("sales").select("total,created_at,closed_at,branch_id")
+    .eq("accounting_date", previousWeekDate).eq("status", "completed");
+  if (branchId) { salesQuery = salesQuery.eq("branch_id", branchId); itemsQuery = itemsQuery.eq("sale.branch_id", branchId); paymentsQuery = paymentsQuery.eq("sale.branch_id", branchId); internalQuery = internalQuery.eq("sale.branch_id", branchId); sessionsQuery = sessionsQuery.eq("branch_id", branchId); reservationsTodayQuery = reservationsTodayQuery.eq("branch_id", branchId); previousWeekSalesQuery = previousWeekSalesQuery.eq("branch_id", branchId); }
+  const [salesResult, itemsResult, paymentsResult, internalResult, sessionsResult, reservationsTodayResult, previousWeekSalesResult] = await Promise.all([
+    salesQuery, itemsQuery, paymentsQuery, internalQuery, sessionsQuery, reservationsTodayQuery, previousWeekSalesQuery,
+  ]);
   // Durante un despliegue escalonado el frontend puede llegar antes que la
   // migración 128. El control sigue operativo y muestra ceros internos hasta
   // que la tabla sea expuesta por PostgREST; cualquier otro error se reporta.
   const internalUnavailable = internalResult.error?.code === "PGRST205" || internalResult.error?.code === "42P01";
-  const error = salesResult.error ?? itemsResult.error ?? paymentsResult.error ?? (internalUnavailable ? null : internalResult.error) ?? sessionsResult.error;
+  const error = salesResult.error ?? itemsResult.error ?? paymentsResult.error ?? (internalUnavailable ? null : internalResult.error) ?? sessionsResult.error ?? reservationsTodayResult.error ?? previousWeekSalesResult.error;
   if (error) {
     console.error("[control/kpis] Error al consolidar KPIs", { message: error.message, code: error.code, details: error.details, hint: error.hint, branchId });
     return NextResponse.json({ error: "No se pudieron cargar los indicadores." }, { status: 500 });
@@ -74,6 +92,20 @@ export async function GET(request: Request) {
   const sales = salesResult.data ?? [];
   const completed = sales.filter((sale) => sale.status === "completed");
   const completedTotal = completed.reduce((sum, sale) => sum + number(sale.total), 0);
+  const unpaidCompleted = completed.filter((sale) => number(sale.total) - number(sale.paid_total) > 0.009);
+  const unpaidTotal = unpaidCompleted.reduce((sum, sale) => sum + Math.max(0, number(sale.total) - number(sale.paid_total)), 0);
+  // Not all scheduled reservations are pending: completed, canceled and no-shows are excluded.
+  const pendingStatuses = new Set(["scheduled", "pending", "contacted", "confirmed", "rescheduled", "checked_in"]);
+  const pendingReservations = (reservationsTodayResult.data ?? []).filter((item) => pendingStatuses.has(item.status)).length;
+  const todayIsCurrent = dateFrom === today && dateTo === today;
+  const previousWeekTotal = (previousWeekSalesResult.data ?? []).reduce((sum, sale) => {
+    const minute = minuteOfDay(sale.closed_at ?? sale.created_at);
+    return sum + (minute !== null && minute <= currentMinute ? number(sale.total) : 0);
+  }, 0);
+  const todaySameHourTotal = completed.reduce((sum, sale) => {
+    const minute = minuteOfDay(sale.closed_at ?? sale.created_at);
+    return sum + (minute !== null && minute <= currentMinute ? number(sale.total) : 0);
+  }, 0);
   const paymentTotals = new Map<string, { code: string; name: string; sortOrder: number; total: number }>();
   for (const payment of paymentsResult.data ?? []) {
     const method = Array.isArray(payment.payment_method) ? payment.payment_method[0] : payment.payment_method;
@@ -95,6 +127,14 @@ export async function GET(request: Request) {
   const appointmentSales = completed.filter((sale) => Boolean(sale.reservation_id));
   const completedAppointments = new Set(appointmentSales.map((sale) => sale.reservation_id)).size;
   const appointmentIncome = appointmentSales.reduce((sum, sale) => sum + number(sale.total), 0);
+  const topServices = new Map<string, { name: string; quantity: number }>();
+  for (const item of serviceItems) {
+    if (item.is_courtesy) continue;
+    const name = item.description_snapshot || "Servicio";
+    const current = topServices.get(name) ?? { name, quantity: 0 };
+    current.quantity += number(item.quantity);
+    topServices.set(name, current);
+  }
   const topProducts = new Map<string, { name: string; quantity: number }>();
   for (const item of productItems) {
     if (item.is_courtesy) continue;
@@ -146,8 +186,8 @@ export async function GET(request: Request) {
     courtesyProducts.set(name, current);
   }
   const financial = role === "owner" || role === "admin" || role === "reception";
-  const reconciliation = new Map<string, { id: string; branchName: string; statuses: string[]; grossSales: number; serviceGross: number; otherGross: number; rewardsCount: number; rewardsAmount: number; courtesyCost: number; employeeDebtCharges: number; operationalContribution: number; realSales: number; actualCollected: number }>();
-  for (const branch of branchesResult.data ?? []) reconciliation.set(branch.id, { id: branch.id, branchName: branch.name, statuses: [], grossSales: 0, serviceGross: 0, otherGross: 0, rewardsCount: 0, rewardsAmount: 0, courtesyCost: 0, employeeDebtCharges: 0, operationalContribution: 0, realSales: 0, actualCollected: 0 });
+  const reconciliation = new Map<string, { id: string; branchName: string; statuses: string[]; grossSales: number; serviceGross: number; otherGross: number; rewardsCount: number; rewardsAmount: number; courtesyCost: number; employeeDebtCharges: number; operationalContribution: number; realSales: number; actualCollected: number; collectedToday: number; servicesDone: number }>();
+  for (const branch of branchesResult.data ?? []) reconciliation.set(branch.id, { id: branch.id, branchName: branch.name, statuses: [], grossSales: 0, serviceGross: 0, otherGross: 0, rewardsCount: 0, rewardsAmount: 0, courtesyCost: 0, employeeDebtCharges: 0, operationalContribution: 0, realSales: 0, actualCollected: 0, collectedToday: 0, servicesDone: 0 });
   for (const sale of completed) {
     const item = reconciliation.get(sale.branch_id); if (!item) continue;
     item.grossSales += number(sale.subtotal);
@@ -157,14 +197,20 @@ export async function GET(request: Request) {
     const sale = Array.isArray(saleItem.sale) ? saleItem.sale[0] : saleItem.sale;
     const item = reconciliation.get(sale?.branch_id ?? ""); if (!item) continue;
     const lineGross = number(saleItem.quantity) * number(saleItem.unit_price);
-    if (saleItem.item_type === "service") item.serviceGross += lineGross; else item.otherGross += lineGross;
+    if (saleItem.item_type === "service") {
+      item.serviceGross += lineGross;
+      item.servicesDone += number(saleItem.quantity);
+    } else item.otherGross += lineGross;
   }
   for (const payment of paymentsResult.data ?? []) {
     const sale = Array.isArray(payment.sale) ? payment.sale[0] : payment.sale;
     const method = Array.isArray(payment.payment_method) ? payment.payment_method[0] : payment.payment_method;
     const item = reconciliation.get(sale?.branch_id ?? "");
     const session = Array.isArray(sale?.pos_session) ? sale?.pos_session[0] : sale?.pos_session;
-    if (item && method?.payment_kind !== "internal_credit" && session?.status === "closed") item.actualCollected += number(payment.amount);
+    if (item && method?.payment_kind !== "internal_credit") {
+      item.collectedToday += number(payment.amount);
+      if (session?.status === "closed") item.actualCollected += number(payment.amount);
+    }
   }
   for (const production of productionResult.data ?? []) {
     const item = reconciliation.get(production.branch_id); if (item) item.operationalContribution += number(production.operational_contribution_amount);
@@ -219,6 +265,31 @@ export async function GET(request: Request) {
       services: serviceItems.reduce((sum, item) => sum + number(item.quantity), 0),
       products: productItems.reduce((sum, item) => sum + number(item.quantity), 0),
     },
+    todaySummary: {
+      // Values are read-only POS snapshots. paid_total measures payments already applied
+      // to a completed sale; employee credit is not treated as an unpaid sale.
+      collectedToday: financial ? [...paymentTotals.values()].reduce((sum, item) => sum + item.total, 0) : null,
+      unpaidTotal: financial ? unpaidTotal : null,
+      unpaidSales: financial ? unpaidCompleted.length : null,
+      pendingReservations,
+      pendingPosClosures: (dailySessionsResult.data ?? []).filter((session) => session.status === "pending_close").length,
+      lastWeekDate: previousWeekDate,
+      comparisonAvailable: todayIsCurrent && previousWeekTotal > 0,
+      salesPreviousWeekSameHour: financial && todayIsCurrent ? previousWeekTotal : null,
+      salesTodaySameHour: financial && todayIsCurrent ? todaySameHourTotal : null,
+      updatedAt: now.toISOString(),
+      branches: financial
+        ? [...reconciliation.values()].map((branch) => ({
+            id: branch.id,
+            name: branch.branchName,
+            sales: branch.realSales,
+            collected: branch.collectedToday,
+            services: branch.servicesDone,
+            sessionStatus: branch.statuses.includes("open") ? "open" : branch.statuses.includes("pending_close") ? "pending_close" : branch.statuses.includes("closed") ? "closed" : "without_session",
+          }))
+        : [],
+    },
+    topServices: [...topServices.values()].sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name, "es")).slice(0, 3),
     paymentMethods: financial
       ? [...paymentTotals.values()]
           .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "es"))
